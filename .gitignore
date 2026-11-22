@@ -1,0 +1,20 @@
+node_modules/
+.next/
+out/
+coverage/
+playwright-report/
+test-results/
+next-env.d.ts
+*.tsbuildinfo
+*.log
+.env*
+!.env.example
+.vercel/
+supabase/.temp/
+supabase/.branches/
+
+# Internal planning documents can contain real trip details.
+/docs/
+/reference/
+/AGENTS.md
+/CODEX_PHASE_01_PROMPT.md

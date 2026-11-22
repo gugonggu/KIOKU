@@ -1,0 +1,32 @@
+import { redirect } from "next/navigation";
+import { Brand } from "@/components/brand";
+import { Cover } from "@/components/cover";
+import { getVerifiedUserId } from "@/lib/auth";
+import { getAuthConfig } from "@/lib/auth-config";
+import { LoginForm } from "./login-form";
+
+export const metadata = { title: "로그인" };
+
+export default async function LoginPage({ searchParams }: PageProps<"/login">) {
+  const { notice } = await searchParams;
+  if (await getVerifiedUserId()) redirect("/trips");
+
+  return (
+    <div className="safe-page login-page">
+      <header className="login-header"><Brand /></header>
+      <main id="main-content" className="login-grid" tabIndex={-1}>
+        <Cover />
+        <section className="login-content" aria-labelledby="login-heading">
+          <div className="login-inner">
+            <h1 id="login-heading">로그인</h1>
+            <p className="intro">내 일본 여행 수첩을 열어 보세요.<br />등록된 이메일로 로그인 링크를 보내 드려요.</p>
+            {notice === "link" && (
+              <p className="notice notice-error" role="alert">링크가 만료되었거나 사용할 수 없어요. 새 로그인 링크를 요청해 주세요.</p>
+            )}
+            <LoginForm configured={Boolean(getAuthConfig())} />
+          </div>
+        </section>
+      </main>
+    </div>
+  );
+}
