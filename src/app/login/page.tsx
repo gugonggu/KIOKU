@@ -21,7 +21,10 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
             <h1 id="login-heading">로그인</h1>
             <p className="intro">내 일본 여행 수첩을 열어 보세요.<br />등록된 이메일로 로그인 링크를 보내 드려요.</p>
             {notice === "link" && (
-              <p className="notice notice-error" role="alert">링크가 만료되었거나 사용할 수 없어요. 새 로그인 링크를 요청해 주세요.</p>
+              <p className="notice notice-error" role="alert">
+                <strong>로그인 링크를 사용할 수 없어요.</strong>
+                <span>새 로그인 링크를 요청해 주세요. 링크를 요청한 브라우저에서 가장 최근 메일의 링크를 열어 주세요.</span>
+              </p>
             )}
             <LoginForm configured={Boolean(getAuthConfig())} />
           </div>

@@ -19,7 +19,7 @@ export async function createTripsDatabase() {
       grant usage on schema auth to authenticated;
     `);
     await database.query("insert into auth.users (id) values ($1), ($2)", [ownerA, ownerB]);
-    const migration = await readFile("supabase/migrations/20261122000000_create_trips.sql", "utf8");
+    const migration = await readFile("supabase/migrations/20261122073111_create_trips.sql", "utf8");
     await database.exec(migration);
     return database;
   } catch (error) {

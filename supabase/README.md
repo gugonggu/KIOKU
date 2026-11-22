@@ -1,6 +1,6 @@
 # M1 여행 데이터베이스
 
-[`20261122000000_create_trips.sql`](migrations/20261122000000_create_trips.sql)은 `public.trips`, 소유자별 RLS, 필드별 쓰기 권한, 수정 버전 트리거를 한 트랜잭션으로 추가합니다. 기존 Supabase Auth의 `auth.users`, `auth.uid()`, `auth.jwt()`를 사용합니다.
+[`20261122073111_create_trips.sql`](migrations/20261122073111_create_trips.sql)은 `public.trips`, 소유자별 RLS, 필드별 쓰기 권한, 수정 버전 트리거를 한 트랜잭션으로 추가합니다. 기존 Supabase Auth의 `auth.users`, `auth.uid()`, `auth.jwt()`를 사용합니다. 파일 버전은 KIOKU 테스트 DB의 적용 이력과 일치합니다.
 
 ## 적용
 

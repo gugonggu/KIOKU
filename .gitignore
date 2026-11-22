@@ -9,6 +9,9 @@ next-env.d.ts
 *.log
 .env*
 !.env.example
+/env.local
+/.kioku-local-backups/
+/.claude/settings.local.json
 .vercel/
 supabase/.temp/
 supabase/.branches/
@@ -16,5 +19,4 @@ supabase/.branches/
 # Internal planning documents can contain real trip details.
 /docs/
 /reference/
-/AGENTS.md
 /CODEX_PHASE_01_PROMPT.md

@@ -15,6 +15,28 @@ npm run dev
 
 여행 저장을 사용하려면 아래 인증 설정과 [M1 마이그레이션](supabase/README.md)을 같은 Supabase 인스턴스에 적용합니다.
 
+## 집과 회사 PC에서 이어서 개발하기
+
+두 PC에서 같은 GitHub 저장소와 작업 브랜치를 사용합니다. 다른 PC로 옮기기 전에 `git status`를 확인하고, 이어서 작업할 변경은 검토한 뒤 커밋하여 프로젝트 소유자가 GitHub에 반영합니다. 새 PC에서는 저장소를 클론하거나 기존 체크아웃을 빠른 병합으로 갱신합니다(`git pull --ff-only`). Codex와 Claude Code는 PC별로 로그인하고, [공통 작업 규칙](AGENTS.md)과 Git 이력을 읽은 뒤 작업을 시작합니다.
+
+볼트에서는 환경 파일을 `KIOKU/env/env.local`로 보관합니다. Obsidian에서 `설정 → 파일 및 링크 → 모든 파일 유형 표시`를 켜고, Google Drive Sync의 수동 전송 목록에 `KIOKU/env/env.local`이 표시되는지 확인합니다. 회사 PC에서는 같은 옵션을 켜고 사용자가 수동으로 가져옵니다. 볼트의 `README.md`와 `MANIFEST.md`도 함께 전송합니다. [Google Drive Sync 플러그인 안내](https://github.com/RichardX366/Obsidian-Google-Drive#notes)
+
+Obsidian 볼트의 루트 경로를 현재 PowerShell 세션에 지정합니다. 다음 명령은 저장소 루트에서 실행합니다. `-VaultRoot`를 직접 넘기면 환경변수보다 우선합니다.
+
+```powershell
+$env:KIOKU_VAULT_ROOT = '<이 PC의 Obsidian 볼트 루트>'
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\sync-local-files.ps1 -Direction Import -DryRun
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\sync-local-files.ps1 -Direction Import
+npm ci
+npm run dev
+```
+
+Windows PowerShell 5.1에서 위 `-ExecutionPolicy Bypass`는 해당 자식 프로세스에만 적용됩니다. 회사 정책이 우선하며, 정책상 허용된 방법으로 실행합니다. 홈 PC의 확인 버전은 Node.js `24.11.1`, npm `11.6.2`입니다. `npm ci`는 저장소의 잠금 파일에 맞춰 의존성을 설치합니다.
+
+설정을 수정한 PC에서는 같은 명령의 방향을 `Export`로 바꾸어 미리 본 후 내보냅니다. 스크립트는 저장소 루트의 `.env.local`과 볼트의 `KIOKU/env/env.local`을 비교합니다. 같은 파일은 건너뛰고, 내용이 다르면 중단합니다. 원본 방향을 확인한 뒤 `-Force`를 추가하면 기존 대상이 대상 쪽 `.kioku-local-backups` 폴더에 백업됩니다. `-DryRun -Force`로 덮어쓰기와 백업 위치를 함께 확인할 수 있습니다. 교체 백업은 각 PC에서 관리합니다.
+
+Git에는 소스, 마이그레이션, 테스트, 비밀값 없는 `.env.example`, 복사 스크립트와 공통 규칙을 보관합니다. 실제 여행 정보가 포함될 수 있는 내부 `docs/` 및 `reference/` 원본은 기존 로컬 보관을 사용합니다. 작업을 이어 받을 때 관련 내부 요구사항이 필요하면 프로젝트 소유자에게 확인합니다.
+
 ## Supabase 이메일 로그인 설정
 
 1. `Copy-Item .env.example .env.local`로 로컬 설정 파일을 만들고 아래 값을 입력합니다.
@@ -26,16 +48,12 @@ npm run dev
    | `SUPABASE_PUBLISHABLE_KEY` | 프로젝트의 Publishable 키(`sb_publishable_…`) |
 
 2. Supabase **Authentication → URL Configuration**에서 Site URL을 `APP_URL`과 맞추고 Redirect URLs에 `http://localhost:3000/auth/confirm`을 추가합니다. 브라우저 주소가 다르면 `APP_URL`과 허용 목록에도 같은 오리진을 사용합니다.
-3. **Authentication → Email Templates → Magic Link**에서 링크를 아래 토큰 해시 템플릿으로 설정합니다.
-
-   ```html
-   <a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&amp;type=email">KIOKU 로그인</a>
-   ```
+3. Supabase 기본 매직 링크 템플릿은 그대로 사용할 수 있습니다. 기본 링크는 PKCE 방식이므로 요청을 시작한 브라우저에서 가장 최근 이메일의 링크를 엽니다. 신규 Free 프로젝트가 기본 SMTP를 쓰면 템플릿 수정이 제한되고 조직 팀 이메일로만 발송할 수 있습니다. 이미 커스텀 SMTP와 토큰 해시 템플릿을 쓰고 있다면 기존 `/auth/confirm`의 `token_hash`와 `type=email` 흐름도 지원합니다.
 
 4. **Authentication → Users**에서 본인 테스트 계정을 사전에 등록하고 Email 제공자 및 SMTP 발신 설정을 확인합니다. 링크 요청에서 자동 가입을 끕니다.
 5. 개발 서버를 재시작한 뒤 이메일을 제출합니다. 받은 링크를 열면 서버에서 검증하고 `/trips`로 이동합니다. 여행 메뉴에서 로그아웃한 뒤 `/trips` 재접근이 차단되는지 확인합니다.
 
-`.env.local`에 서비스 역할 키를 넣을 필요가 없습니다. 앱은 서버에서 Supabase 토큰을 검증하고, HTTPS에서 Secure 속성을 적용한 HttpOnly 쿠키를 사용합니다. 배포 환경에서 인증 확인 경로의 쿼리 문자열과 쿠키가 프록시 또는 접근 로그에 수집되지 않도록 설정합니다. Supabase 기본 메일의 수신자 및 발신 한도와 SMTP 링크 추적 설정은 실제 프로젝트에서 확인합니다.
+`.env.local`에 서비스 역할 키를 넣을 필요가 없습니다. 앱은 서버에서 Supabase 토큰을 검증하고, HTTPS에서 Secure 속성을 적용한 HttpOnly 쿠키를 사용합니다. 배포 환경에서 인증 확인 경로의 쿼리 문자열과 쿠키가 프록시 또는 접근 로그에 수집되지 않도록 설정합니다. 메일 보안 프로그램이 링크를 먼저 열면 1회용 링크가 소비될 수 있습니다. 이 경우 새 링크를 요청하고, 커스텀 SMTP의 링크 추적 기능도 확인합니다.
 
 [Supabase SSR 설정](https://supabase.com/docs/guides/auth/server-side/creating-a-client?framework=nextjs&queryGroups=framework) · [매직 링크와 이메일 템플릿](https://supabase.com/docs/guides/auth/auth-email-passwordless) · [SMTP 설정](https://supabase.com/docs/guides/auth/auth-smtp)
 
@@ -46,6 +64,7 @@ npm run lint
 npm run typecheck
 npm run test:unit
 npm run test:db
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\sync-local-files.test.ps1
 npm run build
 npx playwright install chromium
 npm test
@@ -61,6 +80,7 @@ Playwright는 위 빌드를 사용하여 루프백 포트 3100~3102에서 앱과
 | `npm run lint` / `npm run typecheck` | ESLint 및 TypeScript 검사 |
 | `npm run test:unit` | 여행 양식 검증, 날짜와 일본 현지 상태 계산 |
 | `npm run test:db` | 마이그레이션, 소유자 격리, 제약 조건과 중복 저장 방지 |
+| `tests/sync-local-files.test.ps1` | 임시 체크아웃과 볼트로 설정 내보내기·복원, 미리보기, 충돌 및 백업 검사 |
 | `npm test` | 브라우저에서 인증, 여행 생성·편집·삭제와 오류 복구 검증 |
 
 ## 기술 구성

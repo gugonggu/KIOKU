@@ -1,4 +1,4 @@
-import { generateKeyPairSync, sign } from "node:crypto";
+import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { expect, test } from "@playwright/test";
 import { asUser, createTripsDatabase, ownerA, ownerB } from "./support/trips-db.mjs";
@@ -10,6 +10,7 @@ let provider: Server;
 let releaseEmailRequest: (() => void) | undefined;
 let database: Awaited<ReturnType<typeof createTripsDatabase>>;
 let failNextTripRead = false;
+let pkceChallenge: string | undefined;
 
 test.beforeAll(async () => {
   const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
@@ -29,9 +30,23 @@ test.beforeAll(async () => {
       for await (const chunk of request) chunks.push(chunk);
       return JSON.parse(Buffer.concat(chunks).toString());
     };
+    const sendSession = (user: { id: string; email: string }) => {
+      const payload = encode({
+        sub: user.id, aud: "authenticated", role: "authenticated", aal: "aal1",
+        exp: Math.floor(Date.now() / 1000) + 3600, iss: `${providerUrl}/auth/v1`,
+      });
+      const unsigned = `${encode({ alg: "ES256", kid })}.${payload}`;
+      const signature = sign("sha256", Buffer.from(unsigned), { key: privateKey, dsaEncoding: "ieee-p1363" });
+      const accessToken = `${unsigned}.${signature.toString("base64url")}`;
+      issuedTokens.set(accessToken, user.id);
+      return send(200, {
+        access_token: accessToken,
+        refresh_token: "fixture-refresh", expires_in: 3600, token_type: "bearer", user,
+      });
+    };
 
     if (request.method === "POST" && url.pathname === "/auth/v1/otp") {
-      const { email, create_user } = await readJson();
+      const { email, create_user, code_challenge, code_challenge_method } = await readJson();
       if (email === "busy@example.test") {
         return send(429, { code: "over_email_send_rate_limit", message: "fixture rate limit" });
       }
@@ -42,6 +57,8 @@ test.beforeAll(async () => {
         await new Promise<void>((resolve) => {
           releaseEmailRequest = resolve;
         });
+      } else if (email === "pkce@example.test" && code_challenge && code_challenge_method === "s256") {
+        pkceChallenge = code_challenge;
       } else if (email !== testEmail) {
         return send(400, { code: "unexpected_request", message: "fixture address mismatch" });
       }
@@ -56,18 +73,17 @@ test.beforeAll(async () => {
       const user = token_hash === "local-fixture-link"
         ? { id: ownerA, email: testEmail }
         : { id: ownerB, email: "second@example.test" };
-      const payload = encode({
-        sub: user.id, aud: "authenticated", role: "authenticated", aal: "aal1",
-        exp: Math.floor(Date.now() / 1000) + 3600, iss: `${providerUrl}/auth/v1`,
-      });
-      const unsigned = `${encode({ alg: "ES256", kid })}.${payload}`;
-      const signature = sign("sha256", Buffer.from(unsigned), { key: privateKey, dsaEncoding: "ieee-p1363" });
-      const accessToken = `${unsigned}.${signature.toString("base64url")}`;
-      issuedTokens.set(accessToken, user.id);
-      return send(200, {
-        access_token: accessToken,
-        refresh_token: "fixture-refresh", expires_in: 3600, token_type: "bearer", user,
-      });
+      return sendSession(user);
+    }
+
+    if (request.method === "POST" && url.pathname === "/auth/v1/token" && url.searchParams.get("grant_type") === "pkce") {
+      const { auth_code, code_verifier } = await readJson();
+      const challenge = typeof code_verifier === "string" && createHash("sha256").update(code_verifier).digest("base64url");
+      if (auth_code !== "fixture-issued-code" || !pkceChallenge || challenge !== pkceChallenge) {
+        return send(400, { code: "bad_code_verifier", message: "fixture invalid or consumed code" });
+      }
+      pkceChallenge = undefined;
+      return sendSession({ id: ownerA, email: "pkce@example.test" });
     }
 
     if (url.pathname === "/auth/v1/.well-known/jwks.json") {
@@ -141,6 +157,7 @@ test.beforeAll(async () => {
 
 test.beforeEach(async () => {
   failNextTripRead = false;
+  pkceChallenge = undefined;
   await database.exec("truncate table public.trips");
 });
 
@@ -178,6 +195,36 @@ test("the login form shows a recoverable error and then acknowledges a request",
 test("an expired test link shows a retry prompt", async ({ page }) => {
   await page.goto("/auth/confirm?type=email&token_hash=expired-fixture");
   await expect(page.getByRole("main").getByRole("alert")).toContainText("새 로그인 링크를 요청해 주세요");
+});
+
+test("a default-template PKCE code requires the request browser and works only once", async ({ page, context, browser }) => {
+  await page.goto("/login");
+  await page.getByLabel("이메일 주소").fill("pkce@example.test");
+  await page.getByRole("button", { name: "로그인 링크 받기" }).click();
+  await expect(page.getByRole("status")).toContainText("받은편지함");
+
+  const callback = `${appUrl}/auth/confirm?code=fixture-issued-code`;
+  const otherBrowser = await browser.newContext();
+  try {
+    const wrongBrowser = await otherBrowser.request.get(callback, { maxRedirects: 0 });
+    expect(wrongBrowser.headers().location).toBe("/login?notice=link");
+  } finally {
+    await otherBrowser.close();
+  }
+
+  await page.goto(callback);
+  await expect(page).toHaveURL(/\/trips$/);
+  await expect(page.getByRole("heading", { name: "내 여행" })).toBeVisible();
+  const repeated = await context.request.get(callback, { maxRedirects: 0 });
+  expect(repeated.headers().location).toBe("/login?notice=link");
+});
+
+test("an email link consumed before the callback guides the visitor to request a new link", async ({ page }) => {
+  await page.goto("/auth/confirm#error_code=otp_expired");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("링크를 요청한 브라우저에서");
+  await page.getByLabel("이메일 주소").fill("pkce@example.test");
+  await page.getByRole("button", { name: "로그인 링크 받기" }).click();
+  await expect(page.getByRole("status")).toContainText("받은편지함");
 });
 
 test("sending a link announces the pending state and prevents a second submission on mobile", async ({ page }) => {
