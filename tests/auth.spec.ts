@@ -1,10 +1,10 @@
 import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { expect, test } from "@playwright/test";
+import { e2eHost, e2ePorts, e2eUrls } from "./support/e2e-ports";
 import { asUser, createTripsDatabase, ownerA, ownerB } from "./support/trips-db.mjs";
 
-const appUrl = "http://127.0.0.1:3101";
-const providerUrl = "http://127.0.0.1:3102";
+const { configured: appUrl, provider: providerUrl } = e2eUrls;
 const testEmail = "traveler@example.test";
 let provider: Server;
 let releaseEmailRequest: (() => void) | undefined;
@@ -151,7 +151,7 @@ test.beforeAll(async () => {
   });
 
   await new Promise<void>((resolve, reject) => {
-    provider.once("error", reject).listen(3102, "127.0.0.1", resolve);
+    provider.once("error", reject).listen(e2ePorts.provider, e2eHost, resolve);
   });
 });
 

@@ -37,6 +37,10 @@ Windows PowerShell 5.1에서 위 `-ExecutionPolicy Bypass`는 해당 자식 프�
 
 Git에는 소스, 마이그레이션, 테스트, 비밀값 없는 `.env.example`, 복사 스크립트와 공통 규칙을 보관합니다. 실제 여행 정보가 포함될 수 있는 내부 `docs/` 및 `reference/` 원본은 기존 로컬 보관을 사용합니다. 작업을 이어 받을 때 관련 내부 요구사항이 필요하면 프로젝트 소유자에게 확인합니다.
 
+Windows에서 `listen EACCES`로 개발 서버가 시작되지 않으면 `netsh interface ipv4 show excludedportrange protocol=tcp`로 예약된 포트를 확인합니다. 회사 PC에서 3000번이 예약되어 있으면 `npm run dev -- --port 4000`으로 실행하고 해당 PC의 `APP_URL`을 브라우저에서 여는 주소에 맞춥니다. 매직 링크를 사용하려면 Supabase **Authentication → URL Configuration → Redirect URLs**에 `http://localhost:4000/auth/confirm`을 추가합니다. 집 PC가 3000번을 사용하면 기존 Site URL과 콜백 허용 항목을 유지합니다.
+
+회사 PC에서 로컬 포트를 바꾼 `.env.local`은 볼트로 내보내지 않습니다. 볼트에서 다시 가져오면 회사 PC의 `APP_URL`을 다시 맞춰야 합니다.
+
 ## Supabase 이메일 로그인 설정
 
 1. `Copy-Item .env.example .env.local`로 로컬 설정 파일을 만들고 아래 값을 입력합니다.
@@ -70,7 +74,18 @@ npx playwright install chromium
 npm test
 ```
 
-Playwright는 위 빌드를 사용하여 루프백 포트 3100~3102에서 앱과 테스트용 인증·데이터 API를 실행합니다. 테스트용 API는 실제 마이그레이션을 적용한 인메모리 PostgreSQL(PGlite)을 사용합니다. 설치된 Chrome을 사용하려면 PowerShell에서 `$env:PLAYWRIGHT_CHANNEL = "chrome"`을 설정한 뒤 `npm test`를 실행합니다. 호스팅된 Supabase의 메일 수신과 PostgREST 설정은 연결 후 별도로 확인합니다.
+Playwright는 위 빌드를 사용하여 기본 루프백 포트 3100~3102에서 앱과 테스트용 인증·데이터 API를 실행합니다. 테스트용 API는 실제 마이그레이션을 적용한 인메모리 PostgreSQL(PGlite)을 사용합니다. 기본 포트가 예약되어 있으면 사용 가능한 연속 포트 세 개의 시작 번호를 PowerShell에서 지정합니다. 회사 PC 예시는 4100~4102를 사용합니다.
+
+```powershell
+npm run build
+$env:PLAYWRIGHT_BASE_PORT = '4100'
+npm test
+Remove-Item Env:PLAYWRIGHT_BASE_PORT
+```
+
+설치된 Chrome을 사용하려면 PowerShell에서 `$env:PLAYWRIGHT_CHANNEL = "chrome"`을 설정한 뒤 `npm test`를 실행합니다. 호스팅된 Supabase의 메일 수신과 PostgREST 설정은 연결 후 별도로 확인합니다.
+
+2026-11-23 회사 PC에서 대체 포트로 Playwright 20건이 통과했습니다. Supabase 대시보드에서 4000번 콜백을 등록했고, Chrome에서 실제 매직 링크로 `/trips`에 진입한 뒤 로그아웃했습니다. 로그아웃 후 `/trips`에 다시 접속하면 `/login`으로 이동하는 것을 확인했습니다.
 
 | 명령 | 용도 |
 | --- | --- |
