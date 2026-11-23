@@ -12,11 +12,16 @@ import { MapCanvas, mapLatitudeLimit, type MapPin } from "./map-canvas";
 
 const filters: [PlaceFilter, string][] = [["all", "전체"], ["date", "날짜별"], ["candidates", "후보 장소"]];
 
+function hasCoordinates({ latitude, longitude }: PlanPlace) {
+  return latitude !== null && longitude !== null;
+}
+
 export function PlacesView({ places, links, tripId, date, filter, initialPlace, itineraryDate, dayPicker }: {
   places: PlanPlace[]; links: PlaceLink[]; tripId: string; date: string; filter: PlaceFilter; initialPlace?: string;
   itineraryDate: string | null; dayPicker?: ReactNode;
 }) {
   const [selected, setSelected] = useState(initialPlace);
+  const [nearbyPins, setNearbyPins] = useState<MapPin[]>([]);
   const [view, setView] = useState<"list" | "map">(initialPlace ? "map" : "list");
   const [find, setFind] = useState("");
   const [copyMessage, setCopyMessage] = useState("");
@@ -44,9 +49,10 @@ export function PlacesView({ places, links, tripId, date, filter, initialPlace, 
   const scheduleHref = item && `${itineraryHref(tripId, filter === "date" ? date : itineraryDate, "add", undefined,
     !itineraryDate && filter !== "date")}&place=${item.id}`;
 
-  function select(id: string) {
+  function select(id?: string, nearby: MapPin[] = []) {
     setCopyMessage("");
     setSelected(id);
+    setNearbyPins(nearby);
   }
   async function copy(value: string) {
     try {
@@ -89,6 +95,7 @@ export function PlacesView({ places, links, tripId, date, filter, initialPlace, 
             <span className="place-card-copy">
               <strong>{place.display_name}</strong>
               <span>{place.address_ja || place.address_text || "주소 미정"}</span>
+              {!pin && <span className="place-pin-status">{hasCoordinates(place) ? "지도 범위 밖" : "좌표 없음"}</span>}
             </span>
             <span className="place-card-meta">{count ? `일정 ${count}` : "일정 없음"}</span>
           </button>
@@ -109,7 +116,7 @@ export function PlacesView({ places, links, tripId, date, filter, initialPlace, 
             <h2>{item.display_name}</h2>
             {names.length > 0 && <p className="plan-meta">{names.join(" · ")}</p>}
           </div>
-          <button type="button" className="editorial-icon-button" aria-label="선택 닫기" onClick={() => setSelected(undefined)}>
+          <button type="button" className="editorial-icon-button" aria-label="선택 닫기" onClick={() => select()}>
             <X size={19} aria-hidden />
           </button>
         </header>
@@ -117,8 +124,8 @@ export function PlacesView({ places, links, tripId, date, filter, initialPlace, 
           {item.address_text && <p>{item.address_text}</p>}
           {item.address_ja && item.address_ja !== item.address_text && <p lang="ja">{item.address_ja}</p>}
           {!address && <p className="plan-meta">주소 미정</p>}
-          {item.latitude === null && <p className="plan-meta">좌표가 없어 지도에 핀이 표시되지 않아요.</p>}
-          {item.latitude !== null && !number && <p className="plan-meta">이 좌표는 지도 표시 범위 밖이에요.</p>}
+          {!hasCoordinates(item) && <p className="plan-meta">좌표가 없어 지도에 핀이 표시되지 않아요.</p>}
+          {hasCoordinates(item) && !number && <p className="plan-meta">이 좌표는 지도 표시 범위 밖이에요.</p>}
           {item.notes && <p className="plan-notes">{item.notes}</p>}
           <p className="plan-meta">{linked ? `연결된 일정 ${linked}개` : "아직 연결된 일정이 없어요."}</p>
         </div>
@@ -133,6 +140,15 @@ export function PlacesView({ places, links, tripId, date, filter, initialPlace, 
             <MapIcon size={16} aria-hidden /><span>지도에서 보기</span></button>}
         </div>
         {copyMessage && <p className="plan-meta" role="status">{copyMessage}</p>}
+        {nearbyPins.length > 1 && <div className="place-nearby" role="group" aria-label="가까운 지도 핀">
+          <p className="plan-meta">가까운 지도 핀</p>
+          <div className="place-nearby-options">
+            {nearbyPins.map(({ id, label, number }) => <button key={id} type="button" className="quiet-link"
+              aria-pressed={id === selected} onClick={() => select(id, nearbyPins)}>
+              <span>{number}</span> {label}
+            </button>)}
+          </div>
+        </div>}
         <footer className="place-detail-manage">
           <Link className="quiet-link" href={mapHref(tripId, { date, place: item.id, mode: "edit" })} scroll={false}>장소 수정</Link>
           <Link className="quiet-link danger-link" href={mapHref(tripId, { date, place: item.id, mode: "delete" })} scroll={false}>장소 삭제</Link>

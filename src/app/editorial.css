@@ -370,6 +370,7 @@ body:has(.editorial-dialog[open]) { overflow: hidden; }
 .place-card-copy { display: grid; gap: 2px; min-width: 0; }
 .place-card-copy strong { font-weight: 750; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .place-card-copy span { font-size: .8rem; color: var(--color-muted-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.place-card-copy .place-pin-status { font-weight: 700; }
 .place-card-meta { font-size: .72rem; white-space: nowrap; border-radius: 999px; padding: 2px 8px; background: var(--ed-peach); color: #513c30; }
 .places-empty { display: grid; justify-items: center; gap: 6px; text-align: center; padding: 18px 8px; }
 .places-empty-sprig { width: 92px; opacity: .7; }
@@ -378,6 +379,7 @@ body:has(.editorial-dialog[open]) { overflow: hidden; }
 .places-page .place-map { gap: 6px; }
 .places-page .place-map-viewport { border-radius: 18px; border-color: var(--ed-line); box-shadow: var(--ed-shadow); background: #e8ebe3; }
 .places-page .place-map-footer p { font-size: .72rem; }
+.places-page .place-map-footer a { white-space: nowrap; }
 .place-map-locate {
   position: absolute; z-index: 2; top: 84px; right: 10px; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 13px;
   border: 1px solid var(--ed-line); border-radius: 999px; background: var(--ed-paper); color: #2f5641; font-size: .82rem; font-weight: 700;
@@ -400,6 +402,10 @@ body:has(.editorial-dialog[open]) { overflow: hidden; }
 .place-detail-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
 .place-detail-actions .primary-button { gap: 6px; border-radius: 11px; }
 .place-detail-actions .quiet-link { gap: 5px; font-size: .86rem; }
+.place-nearby { display: grid; gap: 4px; min-width: 0; }
+.place-nearby-options { display: flex; gap: 4px; overflow-x: auto; }
+.place-nearby-options .quiet-link { flex: none; max-width: 100%; min-height: 44px; gap: 5px; border: 1px solid var(--ed-line); font-size: .78rem; overflow-wrap: anywhere; }
+.place-nearby-options .quiet-link[aria-pressed="true"] { background: var(--ed-sage); border-color: #829983; }
 .place-detail-manage { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; border-block-start: 1px solid var(--ed-line); padding-top: 4px; }
 .place-detail-manage .quiet-link { font-size: .84rem; }
 .place-detail-manage .plan-meta { margin-inline-start: auto; font-size: .74rem; }
@@ -437,12 +443,16 @@ body:has(.editorial-dialog[open]) { overflow: hidden; }
   .places-shell[data-view="map"] .places-list-panel { display: none; }
   .places-shell[data-selected] { padding-bottom: 250px; }
   .places-shell[data-view="map"][data-selected] { padding-bottom: 0; }
-  .places-page .place-map-viewport { height: max(300px, calc(100dvh - 322px - env(safe-area-inset-bottom))); }
+  .places-page .place-map-viewport { height: max(300px, calc(100dvh - 346px - env(safe-area-inset-bottom))); }
   .place-map-toast { inset: 10px 62px auto 10px; }
   .place-detail {
     position: fixed; z-index: 6; inset: auto max(8px, env(safe-area-inset-right)) calc(62px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
     max-height: min(56dvh, 420px); overflow-y: auto; overscroll-behavior: contain; border-radius: 18px; padding: 14px 14px 10px;
     box-shadow: 0 -8px 30px #2d23192e;
+  }
+  /* Leave room for the map heading and credits on short phones. */
+  .places-shell[data-view="map"] .place-detail {
+    max-height: min(56dvh, 420px, max(120px, calc(100dvh - 370px - env(safe-area-inset-bottom))));
   }
   .place-detail h2 { font-size: 1.15rem; }
 }
@@ -455,6 +465,7 @@ body:has(.editorial-dialog[open]) { overflow: hidden; }
   .places-shell { grid-template-columns: minmax(300px, 360px) minmax(0, 1fr); align-items: start; gap: 22px; }
   .places-view-toggle, .place-detail-map { display: none; }
   .places-list-panel { max-height: clamp(560px, calc(100dvh - 190px), 900px); overflow-y: auto; scrollbar-width: thin; }
+  .places-page .place-map-footer { order: 1; }
   .places-page .place-map-viewport { height: clamp(520px, calc(100dvh - 230px), 860px); }
   .place-detail {
     position: absolute; z-index: 3; top: 14px; left: 14px; width: min(370px, calc(100% - 100px)); max-height: calc(100% - 70px);

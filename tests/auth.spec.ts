@@ -912,6 +912,16 @@ test("editorial places workspace keeps list, map and selection in sync on deskto
   const list = page.getByRole("region", { name: "저장된 장소" });
   const detail = page.getByRole("article", { name: "선택한 장소" });
   const pin = (name: string) => page.getByRole("button", { name: `지도 핀: ${name}` });
+  const checkMapCredits = async () => {
+    const sheet = (await detail.boundingBox())!;
+    for (const name of ["OpenFreeMap", "© OpenMapTiles", "© OpenStreetMap"]) {
+      const attribution = page.getByRole("link", { name, exact: true });
+      await expect(attribution).toBeInViewport({ ratio: 1 });
+      const credit = (await attribution.boundingBox())!;
+      expect(credit.y + credit.height).toBeLessThanOrEqual(sheet.y);
+      await attribution.click({ trial: true, timeout: 1500 });
+    }
+  };
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${trip}/itinerary?date=2027-02-17`);
@@ -920,7 +930,13 @@ test("editorial places workspace keeps list, map and selection in sync on deskto
   await expect(list.getByRole("button")).toHaveCount(2);
   await list.getByRole("link", { name: "전체" }).click();
   await expect(list.getByRole("button")).toHaveCount(5);
-  await expect(list.getByRole("button", { name: /수프카레 가게 후보/ })).toContainText("주소 미정");
+  const unpinnedPlace = list.getByRole("button", { name: /수프카레 가게 후보/ });
+  await expect(unpinnedPlace).toContainText("주소 미정");
+  await expect(unpinnedPlace).toContainText("좌표 없음");
+  await unpinnedPlace.click();
+  await expect(detail.getByText("좌표가 없어 지도에 핀이 표시되지 않아요.")).toBeVisible();
+  await expect(pin("수프카레 가게 후보")).toHaveCount(0);
+  await detail.getByRole("button", { name: "선택 닫기" }).click();
   await expect(pin("오도리 공원")).toBeVisible({ timeout: 12000 });
   await expect(page.locator("button.kioku-map-pin")).toHaveCount(4);
   await capture("places-1440");
@@ -975,10 +991,14 @@ test("editorial places workspace keeps list, map and selection in sync on deskto
     await expect(pin("오도리 공원")).toBeInViewport();
     const marker = (await pin("오도리 공원").boundingBox())!;
     expect(marker.y + marker.height).toBeLessThan((await detail.boundingBox())!.y);
+    await checkMapCredits();
     await capture(`places-map-${width}`);
     await pin("삿포로 TV 타워").click();
     await expect(detail.getByRole("heading", { name: "삿포로 TV 타워" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+    await page.setViewportSize({ width, height: width === 320 ? 568 : 650 });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await checkMapCredits();
   }
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -1004,4 +1024,30 @@ test("editorial places workspace keeps list, map and selection in sync on deskto
   await capture("places-map-failed-390");
   await page.getByRole("button", { name: "목록", exact: true }).click();
   await expect(list.getByRole("button")).toHaveCount(6);
+});
+
+test("editorial map lets users select places with overlapping pins", async ({ page }) => {
+  const trip = await seedFiveDayTrip("가까운 장소 수첩");
+  await asUser(database, ownerA, (tx) => tx.query(`insert into public.trip_places
+    (trip_id,display_name,latitude,longitude) values
+    ($1,'공원 입구',43.0606,141.3488), ($1,'공원 안내소',43.0606,141.3488)`, [trip.split("/").at(-1)]));
+  await page.route(mapStyle, (route) => route.fulfill({ json: testStyle, headers: { "access-control-allow-origin": "*" } }));
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+
+  for (const width of [320, 390, 1440]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto(`${trip}/map`);
+    if (width < 840) await page.getByRole("button", { name: "지도", exact: true }).click();
+    const markers = page.locator(".kioku-map-pin");
+    await expect(markers).toHaveCount(2, { timeout: 12000 });
+    await markers.last().click();
+
+    const detail = page.getByRole("article", { name: "선택한 장소" });
+    const nearby = detail.getByRole("group", { name: "가까운 지도 핀" });
+    for (const name of ["공원 입구", "공원 안내소"]) {
+      await nearby.getByRole("button", { name: new RegExp(name) }).click({ timeout: 2500 });
+      await expect(detail.getByRole("heading", { name })).toBeVisible();
+      await expect(page.getByRole("button", { name: `지도 핀: ${name}` })).toHaveAttribute("aria-pressed", "true");
+    }
+  }
 });

@@ -9,7 +9,9 @@ type GeoPoint = [number, number];
 export const mapLatitudeLimit = 85.051129;
 const styleUrl = "https://tiles.openfreemap.org/styles/liberty";
 
-export function MapCanvas({ pins, selected, onSelect }: { pins: MapPin[]; selected?: string; onSelect: (id: string) => void }) {
+export function MapCanvas({ pins, selected, onSelect }: {
+  pins: MapPin[]; selected?: string; onSelect: (id: string, nearby: MapPin[]) => void;
+}) {
   const container = useRef<HTMLDivElement>(null);
   const [runtime, setRuntime] = useState<{ map: MapLibre; lib: typeof import("maplibre-gl") }>();
   const [status, setStatus] = useState<"loading" | "ready" | "failed">("loading");
@@ -52,7 +54,12 @@ export function MapCanvas({ pins, selected, onSelect }: { pins: MapPin[]; select
       button.dataset.placeId = id;
       button.setAttribute("aria-label", `지도 핀: ${label}`);
       button.textContent = String(number);
-      button.addEventListener("click", () => callback.current(id));
+      button.addEventListener("click", () => {
+        const center = map.project(point);
+        // Pin buttons are 44px wide. Offer a choice when their touch targets can overlap.
+        const nearby = pins.filter((pin) => center.dist(map.project(pin.point)) < 44);
+        callback.current(id, nearby);
+      });
       return new lib.Marker({ element: button, anchor: "center" }).setLngLat(point).addTo(map);
     });
     fit.current = () => {
@@ -133,6 +140,11 @@ export function MapCanvas({ pins, selected, onSelect }: { pins: MapPin[]; select
   }
 
   return <section id="trip-place-map" className="place-map" aria-label="장소 지도">
+    <div className="place-map-footer">
+      <p className="plan-meta">지도 <a href="https://openfreemap.org/" target="_blank" rel="noreferrer">OpenFreeMap</a>
+        {" · "}<a href="https://openmaptiles.org/" target="_blank" rel="noreferrer">© OpenMapTiles</a>
+        {" · "}<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a></p>
+    </div>
     <div className="place-map-viewport" data-map-state={status}>
       <div ref={container} className="place-map-canvas" aria-label="일본 지도" />
       <button type="button" className="place-map-locate" disabled={status !== "ready" || geo?.message === "현재 위치를 확인하는 중이에요."}
@@ -143,11 +155,6 @@ export function MapCanvas({ pins, selected, onSelect }: { pins: MapPin[]; select
         <p>지도를 불러오지 못했어요. 저장된 장소 목록에서 주소와 길찾기를 사용할 수 있어요.</p>
         <button type="button" className="quiet-link" onClick={() => { setRuntime(undefined); setStatus("loading"); setRetry((value) => value + 1); }}>지도 다시 불러오기</button>
       </div>}
-    </div>
-    <div className="place-map-footer">
-      <p className="plan-meta">지도 <a href="https://openfreemap.org/" target="_blank" rel="noreferrer">OpenFreeMap</a>
-        {" · "}<a href="https://openmaptiles.org/" target="_blank" rel="noreferrer">© OpenMapTiles</a>
-        {" · "}<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a></p>
     </div>
   </section>;
 }
