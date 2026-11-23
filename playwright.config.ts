@@ -25,6 +25,7 @@ export default defineConfig({
         APP_URL: e2eUrls.configured,
         SUPABASE_URL: e2eUrls.provider,
         SUPABASE_PUBLISHABLE_KEY: "sb_publishable_e2e_fixture",
+        GEOAPIFY_API_KEY: "",
       },
     },
   ],

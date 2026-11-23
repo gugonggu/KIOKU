@@ -18,6 +18,18 @@ export async function handlePlanRequest({ database, userId, method, url, readJso
     let query: string;
     let args: unknown[];
     switch (url.pathname) {
+      case "/rest/v1/rpc/save_trip_place":
+        query = "select public.save_trip_place($1,$2,$3,$4,$5) as result";
+        args = [body.p_trip,body.p_id,body.p_version,body.p_fields,body.p_confirm];
+        break;
+      case "/rest/v1/rpc/delete_trip_place":
+        query = "select public.delete_trip_place($1,$2,$3,$4) as result";
+        args = [body.p_trip,body.p_id,body.p_version,body.p_expected_count];
+        break;
+      case "/rest/v1/rpc/authorize_place_search":
+        query = "select public.authorize_place_search($1) as result";
+        args = [body.p_trip];
+        break;
       case "/rest/v1/rpc/update_trip_period":
         query = "select public.update_trip_period($1,$2,$3,$4) as result";
         args = [body.p_trip, body.p_version, body.p_fields, body.p_expected === null ? null : JSON.stringify(body.p_expected)];
@@ -52,9 +64,16 @@ export async function handlePlanRequest({ database, userId, method, url, readJso
   const trip = url.searchParams.get("trip_id")?.match(/^eq\.(.+)$/)?.[1];
   if (!trip) return send(400, { message: "fixture trip filter missing" });
   const itinerary = url.pathname === "/rest/v1/itinerary_items";
-  const query = itinerary ? `select id,title,kind,time_mode,local_date::text,fixed_local_time::text,period,place_id,private_note,
-        shared_note,revision,sort_order::float8,archived_date::text from public.itinerary_items where trip_id = $1 order by local_date,id`
-      : "select id,name,address from public.trip_places where trip_id = $1 order by name,id";
+  const columns = url.searchParams.get("select");
+  const query = itinerary
+    ? columns === "place_id,local_date"
+      ? "select place_id,local_date::text from public.itinerary_items where trip_id = $1 and place_id is not null order by id"
+      : `select id,title,kind,time_mode,local_date::text,fixed_local_time::text,period,place_id,private_note,
+          shared_note,revision,sort_order::float8,archived_date::text from public.itinerary_items where trip_id = $1 order by local_date,id`
+    : columns === "id,name:display_name,address:address_text"
+      ? "select id,display_name as name,address_text as address from public.trip_places where trip_id = $1 order by display_name,id"
+      : `select id,display_name,name_ko,name_ja,name_en,address_text,address_ja,latitude,longitude,notes,
+          provider,provider_place_id,content_version from public.trip_places where trip_id = $1 order by display_name,id`;
   const limit = Number(url.searchParams.get("limit") ?? 100);
   const offset = Number(url.searchParams.get("offset") ?? 0);
   const { rows } = await asUser(database, userId, (tx) => tx.query(`${query} limit $2 offset $3`, [trip, limit, offset]));

@@ -32,14 +32,15 @@ function FormFooter({ state, pending, cancel, label, danger }: {
   </>;
 }
 
-export function ScheduleEditor({ action, cancel, item, date, places }: {
+export function ScheduleEditor({ action, cancel, item, date, places, initialPlace }: {
   action: Action; cancel: string; item?: PlanSchedule; date: string | null; places: { id: string; name: string }[];
+  initialPlace?: { id: string; name: string };
 }) {
   const [state, dispatch, pending] = useActionState(action, {});
   const [values, setValues] = useState<Record<string, string>>({
-    title: item?.title ?? "", kind: item?.kind ?? "NOTE", local_date: item ? item.local_date ?? "" : date ?? "",
+    title: item?.title ?? initialPlace?.name ?? "", kind: item?.kind ?? (initialPlace ? "PLACE" : "NOTE"), local_date: item ? item.local_date ?? "" : date ?? "",
     time_mode: item?.time_mode ?? "UNSCHEDULED", fixed_local_time: item?.fixed_local_time?.slice(0, 5) ?? "",
-    period: item?.period ?? "", place_id: item?.place_id ?? "", private_note: item?.private_note ?? "", shared_note: item?.shared_note ?? "",
+    period: item?.period ?? "", place_id: item?.place_id ?? initialPlace?.id ?? "", private_note: item?.private_note ?? "", shared_note: item?.shared_note ?? "",
   });
   const set = (key: string, value: string) => setValues((previous) => ({ ...previous, [key]: value }));
   function field(name: string, label: string, options: React.ComponentProps<"input"> = {}) {
@@ -53,7 +54,7 @@ export function ScheduleEditor({ action, cancel, item, date, places }: {
   return <form className="plan-card" action={dispatch}>
     <fieldset className="plan-fields" disabled={pending}>
       {field("title", "일정 이름", { required: true, maxLength: planLimits.title })}
-      <details open={item ? true : undefined}>
+      <details open={item || initialPlace ? true : undefined}>
         <summary className="quiet-link">일정 상세 설정</summary>
         <div className="plan-fields itinerary-details">
           <div className="plan-pair">

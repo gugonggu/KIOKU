@@ -1,0 +1,120 @@
+"use client";
+
+import type { Map as MapLibre, Marker } from "maplibre-gl";
+import { useEffect, useRef, useState } from "react";
+
+export type MapPin = { id: string; label: string; point: [number, number] };
+type GeoPoint = [number, number];
+export const mapLatitudeLimit = 85.051129;
+const styleUrl = "https://tiles.openfreemap.org/styles/liberty";
+
+export function MapCanvas({ pins, selected, onSelect }: { pins: MapPin[]; selected?: string; onSelect: (id: string) => void }) {
+  const container = useRef<HTMLDivElement>(null);
+  const [runtime, setRuntime] = useState<{ map: MapLibre; lib: typeof import("maplibre-gl") }>();
+  const [status, setStatus] = useState<"loading" | "ready" | "failed">("loading");
+  const [retry, setRetry] = useState(0);
+  const [geo, setGeo] = useState<{ message: string; point?: GeoPoint }>();
+  const callback = useRef(onSelect);
+  const alive = useRef(true);
+  useEffect(() => { callback.current = onSelect; }, [onSelect]);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    let map: MapLibre | undefined;
+    const timeout = setTimeout(() => { if (!cancelled) setStatus("failed"); }, 8000);
+    void import("maplibre-gl").then((lib) => {
+      if (cancelled || !container.current) return;
+      lib.setWorkerUrl(`/map-assets/${lib.getVersion()}/maplibre-gl-worker.mjs`);
+      map = new lib.Map({ container: container.current, style: styleUrl, center: [137.5, 36.2], zoom: 4.3,
+        attributionControl: false, scrollZoom: false, maxZoom: 18 });
+      map.addControl(new lib.NavigationControl({ showCompass: false }), "top-right");
+      map.on("error", () => { if (!cancelled) setStatus("failed"); });
+      map.on("load", () => {
+        clearTimeout(timeout);
+        if (cancelled || !map) return;
+        setRuntime({ map, lib });
+        setStatus("ready");
+      });
+    }).catch(() => { clearTimeout(timeout); if (!cancelled) setStatus("failed"); });
+    return () => { cancelled = true; clearTimeout(timeout); map?.remove(); };
+  }, [retry]);
+
+  useEffect(() => {
+    if (!runtime) return;
+    const { map, lib } = runtime;
+    const markers: Marker[] = pins.map(({ id, label, point }) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "kioku-map-pin";
+      button.dataset.placeId = id;
+      button.setAttribute("aria-label", `지도 핀: ${label}`);
+      button.textContent = "●";
+      button.addEventListener("click", () => callback.current(id));
+      return new lib.Marker({ element: button, anchor: "center" }).setLngLat(point).addTo(map);
+    });
+    if (pins.length === 1) map.jumpTo({ center: pins[0].point, zoom: 13 });
+    if (pins.length > 1) {
+      const bounds = new lib.LngLatBounds();
+      for (const pin of pins) bounds.extend(pin.point);
+      map.fitBounds(bounds, { padding: 44, maxZoom: 13, duration: 0 });
+    }
+    return () => markers.forEach((marker) => marker.remove());
+  }, [runtime, pins]);
+
+  const active = pins.find((pin) => pin.id === selected);
+  useEffect(() => {
+    container.current?.querySelectorAll<HTMLButtonElement>("button.kioku-map-pin").forEach((button) =>
+      button.setAttribute("aria-pressed", String(button.dataset.placeId === selected)));
+    if (runtime && active) runtime.map.jumpTo({ center: active.point, zoom: Math.max(13, runtime.map.getZoom()) });
+  }, [runtime, active, pins, selected]);
+
+  const point = geo?.point;
+  useEffect(() => {
+    if (!runtime || !point) return;
+    const element = document.createElement("span");
+    element.className = "kioku-map-location";
+    element.setAttribute("aria-label", "내 위치");
+    const marker = new runtime.lib.Marker({ element }).setLngLat(point).addTo(runtime.map);
+    runtime.map.jumpTo({ center: point, zoom: 13 });
+    return () => { marker.remove(); };
+  }, [point, runtime]);
+
+  function locate() {
+    if (!navigator.geolocation) {
+      setGeo({ message: "이 브라우저에서는 현재 위치를 사용할 수 없어요. 저장된 장소를 계속 볼 수 있어요." });
+      return;
+    }
+    setGeo({ message: "현재 위치를 확인하는 중이에요." });
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        if (!alive.current) return;
+        setGeo(Math.abs(coords.latitude) <= mapLatitudeLimit
+          ? { message: "현재 위치를 지도에 표시했어요.", point: [coords.longitude, coords.latitude] }
+          : { message: "현재 위치가 지도 표시 범위 밖이에요." });
+      },
+      ({ code }) => { if (alive.current) setGeo({ message: code === 1
+        ? "위치 권한이 허용되지 않았어요. 저장된 장소는 계속 볼 수 있어요."
+        : "현재 위치를 확인하지 못했어요. 저장된 장소는 계속 볼 수 있어요." }); },
+      { enableHighAccuracy: false, timeout: 7000, maximumAge: 0 },
+    );
+  }
+
+  return <section id="trip-place-map" className="place-map" aria-label="장소 지도">
+    <div className="place-map-viewport" data-map-state={status}>
+      <div ref={container} className="place-map-canvas" aria-label="일본 지도" />
+      {status === "loading" && <p className="place-map-overlay notice" role="status">지도를 불러오는 중이에요.</p>}
+      {status === "failed" && <div className="place-map-overlay notice notice-error" role="alert">
+        <p>지도를 불러오지 못했어요. 저장된 장소 목록에서 주소와 길찾기를 사용할 수 있어요.</p>
+        <button type="button" className="quiet-link" onClick={() => { setRuntime(undefined); setStatus("loading"); setRetry((value) => value + 1); }}>지도 다시 불러오기</button>
+      </div>}
+    </div>
+    <div className="place-map-footer">
+      <button type="button" className="quiet-link" disabled={status !== "ready" || geo?.message === "현재 위치를 확인하는 중이에요."} onClick={locate}>내 위치</button>
+      <p className="plan-meta">지도 <a href="https://openfreemap.org/" target="_blank" rel="noreferrer">OpenFreeMap</a>
+        {" · "}<a href="https://openmaptiles.org/" target="_blank" rel="noreferrer">© OpenMapTiles</a>
+        {" · "}<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a></p>
+    </div>
+    {geo && <p className="notice" role="status">{geo.message}</p>}
+  </section>;
+}

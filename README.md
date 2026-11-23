@@ -1,6 +1,6 @@
 # KIOKU — Japan Travel Planner
 
-한국어 사용자를 위한 일본 여행 수첩입니다. 이메일로 로그인해 내 여행을 생성·편집하고, 여행 수첩에서 일본 현지 날짜별 일정과 후보함을 관리할 수 있습니다.
+한국어 사용자를 위한 일본 여행 수첩입니다. 이메일로 로그인해 내 여행을 만들고, 일본 현지 날짜별 일정을 짜고, 방문 장소를 지도와 목록에서 관리할 수 있습니다.
 
 ## 로컬 실행
 
@@ -13,7 +13,7 @@ npm run dev
 
 브라우저에서 [localhost:3000](http://localhost:3000)을 엽니다. Supabase 설정을 생략하면 로그인 화면에서 설정 안내를 볼 수 있습니다. 비로그인 사용자가 `/trips` 또는 `/trips/new`를 열면 `/login`으로 이동합니다.
 
-여행·일정 저장을 사용하려면 아래 인증 설정과 [M1·M2 마이그레이션](supabase/README.md)을 같은 Supabase 인스턴스에 적용합니다.
+여행·일정·장소 저장을 사용하려면 아래 인증 설정과 [M1~M3 마이그레이션](supabase/README.md)을 같은 Supabase 인스턴스에 적용합니다.
 
 ## 집과 회사 PC에서 이어서 개발하기
 
@@ -50,6 +50,7 @@ Windows에서 `listen EACCES`로 개발 서버가 시작되지 않으면 `netsh 
    | `APP_URL` | 브라우저에서 앱을 여는 주소의 오리진. 로컬 예시 `http://localhost:3000` |
    | `SUPABASE_URL` | Supabase 프로젝트 URL |
    | `SUPABASE_PUBLISHABLE_KEY` | 프로젝트의 Publishable 키(`sb_publishable_…`) |
+   | `GEOAPIFY_API_KEY` | 선택 사항. 서버에서만 사용하는 일본 장소 검색 키 |
 
 2. Supabase **Authentication → URL Configuration**에서 Site URL을 `APP_URL`과 맞추고 Redirect URLs에 `http://localhost:3000/auth/confirm`을 추가합니다. 브라우저 주소가 다르면 `APP_URL`과 허용 목록에도 같은 오리진을 사용합니다.
 3. Supabase 기본 매직 링크 템플릿은 그대로 사용할 수 있습니다. 기본 링크는 PKCE 방식이므로 요청을 시작한 브라우저에서 가장 최근 이메일의 링크를 엽니다. 신규 Free 프로젝트가 기본 SMTP를 쓰면 템플릿 수정이 제한되고 조직 팀 이메일로만 발송할 수 있습니다. 이미 커스텀 SMTP와 토큰 해시 템플릿을 쓰고 있다면 기존 `/auth/confirm`의 `token_hash`와 `type=email` 흐름도 지원합니다.
@@ -85,6 +86,8 @@ Remove-Item Env:PLAYWRIGHT_BASE_PORT
 
 설치된 Chrome을 사용하려면 PowerShell에서 `$env:PLAYWRIGHT_CHANNEL = "chrome"`을 설정한 뒤 `npm test`를 실행합니다. 호스팅된 Supabase의 메일 수신과 PostgREST 설정은 연결 후 별도로 확인합니다.
 
+기본 Chrome E2E는 재현 가능한 지도·검색 응답을 사용합니다. 실제 OpenFreeMap 지도까지 확인하려면 동일한 빌드에서 `$env:PLAYWRIGHT_LIVE_MAP = '1'`을 설정한 뒤 `npm test -- --grep 'M3 manually saves'`를 실행합니다. 이 시나리오는 Geoapify 키 없이 실행됩니다.
+
 2026-11-23 회사 PC에서 대체 포트로 Playwright 20건이 통과했습니다. Supabase 대시보드에서 4000번 콜백을 등록했고, Chrome에서 실제 매직 링크로 `/trips`에 진입한 뒤 로그아웃했습니다. 로그아웃 후 `/trips`에 다시 접속하면 `/login`으로 이동하는 것을 확인했습니다.
 
 | 명령 | 용도 |
@@ -100,7 +103,7 @@ Remove-Item Env:PLAYWRIGHT_BASE_PORT
 
 ## 기술 구성
 
-Next.js 16.4.6 App Router, React 19.3.1, TypeScript 6.0.3, Tailwind CSS 4.3.5, shadcn/ui 방식의 로컬 Input, Supabase JS 2.119.2 / SSR 0.12.7, Playwright 1.65.1, PGlite 0.5.17. 버전은 `package.json`과 `package-lock.json`에 고정합니다.
+Next.js 16.4.6 App Router, React 19.3.1, TypeScript 6.0.3, Tailwind CSS 4.3.5, shadcn/ui 방식의 로컬 Input, Supabase JS 2.119.2 / SSR 0.12.7, MapLibre GL JS 6.19.0, Playwright 1.65.1, PGlite 0.5.17. 버전은 `package.json`과 `package-lock.json`에 고정합니다.
 
 `src/app`은 화면과 서버 액션, `src/components`는 공용 UI, `src/lib`는 인증과 설정을 관리합니다. `src/proxy.ts`에서 세션 쿠키를 갱신하며, 보호 페이지도 서버에서 사용자 신원을 확인합니다. 파일과 외부 요청 없이 기본 표지를 그리며, 한글은 시스템 글꼴을 사용합니다.
 
@@ -110,7 +113,10 @@ Next.js 16.4.6 App Router, React 19.3.1, TypeScript 6.0.3, Tailwind CSS 4.3.5, s
 
 - **M2 일정 관리** — 여행 수첩의 **일정 보기**에서 `/trips/[tripId]/itinerary?date=YYYY-MM-DD`를 엽니다. 정확한 시각, 오전·오후·저녁, 시간 미정 일정을 저장하고 날짜 이동, 후보 보관·복원, 같은 그룹 내 순서 변경을 할 수 있습니다. 날짜 없는 후보는 여행 기간 판단에서 제외합니다. 기간 밖 일정은 확인 후 저장하고 별도 영역에서 표시합니다. 여행 기간을 바꾸면 표시 구역이 달라지는 일정의 날짜·개수를 먼저 보여 줍니다.
 - **M2 검증 기록** — 2026-11-23 회사 PC에서 린트·타입 검사·프로덕션 빌드, 단위 6건, PGlite DB 8건, Chrome E2E 23건 통과. Chrome은 `PLAYWRIGHT_BASE_PORT=4100`과 `PLAYWRIGHT_CHANNEL=chrome`을 사용했습니다. M2의 호스팅 Supabase 적용 및 테스트 계정 검증은 승인 후 진행합니다.
-- **M3 장소·지도** — 다음 단계는 `/trips/[tripId]/map`의 장소·지도 UX, Geoapify 검색과 수동 입력 폴백입니다. M2는 이미 등록된 같은 여행의 장소를 연결할 수 있습니다. 예약은 M4에서 추가합니다.
+- **M3 장소·지도** — 여행 수첩의 **장소와 지도**에서 `/trips/[tripId]/map`을 엽니다. 장소를 수동 등록하거나 일본 내 검색 결과를 확인해 저장합니다. 지도와 목록에서 전체·날짜별·후보 장소를 볼 수 있습니다. 후보에는 날짜 없는 일정에 연결된 장소와 아직 어느 일정에도 연결되지 않은 장소가 포함됩니다. 장소를 삭제하면 연결만 해제되며 일정과 메모는 유지됩니다.
+- **M3 검증 기록** — 2026-11-23 회사 PC에서 린트·타입 검사·빌드, 단위 9건, DB 12건, Chrome E2E 26건을 통과했습니다. 별도 Chrome 실행에서 실제 OpenFreeMap 스타일·타일과 핀을 확인했습니다. Geoapify는 요청·응답 단위 테스트와 브라우저 모의 응답으로 검증했습니다.
+- **장소 검색과 지도 운영** — 검색은 두 글자부터 400ms 대기 후 실행하며 사용자당 분당 10회, 프로젝트 전체 UTC 기준 하루 100회까지 외부 요청을 허용합니다. 키 누락, 검색 장애, 지도 장애에도 직접 등록과 저장 목록을 쓸 수 있습니다. **내 위치**를 누를 때만 브라우저에서 위치를 한 번 조회합니다. 좌표 또는 사용 가능한 주소로 Google Maps 길찾기를 엽니다. [Geoapify 검색 API](https://apidocs.geoapify.com/docs/geocoding/address-autocomplete/) · [OpenFreeMap](https://openfreemap.org/quick_start/)
+- **후속 단계** — 실제 Geoapify 키를 설정한 뒤 한국어·일본어·영어 일본 POI의 결과 품질과 계정별 무료 한도를 확인합니다. 호스팅 M2·M3 적용과 두 계정 통합 검증은 승인 후 진행합니다. 예약은 M4에서 추가합니다.
 - **다른 PC에서 이어가기** — 공식 기준은 비공개 킥오프 ZIP의 `docs/01~05`입니다. 기간 밖 정책은 결정 로그 D-017을 참고하세요. `docs/`와 `reference/`는 각 PC에서 별도로 복구하고, Supabase 적용 전 [마이그레이션 이력과 권한 검사](supabase/README.md)를 확인합니다.
 
 ## 목적

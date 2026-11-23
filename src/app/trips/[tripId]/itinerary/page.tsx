@@ -3,11 +3,12 @@ import { ArrowLeft, ArrowRight, CalendarDays } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Input } from "@/components/ui/input";
-import { dateLabel, japanDate, type Trip } from "@/lib/trip-details";
+import { dateLabel, isCalendarDate, japanDate, type Trip } from "@/lib/trip-details";
 import { outsideTrip, planCalendar as calendar, planDay, shiftDay } from "@/lib/trip-plan";
 import { loadTripPlan, type PlanSchedule } from "@/lib/trip-plan-data";
 import { getTrip } from "@/lib/trips";
 import { TripLoadError } from "../../trip-load-error";
+import { mapHref } from "../map/links";
 import { changePlacement, saveItinerary } from "./actions";
 import { PlacementForm, ScheduleEditor } from "./forms";
 import { itineraryHref } from "./links";
@@ -81,13 +82,16 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
   if (mode === "restore" && !item?.archived_date) notFound();
   if (editing || placing) {
     const entry = mode === "add" ? undefined : item;
+    const initialPlace = mode === "add" ? plan.places.find(({ id }) => id === query.place) : undefined;
+    const initialDate = initialPlace && typeof query.date === "string" && isCalendarDate(query.date) ? query.date : date;
     const title = mode === "add" ? (candidates ? "후보 추가" : "일정 추가") : mode === "edit" ? "일정 수정"
       : mode === "move" ? "일정 날짜 이동" : mode === "restore" ? "후보 복원" : "일정 삭제";
     return <div className="trip-plan">{header}<section className="plan-section" aria-labelledby="itinerary-editor">
       <h2 id="itinerary-editor">{title}</h2>
       {editing && <ScheduleEditor key={entry?.id ?? (candidates ? "new-candidate" : date ?? "new")}
         action={saveItinerary.bind(null, trip.id, entry?.id ?? randomUUID(), entry?.revision ?? null, date)}
-        cancel={back} item={entry} date={candidates ? null : date} places={plan.places.map(({ id, name }) => ({ id, name }))} />}
+        cancel={back} item={entry} date={candidates ? null : initialDate} initialPlace={initialPlace}
+        places={plan.places.map(({ id, name }) => ({ id, name }))} />}
       {placing && entry && <PlacementForm key={`${mode}-${entry.id}`} mode={mode} title={entry.title}
         date={mode === "restore" ? entry.archived_date : entry.local_date ?? date} cancel={back}
         action={changePlacement.bind(null, trip.id, { id: entry.id, revision: entry.revision,
@@ -110,6 +114,7 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
     <nav className="state-actions" aria-label="일정 분류">
       <Link className="quiet-link" aria-current={!candidates ? "page" : undefined} href={itineraryHref(trip.id, date)}>날짜별 일정</Link>
       <Link className="quiet-link" aria-current={candidates ? "page" : undefined} href={itineraryHref(trip.id, date, undefined, undefined, true)}>후보함</Link>
+      <Link className="quiet-link" href={mapHref(trip.id, { date, filter: candidates ? "candidates" : date ? "date" : "all" })}>장소와 지도</Link>
     </nav>
     {candidates ? <section className="plan-section" aria-labelledby="candidate-title">
       <div className="plan-section-heading"><h2 id="candidate-title">후보함</h2>

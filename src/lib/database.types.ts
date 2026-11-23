@@ -34,11 +34,17 @@ export type ScheduleFields = {
 };
 
 export type PlaceFields = {
-  name: string;
-  address: string | null;
+  display_name: string;
+  name_ko: string | null;
+  name_ja: string | null;
+  name_en: string | null;
+  address_text: string | null;
+  address_ja: string | null;
   latitude: number | null;
   longitude: number | null;
   notes: string | null;
+  provider: "MANUAL" | "GEOAPIFY";
+  provider_place_id: string | null;
 };
 
 export type PeriodImpact = { date: string; count: number; group: "DAY" | "OUTSIDE" | "NO_RANGE" };
@@ -55,7 +61,7 @@ export type ScheduleRow = ScheduleFields & Omit<PlanRow, "content_version"> & {
   archived_period: SchedulePeriod | null;
   archived_sort_order: number | null;
 };
-export type PlaceRow = PlaceFields & PlanRow;
+export type PlaceRow = PlaceFields & PlanRow & { created_at: string };
 
 export type Database = {
   public: {
@@ -81,6 +87,18 @@ export type Database = {
     };
     Views: Record<never, never>;
     Functions: {
+      save_trip_place: {
+        Args: { p_trip: string; p_id: string; p_version: number | null; p_fields: PlaceFields; p_confirm: string | null };
+        Returns: { status: "saved" | "existing" | "duplicate" | "changed"; id?: string };
+      };
+      delete_trip_place: {
+        Args: { p_trip: string; p_id: string; p_version: number; p_expected_count: number };
+        Returns: { status: "deleted" | "changed" } | { status: "preview"; count: number };
+      };
+      authorize_place_search: {
+        Args: { p_trip: string };
+        Returns: boolean;
+      };
       update_trip_period: {
         Args: { p_trip: string; p_version: number; p_fields: TripFields; p_expected: PeriodImpact[] | null };
         Returns: { status: "saved" | "changed" } | { status: "preview"; entries: PeriodImpact[] };

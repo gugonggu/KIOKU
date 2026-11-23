@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import { dateLabel } from "@/lib/trip-details";
 import { periods, scheduleGroup, sortSchedule } from "@/lib/trip-plan";
 import type { PlanSchedule } from "@/lib/trip-plan-data";
+import { mapHref } from "../map/links";
 import { changePlacement, reorderItinerary } from "./actions";
 import { ArchiveButton } from "./forms";
 import { itineraryHref } from "./links";
@@ -70,6 +71,8 @@ export function ScheduleList({ items, tripId, date, places, candidate = false, s
           <p className="plan-meta">{showDates && item.local_date && `${dateLabel(item.local_date)} · `}{time}</p>
           {candidate && item.archived_date && <p className="plan-meta">원래 날짜 {dateLabel(item.archived_date)}</p>}
           {place && <p className="plan-meta">{place.name}{place.address && ` · ${place.address}`}</p>}
+          {place && <Link className="quiet-link plan-place-link" href={mapHref(tripId, { place: place.id,
+            date: item.local_date, filter: item.local_date ? "date" : "candidates" })}>지도에서 장소 보기</Link>}
           {item.private_note && <p className="plan-notes">개인 메모 · {item.private_note}</p>}
           {item.shared_note && <p className="plan-notes">공유용 메모 · {item.shared_note}</p>}
           <div className="plan-entry-actions">

@@ -4,7 +4,8 @@ const config: NextConfig = {
   poweredByHeader: false,
   devIndicators: false,
   agentRules: false,
-  logging: { incomingRequests: { ignore: [/^\/auth\/confirm(?:\?|$)/] } },
+  logging: { incomingRequests: { ignore: [/^\/auth\/confirm(?:\?|$)/, /^\/api\/places\/search(?:\?|$)/] } },
+  outputFileTracingIncludes: { "/map-assets/**": ["./node_modules/maplibre-gl/dist/maplibre-gl-{worker,shared}.mjs"] },
   async headers() {
     return [{
       source: "/:path*",

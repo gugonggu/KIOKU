@@ -91,7 +91,7 @@ test("itinerary RLS and same-trip place links protect existing trips", async () 
   await asUser(database, ownerA, (tx) => insert(tx, sibling));
   await asUser(database, ownerB, (tx) => insert(tx, other));
   const addPlace = (owner, trip) => asUser(database, owner, (tx) => tx.query(
-    "insert into public.trip_places (trip_id, name) values ($1, 'Test place') returning id", [trip],
+    "insert into public.trip_places (trip_id, display_name) values ($1, 'Test place') returning id", [trip],
   ));
   const { rows: [place] } = await addPlace(ownerA, first);
   await assert.rejects(addPlace(ownerB, first), { code: "42501" });

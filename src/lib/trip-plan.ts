@@ -1,7 +1,7 @@
-import type { PlaceFields, ScheduleFields, SchedulePeriod, ScheduleRow } from "./database.types";
+import type { ScheduleFields, SchedulePeriod, ScheduleRow } from "./database.types";
 import { isCalendarDate, type Trip } from "./trip-details.ts";
 
-export const planLimits = { title: 100, address: 240, notes: 1500 } as const;
+export const planLimits = { title: 100, notes: 1500 } as const;
 export const planCalendar = { type: "date", min: "0001-01-01", max: "9999-12-31" };
 
 function read(data: FormData, name: string) {
@@ -32,21 +32,6 @@ export function parseSchedule(data: FormData): ScheduleFields | string {
     fixed_local_time: fixed || null, period: (period || null) as SchedulePeriod | null,
     private_note: privateNote || null, shared_note: sharedNote || null,
   };
-}
-
-export function parsePlace(data: FormData): PlaceFields | string {
-  const name = read(data, "name");
-  const address = read(data, "address");
-  const notes = read(data, "notes");
-  const lat = read(data, "latitude");
-  const lon = read(data, "longitude");
-  if (!name || name.length > planLimits.title) return "장소 이름을 1~100자로 입력해 주세요.";
-  if (address.length > planLimits.address || notes.length > planLimits.notes) return "주소는 240자, 메모는 1,500자까지 입력할 수 있어요.";
-  const decimal = /^-?(?:\d+(?:\.\d+)?|\.\d+)$/;
-  if ((lat || lon) && (!decimal.test(lat) || !decimal.test(lon) || Math.abs(Number(lat)) > 90 || Math.abs(Number(lon)) > 180)) {
-    return "위도(-90~90)와 경도(-180~180)를 모두 입력해 주세요.";
-  }
-  return { name, address: address || null, notes: notes || null, latitude: lat ? Number(lat) : null, longitude: lon ? Number(lon) : null };
 }
 
 type DateRange = Pick<Trip, "start_date" | "end_date">;
@@ -82,10 +67,4 @@ export function scheduleGroup(item: GroupFields) {
 export function sortSchedule<Item extends GroupFields & Pick<ScheduleRow, "id" | "sort_order">>(items: Item[]) {
   return [...items].sort((first, second) => scheduleGroup(first).localeCompare(scheduleGroup(second))
     || first.sort_order - second.sort_order || first.id.localeCompare(second.id));
-}
-
-export function directionsUrl(place: Pick<PlaceFields, "latitude" | "longitude" | "address" | "name">) {
-  const destination = place.latitude !== null && place.longitude !== null
-    ? `${place.latitude},${place.longitude}` : place.address || place.name;
-  return `https://www.google.com/maps/dir/?${new URLSearchParams({ api: "1", destination })}`;
 }

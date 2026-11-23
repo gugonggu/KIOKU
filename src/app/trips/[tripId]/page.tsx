@@ -35,6 +35,7 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
       <div className="state-actions">
         <Link href={`${href}/itinerary`} className="primary-button">일정 보기</Link>
         <Link href={`${href}/itinerary?view=candidates`} className="quiet-link">후보함</Link>
+        <Link href={`${href}/map`} className="quiet-link">장소와 지도</Link>
       </div>
       <Link href={`${href}/delete`} className="quiet-link danger-link">여행 삭제</Link>
     </>

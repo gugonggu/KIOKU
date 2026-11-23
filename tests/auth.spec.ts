@@ -150,7 +150,8 @@ test.beforeAll(async () => {
       }
     }
 
-    if (["/rest/v1/itinerary_items", "/rest/v1/trip_places", "/rest/v1/rpc/save_itinerary_item", "/rest/v1/rpc/update_trip_period",
+    if (["/rest/v1/itinerary_items", "/rest/v1/trip_places", "/rest/v1/rpc/save_trip_place", "/rest/v1/rpc/delete_trip_place",
+      "/rest/v1/rpc/authorize_place_search", "/rest/v1/rpc/save_itinerary_item", "/rest/v1/rpc/update_trip_period",
       "/rest/v1/rpc/swap_itinerary_items", "/rest/v1/rpc/place_itinerary_item"].includes(url.pathname)) {
       const userId = issuedTokens.get(request.headers.authorization?.replace(/^Bearer /, "") ?? "");
       try {
@@ -492,7 +493,7 @@ test("M2 archives and restores a linked afternoon item and confirms dates outsid
   const trip = await seedFiveDayTrip("오타루 여행");
   const id = trip.split("/").at(-1);
   await asUser(database, ownerA, async (tx) => {
-    const { rows: [place] } = await tx.query<{ id: string }>("insert into public.trip_places (trip_id,name) values ($1,'오타루 운하') returning id", [id]);
+    const { rows: [place] } = await tx.query<{ id: string }>("insert into public.trip_places (trip_id,display_name) values ($1,'오타루 운하') returning id", [id]);
     await tx.query(`insert into public.itinerary_items (trip_id,title,local_date,time_mode,period,place_id,private_note,shared_note)
       values ($1,'운하 산책','2027-02-19','PERIOD','AFTERNOON',$2,'개인 준비 메모','동행 안내')`, [id, place.id]);
   });
@@ -585,4 +586,153 @@ test("M2 preserves failed form input, refuses stale overwrites, and blocks a dif
   await page.getByRole("link", { name: "먼저 저장한 일정 일정 삭제" }).click();
   await page.getByRole("button", { name: "일정 삭제 확인" }).click();
   await expect(page.getByRole("heading", { name: "먼저 저장한 일정" })).toHaveCount(0);
+});
+
+const mapStyle = "https://tiles.openfreemap.org/styles/liberty";
+const testStyle = { version: 8, sources: {}, layers: [{ id: "paper", type: "background", paint: { "background-color": "#e6ebe4" } }] };
+
+test("M3 manually saves a Japanese place, shows a map pin and links or detaches multiple visits", async ({ page }) => {
+  const trip = await seedFiveDayTrip("장소 탐색용 여행");
+  if (process.env.PLAYWRIGHT_LIVE_MAP !== "1") {
+    await page.route(mapStyle, (route) => route.fulfill({ json: testStyle, headers: { "access-control-allow-origin": "*" } }));
+  }
+  await page.addInitScript(() => {
+    let calls = 0;
+    Object.defineProperty(window, "kiokuLocationCalls", { get: () => calls });
+    Object.defineProperty(navigator, "geolocation", { value: { getCurrentPosition: (_success: unknown, error: (value: {code:number}) => void) => {
+      calls += 1;
+      error({ code:1 });
+    } } });
+  });
+  await page.setViewportSize({ width:320, height:780 });
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  await page.goto(trip);
+  await page.getByRole("link", { name: "장소와 지도" }).click();
+  await page.getByRole("link", { name: "장소 추가" }).click();
+  await page.getByRole("searchbox", { name: "일본 장소 검색" }).fill("삿포로역");
+  await expect(page.getByRole("main").getByText(/장소 검색이 설정되지 않았어요/)).toBeVisible();
+  await page.getByLabel("장소 이름", { exact:true }).fill("삿포로 테스트 장소");
+  await page.getByLabel("주소", { exact:true }).fill("홋카이도 삿포로시");
+  await page.getByText("다국어 이름과 메모", { exact:true }).click();
+  await page.getByLabel("일본어 이름").fill("札幌のテスト地点");
+  await page.getByLabel("일본어 주소").fill("北海道札幌市中央区");
+  await page.getByLabel("영어 이름").fill("Sapporo test location");
+  await page.getByLabel("장소 메모").fill("테스트 메모");
+  await page.getByLabel("위도", { exact:true }).fill("43.06");
+  await page.getByRole("button", { name:"장소 저장" }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("올바른 위도");
+  await page.getByLabel("경도", { exact:true }).fill("141.35");
+  await page.getByRole("button", { name:"장소 저장" }).click();
+  const detail = page.getByRole("article", { name:"선택한 장소" });
+  await expect(detail.getByText("北海道札幌市中央区")).toBeVisible();
+  await expect(detail.getByText(/札幌のテスト地点.*Sapporo test location/)).toBeVisible();
+  const pin = page.getByRole("button", { name:"지도 핀: 삿포로 테스트 장소" });
+  await expect(pin).toBeVisible({ timeout:12000 });
+  await pin.click();
+  await expect(detail.getByRole("link", { name:"Google Maps 길찾기" })).toHaveAttribute("href", /destination=43\.06%2C141\.35/);
+  await expect(page.getByRole("link", { name:"OpenFreeMap", exact:true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+  expect(await page.evaluate(() => Reflect.get(window, "kiokuLocationCalls"))).toBe(0);
+  await page.getByRole("button", { name:"내 위치", exact:true }).click();
+  await expect(page.getByText(/위치 권한이 허용되지 않았어요/)).toBeVisible();
+  expect(await page.evaluate(() => Reflect.get(window, "kiokuLocationCalls"))).toBe(1);
+  await expect(page.getByRole("region", { name:"저장된 장소" }).getByRole("button", { name:/삿포로 테스트 장소/ })).toBeVisible();
+
+  await page.setViewportSize({ width:1440, height:900 });
+  const mapBounds = await page.getByRole("region", { name:"장소 지도" }).boundingBox();
+  const listBounds = await page.getByRole("region", { name:"저장된 장소" }).boundingBox();
+  expect(mapBounds!.x + mapBounds!.width).toBeLessThan(listBounds!.x);
+
+  for (const title of ["첫 방문", "둘째 방문"]) {
+    await detail.getByRole("link", { name:"일정에 추가" }).click();
+    await expect(page.getByLabel("연결할 장소").locator("option:checked")).toHaveText("삿포로 테스트 장소");
+    await page.getByLabel("일정 이름").fill(title);
+    await page.getByRole("button", { name:"일정 저장", exact:true }).click();
+    await expect(page.getByRole("heading", { name:title })).toBeVisible();
+    await page.locator("[data-schedule-id]").filter({ has:page.getByRole("heading", { name:title }) })
+      .getByRole("link", { name:"지도에서 장소 보기" }).click();
+    await expect(detail.getByRole("heading", { name:"삿포로 테스트 장소" })).toBeVisible();
+  }
+  await expect(page.getByLabel("장소를 볼 날짜")).toHaveValue("2027-02-17");
+  await page.goto(`${trip}/itinerary?date=2027-02-17`);
+  const firstVisit = page.locator("[data-schedule-id]").filter({ has:page.getByRole("heading", { name:"첫 방문" }) });
+  const secondVisit = page.locator("[data-schedule-id]").filter({ has:page.getByRole("heading", { name:"둘째 방문" }) });
+  await firstVisit.getByRole("link", { name:"첫 방문 일정 수정" }).click();
+  await page.getByLabel("연결할 장소").selectOption("");
+  await page.getByRole("button", { name:"일정 저장", exact:true }).click();
+  await expect(firstVisit.getByRole("link", { name:"지도에서 장소 보기" })).toHaveCount(0);
+  await expect(secondVisit.getByRole("link", { name:"지도에서 장소 보기" })).toBeVisible();
+  await firstVisit.getByRole("link", { name:"첫 방문 일정 수정" }).click();
+  await page.getByLabel("연결할 장소").selectOption({ label:"삿포로 테스트 장소" });
+  await page.getByRole("button", { name:"일정 저장", exact:true }).click();
+  await firstVisit.getByRole("link", { name:"지도에서 장소 보기" }).click();
+  await expect(detail.getByRole("heading", { name:"삿포로 테스트 장소" })).toBeVisible();
+  await detail.getByRole("link", { name:"장소 삭제" }).click();
+  await expect(page.getByText(/연결된 일정 2개의 장소 연결을 해제/)).toBeVisible();
+  await page.getByRole("button", { name:"장소 삭제 확인" }).click();
+  await expect(page.getByText("저장된 장소가 없어요.")).toBeVisible();
+  await page.goto(`${trip}/itinerary?date=2027-02-17`);
+  await expect(page.getByRole("heading", { name:"첫 방문" })).toBeVisible();
+  await expect(page.getByRole("heading", { name:"둘째 방문" })).toBeVisible();
+  await expect(page.getByRole("link", { name:"지도에서 장소 보기" })).toHaveCount(0);
+});
+
+test("M3 debounces Japanese search, handles service errors and saves a selected result only on confirmation", async ({ page }) => {
+  const trip = await seedFiveDayTrip("검색 테스트 여행");
+  const queries:string[] = [];
+  await page.route(mapStyle, (route) => route.fulfill({ json:testStyle, headers:{ "access-control-allow-origin":"*" } }));
+  await page.route("**/api/places/search?**", async (route) => {
+    const query = new URL(route.request().url()).searchParams.get("q") ?? "";
+    queries.push(query);
+    if (query === "검색 장애") return route.fulfill({ status:503, json:{ status:"unavailable" } });
+    if (query === "검색 한도") return route.fulfill({ status:429, json:{ status:"limited" } });
+    return route.fulfill({ json:{ status:"ok", results:[{
+      id:"fixture-jp-sapporo", name:"札幌テスト駅", address:"北海道札幌市", latitude:43.068, longitude:141.35, language:"ja",
+    }] } });
+  });
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  await page.goto(`${trip}/map?mode=add`);
+  const search = page.getByRole("searchbox", { name:"일본 장소 검색" });
+  await search.fill("검색 장애");
+  await expect(page.getByText(/지금은 검색할 수 없어요/)).toBeVisible();
+  await search.fill("검색 한도");
+  await expect(page.getByText(/검색 한도에 도달했어요/)).toBeVisible();
+  await search.fill("札");
+  await search.fill("札幌");
+  await search.fill("札幌駅");
+  await page.getByRole("button", { name:/札幌テスト駅/ }).click();
+  expect(queries).toEqual(["검색 장애","검색 한도","札幌駅"]);
+  await expect(page.getByLabel("장소 이름", { exact:true })).toHaveValue("札幌テスト駅");
+  await expect(page.getByText(/Geoapify에서 가져온 장소/)).toBeVisible();
+  await page.getByRole("button", { name:"장소 저장" }).click();
+  const detail = page.getByRole("article", { name:"선택한 장소" });
+  await expect(detail.getByRole("heading", { name:"札幌テスト駅" })).toBeVisible();
+  await expect(detail.getByRole("link", { name:"Geoapify" })).toBeVisible();
+  await detail.getByRole("link", { name:"장소 수정" }).click();
+  await page.getByLabel("장소 이름", { exact:true }).fill("札幌テスト駅 北口");
+  await page.getByRole("button", { name:"장소 저장" }).click();
+  await expect(detail.getByRole("heading", { name:"札幌テスト駅 北口" })).toBeVisible();
+});
+
+test("M3 keeps the place list when the basemap fails and denies a different owner", async ({ page, browser }) => {
+  const trip = await seedFiveDayTrip("폴백 여행");
+  const id = trip.split("/").at(-1);
+  await page.route(mapStyle, (route) => route.abort("failed"));
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  await page.goto(`${trip}/map?mode=add`);
+  await page.getByLabel("장소 이름", { exact:true }).fill("이름만 있는 장소");
+  await page.getByRole("button", { name:"장소 저장" }).click();
+  await expect(page.getByText(/지도를 불러오지 못했어요/)).toBeVisible({ timeout:12000 });
+  const detail = page.getByRole("article", { name:"선택한 장소" });
+  await expect(detail.getByRole("heading", { name:"이름만 있는 장소" })).toBeVisible();
+  await expect(detail.getByText(/길찾기를 열려면 주소나 좌표/)).toBeVisible();
+  await expect(detail.getByRole("link", { name:"Google Maps 길찾기" })).toHaveCount(0);
+  const visitor = await browser.newPage();
+  try {
+    await visitor.goto(`${appUrl}/auth/confirm?type=email&token_hash=local-fixture-second`);
+    await visitor.goto(`${appUrl}${trip}/map`);
+    await expect(visitor.getByRole("heading", { name:"여행을 찾을 수 없어요" })).toBeVisible();
+    const response = await visitor.request.get(`${appUrl}/api/places/search?tripId=${id}&q=Sapporo`);
+    expect(response.status()).toBe(404);
+  } finally { await visitor.close(); }
 });

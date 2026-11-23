@@ -4,7 +4,8 @@ import { PGlite } from "@electric-sql/pglite";
 export const ownerA = "1029f67a-eee8-4437-be1c-dca04b942013";
 export const ownerB = "6dc81a27-e369-4e12-9f3d-5d7e3619cb25";
 
-export async function createTripsDatabase() {
+/** @param {{ beforeMigration?: (database: PGlite, file: string) => Promise<void> }} [options] */
+export async function createTripsDatabase(options = {}) {
   const database = new PGlite();
   try {
     await database.exec(`
@@ -21,7 +22,10 @@ export async function createTripsDatabase() {
     await database.query("insert into auth.users (id) values ($1), ($2)", [ownerA, ownerB]);
     const directory = "supabase/migrations";
     const migrations = (await readdir(directory)).filter((file) => /^\d+_.+\.sql$/.test(file)).sort();
-    for (const migration of migrations) await database.exec(await readFile(`${directory}/${migration}`, "utf8"));
+    for (const migration of migrations) {
+      await options.beforeMigration?.(database, migration);
+      await database.exec(await readFile(`${directory}/${migration}`, "utf8"));
+    }
     return database;
   } catch (error) {
     await database.close();

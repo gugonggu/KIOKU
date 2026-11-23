@@ -1,0 +1,139 @@
+"use client";
+
+import Link from "next/link";
+import { useActionState, useEffect, useState } from "react";
+import { Input } from "@/components/ui/input";
+import type { PlaceSuggestion, GeoapifyResult } from "@/lib/geoapify";
+import { placeLimits } from "@/lib/trip-places";
+import type { PlanPlace } from "@/lib/trip-plan-data";
+import type { PlaceState } from "./actions";
+
+type Action = (state: PlaceState, form: FormData) => Promise<PlaceState>;
+const searchMessages = {
+  unconfigured: "장소 검색이 설정되지 않았어요. 아래에서 직접 등록할 수 있어요.",
+  limited: "검색 한도에 도달했어요. 나중에 다시 검색하거나 직접 등록해 주세요.",
+  unavailable: "지금은 검색할 수 없어요. 직접 등록하거나 잠시 후 다시 시도해 주세요.",
+};
+
+function PlaceSearch({ tripId, choose }: { tripId: string; choose: (row: PlaceSuggestion) => void }) {
+  const [input, setInput] = useState("");
+  const [response, setResponse] = useState<{ query: string; result: GeoapifyResult }>();
+  const [attempt, setAttempt] = useState(0);
+  const query = input.normalize("NFKC").trim().replace(/\s+/g, " ");
+  const valid = query.length >= 2 && query.length <= 100;
+  useEffect(() => {
+    if (!valid) return;
+    const controller = new AbortController();
+    const delay = setTimeout(async () => {
+      try {
+        const search = new URLSearchParams({ tripId, q: query });
+        const reply = await fetch(`/api/places/search?${search}`, { signal: controller.signal, cache: "no-store" });
+        const result = await reply.json() as GeoapifyResult;
+        if (!controller.signal.aborted) {
+          const known = result.status === "unconfigured" || result.status === "limited" || (result.status === "ok" && Array.isArray(result.results));
+          setResponse({ query, result: known ? result : { status: "unavailable" } });
+        }
+      } catch {
+        if (!controller.signal.aborted) setResponse({ query, result: { status: "unavailable" } });
+      }
+    }, 400);
+    return () => { clearTimeout(delay); controller.abort(); };
+  }, [tripId, query, valid, attempt]);
+
+  const result = valid && response?.query === query ? response.result : null;
+  return <section className="plan-card" aria-label="일본 장소 검색">
+    <label className="form-field"><span>일본 장소 검색</span><Input type="search" value={input} maxLength={100}
+      onChange={(event) => setInput(event.target.value)} autoComplete="off" placeholder="삿포로역, 札幌駅, Sapporo" /></label>
+    {!valid && <p className="plan-meta">두 글자 이상 입력해 주세요.</p>}
+    {valid && !result && <p className="plan-meta" role="status">장소를 검색하는 중이에요.</p>}
+    {result?.status === "ok" && (result.results.length ? <ul className="places-suggestions">
+      {result.results.map((row) => <li key={row.id}><button type="button" className="quiet-link" onClick={() => { choose(row); setInput(""); }}>
+        <strong>{row.name}</strong>{row.address && <span>{row.address}</span>}
+      </button></li>)}
+    </ul> : <p className="notice" role="status">검색 결과가 없어요. 장소를 직접 등록할 수 있어요.</p>)}
+    {result && result.status !== "ok" && <div className="notice" role="status">
+      <p>{searchMessages[result.status]}</p>
+      {result.status === "unavailable" && <button type="button" className="quiet-link"
+        onClick={() => { setResponse(undefined); setAttempt((count) => count + 1); }}>다시 검색</button>}
+    </div>}
+    <p className="plan-meta">검색 제공 <a href="https://www.geoapify.com/" target="_blank" rel="noreferrer">Geoapify</a></p>
+  </section>;
+}
+
+export function PlaceEditor({ action, tripId, item, back }: { action: Action; tripId: string; item?: PlanPlace; back: string }) {
+  const [state, dispatch, pending] = useActionState(action, {});
+  const [values, setValues] = useState<Record<string,string>>({
+    display_name: item?.display_name ?? "", address_text: item?.address_text ?? "", address_ja: item?.address_ja ?? "",
+    name_ko: item?.name_ko ?? "", name_ja: item?.name_ja ?? "", name_en: item?.name_en ?? "", notes: item?.notes ?? "",
+    latitude: item?.latitude?.toString() ?? "", longitude: item?.longitude?.toString() ?? "",
+    provider: item?.provider ?? "MANUAL", provider_place_id: item?.provider_place_id ?? "",
+  });
+  function field(name: string, label: string, options: React.ComponentProps<"input"> = {}) {
+    return <label className="form-field"><span>{label}</span><Input name={name} value={values[name]}
+      onChange={(event) => setValues((before) => ({ ...before, [name]: event.target.value }))} {...options} /></label>;
+  }
+  function choose(row: PlaceSuggestion) {
+    setValues((before) => ({ ...before, display_name: row.name, address_text: row.address, latitude: String(row.latitude), longitude: String(row.longitude),
+      name_ko: row.language === "ko" ? row.name : "", name_ja: row.language === "ja" ? row.name : "",
+      name_en: row.language === "en" ? row.name : "", address_ja: row.language === "ja" ? row.address : "",
+      provider: "GEOAPIFY", provider_place_id: row.id }));
+  }
+  const existing = state.duplicate ?? state.existing;
+  return <>
+    {!item && <PlaceSearch tripId={tripId} choose={choose} />}
+    <form className="plan-card" action={dispatch}>
+      <fieldset className="plan-fields" disabled={pending}>
+        <legend>{item ? "장소 정보" : "직접 등록 또는 검색 결과 확인"}</legend>
+        {values.provider === "GEOAPIFY" && <div className="notice">
+          <p>Geoapify에서 가져온 장소예요. 정보를 확인한 뒤 저장해 주세요.</p>
+          <button type="button" className="quiet-link" onClick={() => setValues((before) => ({ ...before, provider:"MANUAL", provider_place_id:"" }))}>직접 입력으로 전환</button>
+        </div>}
+        <input type="hidden" name="provider" value={values.provider} />
+        <input type="hidden" name="provider_place_id" value={values.provider_place_id} />
+        {field("display_name", "장소 이름", { required:true, maxLength:placeLimits.name })}
+        {field("address_text", "주소", { maxLength:placeLimits.address })}
+        <div className="plan-pair">
+          {field("latitude", "위도", { type:"number", inputMode:"decimal", min:-90, max:90, step:"any" })}
+          {field("longitude", "경도", { type:"number", inputMode:"decimal", min:-180, max:180, step:"any" })}
+        </div>
+        <details open={item ? true : undefined}>
+          <summary className="quiet-link">다국어 이름과 메모</summary>
+          <div className="plan-fields itinerary-details">
+            {field("name_ko", "한국어 이름", { maxLength:placeLimits.name })}
+            {field("name_ja", "일본어 이름", { maxLength:placeLimits.name })}
+            {field("name_en", "영어 이름", { maxLength:placeLimits.name })}
+            {field("address_ja", "일본어 주소", { maxLength:placeLimits.address })}
+            <label className="form-field"><span>장소 메모</span><textarea name="notes" rows={3} className="plan-input" maxLength={placeLimits.notes}
+              value={values.notes} onChange={(event) => setValues((before) => ({ ...before, notes:event.target.value }))} /></label>
+          </div>
+        </details>
+      </fieldset>
+      {state.error && !pending && <p className="notice notice-error" role="alert">{state.error}</p>}
+      {state.duplicate && !pending && <p className="notice" role="alert">이 여행에 같은 장소가 있어요. 기존 장소를 쓰거나 별도로 저장할 수 있어요.</p>}
+      <div className="state-actions">
+        <button type="submit" className="primary-button" disabled={pending || state.conflict || Boolean(state.existing)}
+          name={state.duplicate ? "confirm_duplicate" : undefined} value={state.duplicate}>
+          {pending ? "저장 중…" : state.duplicate ? "별도로 저장" : "장소 저장"}
+        </button>
+        {existing && <Link className="quiet-link" href={`${back}${back.includes("?") ? "&" : "?"}place=${existing}`}>기존 장소 보기</Link>}
+        <Link className="quiet-link" href={back}>취소</Link>
+      </div>
+    </form>
+  </>;
+}
+
+export function DeletePlaceForm({ action, name, count, back }: { action: Action; name: string; count: number; back: string }) {
+  const [state, dispatch, pending] = useActionState(action, {});
+  const latest = state.linkCount ?? count;
+  return <form className="plan-card" action={dispatch}>
+    <p><strong>{name}</strong> 장소를 삭제할까요?</p>
+    <p className="notice" role="status">{latest ? `연결된 일정 ${latest}개의 장소 연결을 해제합니다. 일정과 메모는 그대로 유지됩니다.` : "연결된 일정이 없어요."}</p>
+    {state.linkCount !== undefined && <p className="notice" role="alert">연결된 일정 수가 바뀌었어요. 변경 내용을 다시 확인해 주세요.</p>}
+    {state.error && <p className="notice notice-error" role="alert">{state.error}</p>}
+    <div className="state-actions">
+      <button type="submit" className="primary-button danger-button" name="confirm_count" value={latest}
+        disabled={pending || state.conflict}>{pending ? "삭제 중…" : "장소 삭제 확인"}</button>
+      <Link href={back} className="quiet-link">취소</Link>
+    </div>
+  </form>;
+}

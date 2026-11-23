@@ -319,6 +319,29 @@ h2 { font-weight: 700; line-height: 1.35; letter-spacing: -.035em; }
 .itinerary-dates [aria-current], .trip-plan nav [aria-current] { background: #e0e7dc; color: #314a3d; }
 .itinerary-details { margin-top: 10px; }
 .itinerary-drag { display: none; }
+.places-page { max-width: 1120px; }
+.places-workspace { display: grid; gap: 16px; align-items: start; min-width: 0; }
+.place-map { display: grid; gap: 8px; min-width: 0; }
+.place-map-viewport { position: relative; height: clamp(250px, 46vh, 530px); overflow: hidden; border: 1px solid var(--color-line); border-radius: 14px; background: #e6ebe4; }
+.place-map-canvas { width: 100%; height: 100%; }
+.place-map-viewport[data-map-state="failed"] .place-map-canvas { visibility: hidden; }
+.place-map-overlay { position: absolute; inset: auto 10px 10px; z-index: 1; }
+.place-map-footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.place-map-footer a, .places-page article a:not(.quiet-link, .primary-button) { text-decoration: underline; }
+.place-map-footer button:disabled { opacity: .6; }
+.kioku-map-pin { display: grid; place-items: center; width: 44px; height: 44px; border: 2px solid white; border-radius: 50%; background: #355744; color: white; font-size: .8rem; cursor: pointer; }
+.kioku-map-pin[aria-pressed="true"] { background: #813f36; outline: 2px solid #813f36; }
+.kioku-map-location { width: 18px; height: 18px; border: 3px solid white; border-radius: 50%; background: #1c69b5; box-shadow: 0 0 0 4px #81a9d5; }
+.place-row { width: 100%; text-align: left; min-height: 48px; cursor: pointer; }
+.place-row[aria-pressed="true"], .place-filters [aria-current] { background: #e0e7dc; }
+.place-row span, .places-workspace h2, .places-workspace article p { overflow-wrap: anywhere; }
+.place-row span { color: var(--color-muted-ink); font-size: .88rem; }
+.places-suggestions .quiet-link { justify-content: start; flex-wrap: wrap; width: 100%; text-align: left; }
+.places-suggestions span { font-weight: 400; overflow-wrap: anywhere; }
+
+@media (min-width: 930px) {
+  .places-workspace { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+}
 
 @media (hover: hover) and (pointer: fine) {
   .itinerary-drag { display: inline-flex; align-items: center; min-height: 48px; padding: 8px; color: var(--color-muted-ink); font-size: .85rem; cursor: grab; }
