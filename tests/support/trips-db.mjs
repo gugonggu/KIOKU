@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 
 export const ownerA = "1029f67a-eee8-4437-be1c-dca04b942013";
@@ -19,8 +19,9 @@ export async function createTripsDatabase() {
       grant usage on schema auth to authenticated;
     `);
     await database.query("insert into auth.users (id) values ($1), ($2)", [ownerA, ownerB]);
-    const migration = await readFile("supabase/migrations/20261122073111_create_trips.sql", "utf8");
-    await database.exec(migration);
+    const directory = "supabase/migrations";
+    const migrations = (await readdir(directory)).filter((file) => /^\d+_.+\.sql$/.test(file)).sort();
+    for (const migration of migrations) await database.exec(await readFile(`${directory}/${migration}`, "utf8"));
     return database;
   } catch (error) {
     await database.close();

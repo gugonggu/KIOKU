@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useActionState, useState } from "react";
 import { Input } from "@/components/ui/input";
-import { MAX_TRAVELERS, TRIP_TEXT_LIMIT, type TripFormValues } from "@/lib/trip-details";
+import { dateLabel, MAX_TRAVELERS, TRIP_TEXT_LIMIT, type TripFormValues } from "@/lib/trip-details";
 import type { TripMutationState } from "./mutations";
 
 type Props = {
@@ -13,9 +13,12 @@ type Props = {
   submitLabel: string;
 };
 
+const impactLabels = { DAY: "날짜별 일정으로 표시", OUTSIDE: "기간 밖으로 표시", NO_RANGE: "날짜가 정해진 일정으로 표시" };
+
 export function TripForm({ action, initial, cancelHref, submitLabel }: Props) {
   const [state, dispatch, pending] = useActionState<TripMutationState, FormData>(action, {});
   const [values, setValues] = useState(initial);
+  const impact = state.impact;
 
   function field(name: keyof TripFormValues, label: string, type: "text" | "date" | "number", required = false) {
     const error = state.errors?.[name];
@@ -57,9 +60,16 @@ export function TripForm({ action, initial, cancelHref, submitLabel }: Props) {
       </fieldset>
       {field("traveler_count", "여행 인원 (선택)", "number")}
       {state.message && !pending && <p className="notice notice-error" role="alert">{state.message}</p>}
+      {impact && !pending && <div className="notice" role="alert">
+        <p>기간을 바꾸면 일정 {impact.entries.reduce((total, entry) => total + entry.count, 0)}개의 표시 구역이 달라져요. 일정 날짜는 그대로 유지돼요.</p>
+        <ul>{impact.entries.map(({ date, count, group }) => <li key={date}>
+          {dateLabel(date)} {count}개 · {impactLabels[group]}
+        </li>)}</ul>
+      </div>}
       <div className="state-actions">
-        <button type="submit" className="primary-button" disabled={pending || state.conflict}>
-          {pending ? "저장 중…" : submitLabel}
+        <button type="submit" className="primary-button" disabled={pending || state.conflict}
+          name={impact ? "date_confirmation" : undefined} value={impact?.key}>
+          {pending ? "저장 중…" : impact ? "영향을 확인하고 저장" : submitLabel}
         </button>
         <Link href={state.savedTripHref ?? cancelHref} className="quiet-link">
           {state.savedTripHref ? "저장된 여행 보기" : state.conflict ? "최신 여행 정보 보기" : "취소"}

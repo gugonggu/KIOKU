@@ -16,6 +16,7 @@ export default async function DeleteTripPage({ params }: PageProps<"/trips/[trip
       <h1 id="delete-heading">여행을 삭제할까요?</h1>
       <p className="intro"><strong>{trip.title}</strong> 여행이 내 여행 목록에서 삭제돼요.</p>
       <p>삭제한 여행은 되돌릴 수 없어요.</p>
+      <p>이 여행에 등록한 일정과 장소도 함께 삭제돼요.</p>
       <DeleteTripForm action={submit} tripHref={`/trips/${trip.id}`} />
     </section>
   );

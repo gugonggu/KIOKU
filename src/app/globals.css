@@ -286,6 +286,49 @@ h2 { font-weight: 700; line-height: 1.35; letter-spacing: -.035em; }
 .danger-button:hover:not(:disabled) { background: #693127; }
 .trip-load-error .primary-button { margin-top: 15px; }
 
+.trip-plan { display: grid; gap: 18px; max-width: 840px; min-width: 0; }
+.plan-heading { display: grid; justify-items: start; gap: 5px; }
+.plan-heading > .quiet-link { margin-inline-start: -12px; }
+.plan-section { display: grid; gap: 14px; min-width: 0; scroll-margin-top: 16px; }
+.plan-section-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.plan-section-heading h2 { display: flex; align-items: center; gap: 8px; font-size: 1.25rem; }
+.plan-section-heading svg { color: var(--color-primary); flex: none; }
+.plan-section > h3 { margin-top: 8px; font-size: 1rem; font-weight: 700; }
+.plan-meta { color: var(--color-muted-ink); font-size: .9rem; overflow-wrap: anywhere; }
+.plan-empty { padding: 14px; border: 1px dashed var(--color-line); border-radius: 10px; color: var(--color-muted-ink); }
+.plan-date-nav, .plan-date-picker { display: flex; gap: 4px; align-items: center; min-width: 0; }
+.plan-date-picker { flex: 1; }
+.plan-date-picker button { flex: none; padding-inline: 6px; min-width: 44px; }
+.plan-step { flex: 0 0 44px; width: 44px; padding-inline: 0; }
+.plan-list { display: grid; gap: 10px; }
+.plan-card { display: grid; gap: 10px; min-width: 0; border: 1px solid var(--color-line); border-radius: 12px; background: var(--color-paper); padding: clamp(13px, 3vw, 22px); }
+.plan-entry { scroll-margin: 16px; }
+.plan-entry h3, .plan-card strong { font-weight: 700; overflow-wrap: anywhere; }
+.plan-entry-actions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px; }
+.plan-entry-actions .quiet-link { padding-inline: 10px; }
+.plan-entry-actions button:disabled { opacity: .65; }
+.plan-place-link { justify-self: start; padding-inline: 8px; }
+.plan-notes { white-space: pre-wrap; overflow-wrap: anywhere; }
+.plan-fields, .plan-pair { display: grid; gap: 12px; min-width: 0; }
+.plan-fields legend { margin-bottom: 12px; font-weight: 700; }
+.plan-fields label > span { font-size: .875rem; }
+.plan-input { width: 100%; min-width: 0; min-height: 48px; border: 1px solid var(--color-field); border-radius: 8px; background: var(--color-paper); padding: 10px 12px; }
+.plan-action { min-width: 0; }
+.itinerary-dates { display: flex; gap: 4px; overflow-x: auto; padding-block: 4px; }
+.itinerary-dates a { flex: none; padding-inline: 10px; }
+.itinerary-dates [aria-current], .trip-plan nav [aria-current] { background: #e0e7dc; color: #314a3d; }
+.itinerary-details { margin-top: 10px; }
+.itinerary-drag { display: none; }
+
+@media (hover: hover) and (pointer: fine) {
+  .itinerary-drag { display: inline-flex; align-items: center; min-height: 48px; padding: 8px; color: var(--color-muted-ink); font-size: .85rem; cursor: grab; }
+}
+
+@media (min-width: 520px) {
+  .plan-pair, .plan-places { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .plan-date-nav { max-width: 380px; }
+}
+
 @media (min-width: 540px) {
   .trip-date-inputs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

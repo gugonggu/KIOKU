@@ -13,7 +13,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "playwright test",
     "test:db": "node --test tests/trips-db.test.mjs",
-    "test:unit": "node --test --disable-warning=MODULE_TYPELESS_PACKAGE_JSON tests/trip-details.test.mjs"
+    "test:unit": "node --test --disable-warning=MODULE_TYPELESS_PACKAGE_JSON tests/trip-details.test.mjs tests/trip-plan.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",

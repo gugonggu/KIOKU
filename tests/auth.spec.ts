@@ -1,7 +1,8 @@
-import { createHash, generateKeyPairSync, sign } from "node:crypto";
+import { createHash, generateKeyPairSync, randomUUID, sign } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { expect, test } from "@playwright/test";
 import { e2eHost, e2ePorts, e2eUrls } from "./support/e2e-ports";
+import { handlePlanRequest } from "./support/plan-provider";
 import { asUser, createTripsDatabase, ownerA, ownerB } from "./support/trips-db.mjs";
 
 const { configured: appUrl, provider: providerUrl } = e2eUrls;
@@ -14,15 +15,17 @@ let pkceChallenge: string | undefined;
 
 test.beforeAll(async () => {
   const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
-  const kid = "e2e-signing-key";
+  // A restarted worker has a new signing key while the app's JWKS cache may still be warm.
+  const kid = randomUUID();
   const encode = (value: object) => Buffer.from(JSON.stringify(value)).toString("base64url");
   const issuedTokens = new Map<string, string>();
   const savedWithLostReply = new Set<string>();
+  const failedItinerarySaves = new Set<string>();
   database = await createTripsDatabase();
 
   provider = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", providerUrl);
-    const send = (status: number, payload: object) => {
+    const send = (status: number, payload: object | boolean | string) => {
       response.writeHead(status, { "Content-Type": "application/json" }).end(JSON.stringify(payload));
     };
     const readJson = async () => {
@@ -147,6 +150,15 @@ test.beforeAll(async () => {
       }
     }
 
+    if (["/rest/v1/itinerary_items", "/rest/v1/trip_places", "/rest/v1/rpc/save_itinerary_item", "/rest/v1/rpc/update_trip_period",
+      "/rest/v1/rpc/swap_itinerary_items", "/rest/v1/rpc/place_itinerary_item"].includes(url.pathname)) {
+      const userId = issuedTokens.get(request.headers.authorization?.replace(/^Bearer /, "") ?? "");
+      try {
+        return await handlePlanRequest({ database, userId, method: request.method, url, readJson, send, failedSaves: failedItinerarySaves });
+      } catch {
+        return send(400, { message: "fixture plan request failed" });
+      }
+    }
     return send(404, { code: "not_found", message: "fixture route not found" });
   });
 
@@ -158,7 +170,7 @@ test.beforeAll(async () => {
 test.beforeEach(async () => {
   failNextTripRead = false;
   pkceChallenge = undefined;
-  await database.exec("truncate table public.trips");
+  await database.exec("truncate table public.itinerary_items, public.trip_places, public.trips");
 });
 
 test.afterAll(async () => {
@@ -408,4 +420,169 @@ test("the list groups trips by Japan dates and can be reloaded after a data erro
   ]) {
     await expect(page.getByRole("region", { name: group, exact: true }).getByRole("link", { name: title, exact: true })).toBeVisible();
   }
+});
+
+async function seedFiveDayTrip(title: string) {
+  const { rows: [trip] } = await asUser(database, ownerA, (tx) => tx.query<{ id: string }>(`
+    insert into public.trips (title,destination_label,start_date,end_date)
+      values ($1,'홋카이도','2027-02-17','2027-02-21') returning id
+  `, [title]));
+  return `/trips/${trip.id}`;
+}
+
+test("M2 sorts five Japan travel days with three time modes on mobile and desktop", async ({ page }) => {
+  const trip = await seedFiveDayTrip("겨울 여행");
+  await page.setViewportSize({ width: 320, height: 780 });
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  await page.goto(trip);
+  await page.getByRole("link", { name: "일정 보기" }).click();
+  const calendar = page.getByRole("navigation", { name: "일정 날짜 이동" });
+  await expect(calendar.getByRole("link", { name: /^2027/ })).toHaveCount(5);
+  await expect(page.getByLabel("볼 날짜")).toHaveValue("2027-02-17");
+  await calendar.getByRole("link", { name: "2027. 2. 19." }).click();
+  await expect(page).toHaveURL(/itinerary\?date=2027-02-19$/);
+  await expect(page.getByText("이 날짜에 등록된 일정이 없어요.")).toBeVisible();
+
+  async function add(title: string, time?: string, period?: string) {
+    await page.getByRole("link", { name: "일정 추가" }).click();
+    await page.getByLabel("일정 이름").fill(title);
+    if (time || period) {
+      await page.getByText("일정 상세 설정", { exact: true }).click();
+      await expect(page.getByLabel("일정 날짜")).toHaveValue("2027-02-19");
+      await page.getByLabel("시간 방식").selectOption(time ? "FIXED" : "PERIOD");
+      if (time) await page.getByLabel("일본 현지 시각").fill(time);
+      if (period) await page.getByLabel("시간대", { exact: true }).selectOption(period);
+    }
+    await page.getByRole("button", { name: "일정 저장", exact: true }).click();
+    await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
+  }
+
+  await add("늦은 출발", "11:10");
+  await add("저녁 약속", undefined, "EVENING");
+  await add("오후 운하", undefined, "AFTERNOON");
+  await add("아침 산책", "09:20");
+  await add("아침 사진", "09:20");
+  await add("오전 시장", undefined, "MORNING");
+  await add("시간 미정 카페");
+  const entries = page.getByRole("region", { name: "날짜별 일정" }).locator("ol").getByRole("heading");
+  await expect(entries).toHaveText(["아침 산책", "아침 사진", "늦은 출발", "오전 시장", "오후 운하", "저녁 약속", "시간 미정 카페"]);
+  await expect(page.getByRole("button", { name: "늦은 출발 위로" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "오후 운하 위로" })).toHaveCount(0);
+  const up = page.getByRole("button", { name: "아침 사진 위로" });
+  expect((await up.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+  await up.click();
+  await expect(entries).toHaveText(["아침 사진", "아침 산책", "늦은 출발", "오전 시장", "오후 운하", "저녁 약속", "시간 미정 카페"]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const photo = page.locator("[data-schedule-id]").filter({ has: page.getByRole("heading", { name: "아침 사진" }) });
+  const walk = page.locator("[data-schedule-id]").filter({ has: page.getByRole("heading", { name: "아침 산책" }) });
+  const handle = photo.locator("[draggable=true]");
+  await expect(handle).toBeVisible();
+  await handle.dragTo(walk.getByRole("heading"));
+  await expect(entries).toHaveText(["아침 산책", "아침 사진", "늦은 출발", "오전 시장", "오후 운하", "저녁 약속", "시간 미정 카페"]);
+  await page.reload();
+  await expect(entries).toHaveText(["아침 산책", "아침 사진", "늦은 출발", "오전 시장", "오후 운하", "저녁 약속", "시간 미정 카페"]);
+  await page.getByRole("link", { name: "다음 날짜" }).click();
+  await expect(page.getByLabel("볼 날짜")).toHaveValue("2027-02-20");
+  await expect(page.getByText("이 날짜에 등록된 일정이 없어요.")).toBeVisible();
+});
+
+test("M2 archives and restores a linked afternoon item and confirms dates outside the trip", async ({ page }) => {
+  const trip = await seedFiveDayTrip("오타루 여행");
+  const id = trip.split("/").at(-1);
+  await asUser(database, ownerA, async (tx) => {
+    const { rows: [place] } = await tx.query<{ id: string }>("insert into public.trip_places (trip_id,name) values ($1,'오타루 운하') returning id", [id]);
+    await tx.query(`insert into public.itinerary_items (trip_id,title,local_date,time_mode,period,place_id,private_note,shared_note)
+      values ($1,'운하 산책','2027-02-19','PERIOD','AFTERNOON',$2,'개인 준비 메모','동행 안내')`, [id, place.id]);
+  });
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  await page.goto(`${trip}/itinerary?date=2027-02-19`);
+  await expect(page.getByText("오타루 운하", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "후보로 보관" }).click();
+  await expect(page.getByRole("heading", { name: "후보함" })).toBeVisible();
+  await expect(page.getByText(/원래 날짜 2027\. 2\. 19/)).toBeVisible();
+  await page.getByRole("link", { name: "후보 추가" }).click();
+  await page.getByLabel("일정 이름").fill("위치 미정 후보");
+  await page.getByRole("button", { name: "일정 저장", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "위치 미정 후보" })).toBeVisible();
+  await page.getByRole("link", { name: "복원", exact: true }).click();
+  await page.getByRole("button", { name: "원래 일정으로 복원" }).click();
+  await expect(page).toHaveURL(/date=2027-02-19$/);
+  await expect(page.getByText("오후", { exact: true })).toBeVisible();
+  await expect(page.getByText(/개인 준비 메모/)).toBeVisible();
+  await expect(page.getByText(/동행 안내/)).toBeVisible();
+  await expect(page.getByText("오타루 운하", { exact: true })).toBeVisible();
+
+  await page.getByRole("link", { name: "운하 산책 날짜 이동" }).click();
+  await page.getByLabel("옮길 날짜").fill("2027-02-22");
+  await page.getByRole("button", { name: "날짜 이동", exact: true }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("여행 기간 밖");
+  await expect(page.getByLabel("옮길 날짜")).toHaveValue("2027-02-22");
+  const { rows: [unmoved] } = await asUser(database, ownerA, (tx) => tx.query<{ local_date: string }>(
+    "select local_date::text from public.itinerary_items where trip_id=$1 and title='운하 산책'", [id],
+  ));
+  expect(unmoved.local_date).toBe("2027-02-19");
+  await page.getByRole("button", { name: "기간 밖 일정 저장 확인" }).click();
+  const outside = page.getByRole("region", { name: "여행 기간 밖 일정" });
+  await expect(outside.getByRole("heading", { name: "운하 산책" })).toBeVisible();
+
+  await page.getByRole("link", { name: "일정 추가" }).click();
+  await page.getByLabel("일정 이름").fill("사전 준비");
+  await page.getByText("일정 상세 설정", { exact: true }).click();
+  await page.getByLabel("일정 날짜").fill("2027-02-16");
+  await page.getByRole("button", { name: "일정 저장", exact: true }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("2027. 2. 16.");
+  await page.getByRole("button", { name: "기간 밖 일정 저장 확인" }).click();
+  await expect(outside.getByRole("heading", { name: "사전 준비" })).toBeVisible();
+
+  await page.goto(`${trip}/edit`);
+  await page.getByLabel("돌아오는 날").fill("2027-02-22");
+  await page.getByRole("button", { name: "변경사항 저장" }).click();
+  const impact = page.getByRole("main").getByRole("alert");
+  await expect(impact).toContainText("일정 1개");
+  await expect(impact).toContainText("2027. 2. 22.");
+  await expect(impact).not.toContainText("2027. 2. 16.");
+  await page.getByRole("button", { name: "영향을 확인하고 저장" }).click();
+  await page.goto(`${trip}/itinerary?date=2027-02-22`);
+  await expect(page.getByRole("region", { name: "날짜별 일정" }).getByRole("heading", { name: "운하 산책" })).toBeVisible();
+  await expect(outside.getByRole("heading", { name: "사전 준비" })).toBeVisible();
+  await page.getByRole("link", { name: "후보함", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "위치 미정 후보" })).toBeVisible();
+});
+
+test("M2 preserves failed form input, refuses stale overwrites, and blocks a different owner", async ({ page, context, browser }) => {
+  const trip = await seedFiveDayTrip("저장 검증 여행");
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  await page.goto(`${trip}/itinerary?date=2027-02-17`);
+  await page.getByRole("link", { name: "일정 추가" }).click();
+  await page.getByLabel("일정 이름").fill("테스트 저장 재시도");
+  await page.getByRole("button", { name: "일정 저장", exact: true }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("저장하지 못했어요");
+  await expect(page.getByLabel("일정 이름")).toHaveValue("테스트 저장 재시도");
+  await page.getByRole("button", { name: "일정 저장", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "테스트 저장 재시도" })).toHaveCount(1);
+  await page.getByRole("link", { name: "테스트 저장 재시도 일정 수정" }).click();
+  const old = await context.newPage();
+  await old.goto(page.url());
+  await old.getByLabel("일정 이름").fill("이전 탭 수정");
+  await page.getByLabel("일정 이름").fill("먼저 저장한 일정");
+  await page.getByRole("button", { name: "일정 저장", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "먼저 저장한 일정" })).toBeVisible();
+  await old.getByRole("button", { name: "일정 저장", exact: true }).click();
+  await expect(old.getByRole("main").getByRole("alert")).toContainText("다른 화면에서 변경됐어요");
+  await expect(old.getByLabel("일정 이름")).toHaveValue("이전 탭 수정");
+  await old.getByRole("link", { name: "최신 목록 보기" }).click();
+  await expect(old.getByRole("heading", { name: "먼저 저장한 일정" })).toBeVisible();
+  await old.close();
+
+  const other = await browser.newPage();
+  await other.goto(`${appUrl}/auth/confirm?type=email&token_hash=local-fixture-second`);
+  await other.goto(`${appUrl}${trip}/itinerary`);
+  await expect(other.getByRole("heading", { name: "여행을 찾을 수 없어요" })).toBeVisible();
+  await other.close();
+
+  await page.getByRole("link", { name: "먼저 저장한 일정 일정 삭제" }).click();
+  await page.getByRole("button", { name: "일정 삭제 확인" }).click();
+  await expect(page.getByRole("heading", { name: "먼저 저장한 일정" })).toHaveCount(0);
 });
