@@ -4,7 +4,7 @@ test("the entry point opens the Korean login with safe configuration guidance", 
   await page.goto("/");
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.locator("html")).toHaveAttribute("lang", "ko");
-  await expect(page.getByRole("heading", { name: "로그인" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "로그인", level: 1 })).toBeVisible();
   await expect(page.getByLabel("이메일 주소")).toHaveAttribute("type", "email");
   await expect(page.getByText("로그인 설정이 필요해요.")).toBeVisible();
   await expect(page.getByRole("button", { name: "로그인 링크 받기" })).toBeDisabled();
@@ -40,7 +40,10 @@ for (const width of [320, 390, 1440]) {
   test(`login fits ${width}px and provides a touch-sized focusable form`, async ({ page }) => {
     await page.setViewportSize({ width, height: 850 });
     await page.goto("/login");
-    await expect(page.getByRole("heading", { name: "로그인" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "로그인", level: 1 })).toBeVisible();
+    const google = page.getByRole("button", { name: "Google로 계속하기" });
+    await expect(google).toBeVisible();
+    expect((await google.boundingBox())?.height).toBeGreaterThanOrEqual(44);
     const email = page.getByLabel("이메일 주소");
     await page.keyboard.press("Tab");
     await expect(page.getByRole("link", { name: "본문으로 건너뛰기" })).toBeFocused();
