@@ -621,9 +621,11 @@ test("M3 manually saves a Japanese place, shows a map pin and links or detaches 
   await page.getByRole("link", { name: "장소 추가" }).click();
   await page.getByRole("searchbox", { name: "일본 장소 검색" }).fill("삿포로역");
   await expect(page.getByRole("main").getByText(/장소 검색이 설정되지 않았어요/)).toBeVisible();
+  await page.getByRole("button", { name:/직접 등록으로 계속/ }).click();
+  await expect(page.getByLabel("장소 이름", { exact:true })).toHaveValue("삿포로역");
   await page.getByLabel("장소 이름", { exact:true }).fill("삿포로 테스트 장소");
   await page.getByLabel("주소", { exact:true }).fill("홋카이도 삿포로시");
-  await page.getByText("다국어 이름과 메모", { exact:true }).click();
+  await page.getByText("좌표·다국어 이름·메모", { exact:true }).click();
   await page.getByLabel("일본어 이름").fill("札幌のテスト地点");
   await page.getByLabel("일본어 주소").fill("北海道札幌市中央区");
   await page.getByLabel("영어 이름").fill("Sapporo test location");
@@ -646,12 +648,13 @@ test("M3 manually saves a Japanese place, shows a map pin and links or detaches 
   await page.getByRole("button", { name:"내 위치", exact:true }).click();
   await expect(page.getByText(/위치 권한이 허용되지 않았어요/)).toBeVisible();
   expect(await page.evaluate(() => Reflect.get(window, "kiokuLocationCalls"))).toBe(1);
+  await page.getByRole("button", { name:"목록", exact:true }).click();
   await expect(page.getByRole("region", { name:"저장된 장소" }).getByRole("button", { name:/삿포로 테스트 장소/ })).toBeVisible();
 
   await page.setViewportSize({ width:1440, height:900 });
   const mapBounds = await page.getByRole("region", { name:"장소 지도" }).boundingBox();
   const listBounds = await page.getByRole("region", { name:"저장된 장소" }).boundingBox();
-  expect(mapBounds!.x + mapBounds!.width).toBeLessThan(listBounds!.x);
+  expect(listBounds!.x + listBounds!.width).toBeLessThan(mapBounds!.x);
 
   for (const title of ["첫 방문", "둘째 방문"]) {
     await detail.getByRole("link", { name:"일정에 추가" }).click();
@@ -730,6 +733,7 @@ test("M3 keeps the place list when the basemap fails and denies a different owne
   await page.route(mapStyle, (route) => route.abort("failed"));
   await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
   await page.goto(`${trip}/map?mode=add`);
+  await page.getByRole("button", { name:"직접 입력", exact:true }).click();
   await page.getByLabel("장소 이름", { exact:true }).fill("이름만 있는 장소");
   await page.getByRole("button", { name:"장소 저장" }).click();
   await expect(page.getByText(/지도를 불러오지 못했어요/)).toBeVisible({ timeout:12000 });
@@ -867,4 +871,137 @@ test("editorial desktop and mobile keep saved places and quick-add controls in r
       await expect(dialog).toHaveCount(0);
     }
   }
+});
+
+test("editorial places workspace keeps list, map and selection in sync on desktop and mobile", async ({ page }) => {
+  test.setTimeout(90_000);
+  const trip = await seedFiveDayTrip("삿포로 장소 수첩");
+  const tripId = trip.split("/").at(-1);
+  await asUser(database, ownerA, async (tx) => {
+    const { rows } = await tx.query<{ id: string; display_name: string }>(`insert into public.trip_places
+      (trip_id,display_name,address_text,address_ja,latitude,longitude,name_ja) values
+      ($1,'오도리 공원','홋카이도 삿포로시 주오구','北海道札幌市中央区大通西',43.0606,141.3488,'大通公園'),
+      ($1,'삿포로 TV 타워','홋카이도 삿포로시 주오구 오도리니시 1','北海道札幌市中央区大通西1',43.0611,141.3564,'さっぽろテレビ塔'),
+      ($1,'오타루 운하','홋카이도 오타루시','北海道小樽市港町',43.199,140.994,'小樽運河'),
+      ($1,'삿포로 맥주 박물관','홋카이도 삿포로시 히가시구',null,43.0715,141.3687,null),
+      ($1,'수프카레 가게 후보',null,null,null,null,null) returning id, display_name`, [tripId]);
+    const id = (name: string) => rows.find((row) => row.display_name === name)!.id;
+    await tx.query(`insert into public.itinerary_items (trip_id,title,kind,local_date,time_mode,period,place_id) values
+      ($1,'오도리 공원 산책','PLACE','2027-02-17','PERIOD','AFTERNOON',$2),
+      ($1,'TV 타워 야경','PLACE','2027-02-17','PERIOD','EVENING',$3),
+      ($1,'오타루 당일치기','PLACE','2027-02-19','UNSCHEDULED',null,$4)`, [tripId, id("오도리 공원"), id("삿포로 TV 타워"), id("오타루 운하")]);
+  });
+  if (process.env.PLAYWRIGHT_LIVE_MAP !== "1") {
+    await page.route(mapStyle, (route) => route.fulfill({ json: testStyle, headers: { "access-control-allow-origin": "*" } }));
+  }
+  await page.route("**/api/places/search?**", (route) => {
+    const query = new URL(route.request().url()).searchParams.get("q");
+    if (query === "검색 장애") return route.fulfill({ status: 503, json: { status: "unavailable" } });
+    return route.fulfill({ json: { status: "ok", results: [{ id: "fixture-clock-tower", name: "삿포로 시계탑",
+      address: "北海道札幌市中央区北1条西2丁目", latitude: 43.0625, longitude: 141.3536, language: "ko" }] } });
+  });
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  const capture = async (name: string) => {
+    const directory = process.env.KIOKU_UI_SCREENSHOTS;
+    if (directory) {
+      await page.evaluate(() => document.fonts.ready);
+      if (process.env.PLAYWRIGHT_LIVE_MAP === "1") await page.waitForLoadState("networkidle").catch(() => {});
+      await page.screenshot({ path: `${directory}/${name}.png`, animations: "disabled" });
+    }
+  };
+  const list = page.getByRole("region", { name: "저장된 장소" });
+  const detail = page.getByRole("article", { name: "선택한 장소" });
+  const pin = (name: string) => page.getByRole("button", { name: `지도 핀: ${name}` });
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${trip}/itinerary?date=2027-02-17`);
+  await page.getByRole("navigation", { name: "일정 분류" }).getByRole("link", { name: "장소와 지도" }).click();
+  await expect(page).toHaveURL(/map\?date=2027-02-17&filter=date$/);
+  await expect(list.getByRole("button")).toHaveCount(2);
+  await list.getByRole("link", { name: "전체" }).click();
+  await expect(list.getByRole("button")).toHaveCount(5);
+  await expect(list.getByRole("button", { name: /수프카레 가게 후보/ })).toContainText("주소 미정");
+  await expect(pin("오도리 공원")).toBeVisible({ timeout: 12000 });
+  await expect(page.locator("button.kioku-map-pin")).toHaveCount(4);
+  await capture("places-1440");
+
+  await list.getByRole("button", { name: /삿포로 TV 타워/ }).click();
+  await expect(detail.getByRole("heading", { name: "삿포로 TV 타워" })).toBeVisible();
+  await expect(detail.getByText("연결된 일정 1개")).toBeVisible();
+  await expect(pin("삿포로 TV 타워")).toHaveAttribute("aria-pressed", "true");
+  await capture("places-selected-1440");
+  await pin("오도리 공원").click();
+  await expect(list.getByRole("button", { name: /오도리 공원/ })).toHaveAttribute("aria-pressed", "true");
+  await expect(detail.getByRole("heading", { name: "오도리 공원" })).toBeVisible();
+  await page.getByRole("searchbox", { name: "저장된 장소 찾기" }).fill("운하");
+  await expect(list.getByRole("button")).toHaveCount(1);
+  await list.getByRole("button", { name: /오타루 운하/ }).click();
+  await detail.getByRole("link", { name: "일정에 추가" }).click();
+  const quick = page.getByRole("dialog", { name: "일정 추가" });
+  await expect(quick.getByText("저장한 장소 · 일정에 연결")).toBeVisible();
+  await quick.getByLabel("일정 이름").fill("운하 저녁 산책");
+  await quick.getByRole("button", { name: "일정 저장" }).click();
+  await expect(page).toHaveURL(/itinerary\?date=2027-02-17$/);
+  await expect(page.locator("[data-schedule-id]").filter({ has: page.getByRole("heading", { name: "운하 저녁 산책" }) })
+    .getByRole("link", { name: "지도에서 장소 보기" })).toBeVisible();
+
+  await page.goto(`${trip}/map?date=2027-02-17`);
+  await page.getByRole("link", { name: "장소 추가" }).click();
+  const add = page.getByRole("dialog", { name: "장소 추가" });
+  await add.getByRole("searchbox", { name: "일본 장소 검색" }).fill("검색 장애");
+  await expect(add.getByText(/지금은 검색할 수 없어요/)).toBeVisible();
+  await capture("place-search-failed-1440");
+  await add.getByRole("button", { name: /직접 등록으로 계속/ }).click();
+  await expect(add.getByLabel("장소 이름", { exact: true })).toHaveValue("검색 장애");
+  await add.getByRole("button", { name: "닫기" }).click();
+  await expect(add).toHaveCount(0);
+
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto(`${trip}/map?date=2027-02-17`);
+    await expect(page.getByRole("button", { name: "목록", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("region", { name: "장소 지도" })).toBeHidden();
+    await expect(list.getByRole("button")).toHaveCount(5);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+    await capture(`places-${width}`);
+    await list.getByRole("button", { name: /오도리 공원/ }).click();
+    await expect(detail).toBeInViewport();
+    const tabs = (await page.getByRole("navigation", { name: "여행 바로가기" }).boundingBox())!;
+    const sheet = (await detail.boundingBox())!;
+    expect(sheet.y + sheet.height).toBeLessThanOrEqual(tabs.y + 1);
+    await detail.getByRole("button", { name: "지도에서 보기" }).click();
+    await expect(list).toBeHidden();
+    await expect(pin("오도리 공원")).toHaveAttribute("aria-pressed", "true", { timeout: 12000 });
+    await expect(pin("오도리 공원")).toBeInViewport();
+    const marker = (await pin("오도리 공원").boundingBox())!;
+    expect(marker.y + marker.height).toBeLessThan((await detail.boundingBox())!.y);
+    await capture(`places-map-${width}`);
+    await pin("삿포로 TV 타워").click();
+    await expect(detail.getByRole("heading", { name: "삿포로 TV 타워" })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("link", { name: "장소 추가" }).click();
+  await add.getByRole("searchbox", { name: "일본 장소 검색" }).fill("시계탑");
+  await add.getByRole("button", { name: /삿포로 시계탑/ }).click();
+  await expect(add.getByText("검색한 장소 · Geoapify")).toBeVisible();
+  await expect(add.getByRole("button", { name: "장소 저장" })).toBeInViewport();
+  await capture("place-add-390");
+  await add.getByRole("button", { name: "장소 저장" }).click();
+  await expect(detail.getByRole("heading", { name: "삿포로 시계탑" })).toBeVisible();
+  await expect(pin("삿포로 시계탑")).toHaveAttribute("aria-pressed", "true", { timeout: 12000 });
+  await detail.getByRole("link", { name: "일정에 추가" }).click();
+  await expect(page.getByRole("dialog", { name: "일정 추가" }).getByLabel("일정 이름")).toHaveValue("삿포로 시계탑");
+
+  await page.unroute(mapStyle);
+  await page.route(mapStyle, (route) => route.abort("failed"));
+  await page.goto(`${trip}/map?date=2027-02-17`);
+  await page.getByRole("button", { name: "지도", exact: true }).click();
+  await expect(page.getByText(/지도를 불러오지 못했어요/)).toBeVisible({ timeout: 12000 });
+  const retry = (await page.getByRole("button", { name: "지도 다시 불러오기" }).boundingBox())!;
+  expect(retry.y + retry.height).toBeLessThanOrEqual((await page.getByRole("navigation", { name: "여행 바로가기" }).boundingBox())!.y);
+  await capture("places-map-failed-390");
+  await page.getByRole("button", { name: "목록", exact: true }).click();
+  await expect(list.getByRole("button")).toHaveCount(6);
 });

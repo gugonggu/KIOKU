@@ -27,11 +27,13 @@ export function timeLabel(item: Pick<PlanSchedule, "fixed_local_time" | "period"
 
 const shortDay = new Intl.DateTimeFormat("ko-KR", { month: "numeric", day: "numeric", weekday: "short", timeZone: "Asia/Tokyo" });
 
-export function DayCards({ trip, date, summaries }: { trip: Trip; date: string; summaries?: Map<string, string> }) {
+export function DayCards({ trip, date, summaries, href = (day) => itineraryHref(trip.id, day) }: {
+  trip: Trip; date: string; summaries?: Map<string, string>; href?: (day: string) => string;
+}) {
   const start = trip.start_date;
   if (!start) return null;
   return <div className="editorial-days">
-    {tripDays(trip, date).map((day) => <Link key={day} className="editorial-day" href={itineraryHref(trip.id, day)}
+    {tripDays(trip, date).map((day) => <Link key={day} className="editorial-day" href={href(day)}
       aria-current={day === date ? "date" : undefined} aria-label={dateLabel(day)}>
       <strong>Day {dayNumber(start, day)}</strong>
       <time dateTime={day}>{shortDay.format(new Date(day))}</time>
@@ -40,11 +42,12 @@ export function DayCards({ trip, date, summaries }: { trip: Trip; date: string; 
   </div>;
 }
 
-export function TripTabs({ href, active }: { href: string; active: "home" | "itinerary" }) {
+export function TripTabs({ href, active, date }: { href: string; active: "home" | "itinerary" | "map"; date?: string | null }) {
+  const day = date ? `?date=${date}` : "";
   return <nav className="editorial-tabs" aria-label="여행 바로가기">
     <Link href={href} aria-current={active === "home" ? "page" : undefined}><House size={18} aria-hidden />홈</Link>
-    <Link href={`${href}/itinerary`} aria-current={active === "itinerary" ? "page" : undefined}><CalendarDays size={18} aria-hidden />일정</Link>
-    <Link href={`${href}/map`}><MapPinned size={18} aria-hidden />장소</Link>
+    <Link href={`${href}/itinerary${day}`} aria-current={active === "itinerary" ? "page" : undefined}><CalendarDays size={18} aria-hidden />일정</Link>
+    <Link href={`${href}/map${day}`} aria-current={active === "map" ? "page" : undefined}><MapPinned size={18} aria-hidden />장소</Link>
     <Link href={`${href}/edit`} aria-label="더보기 · 여행 정보"><Ellipsis size={18} aria-hidden />더보기</Link>
   </nav>;
 }

@@ -71,7 +71,7 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
       {candidates && <input type="hidden" name="view" value="candidates" />}
       <button className="quiet-link">다시 불러오기</button>
     </form>
-  </div><TripTabs href={homeHref} active="itinerary" /></div>;
+  </div><TripTabs href={homeHref} active="itinerary" date={date} /></div>;
 
   const item = plan.schedule.find(({ id }) => id === query.id);
   const mode = query.mode;
@@ -97,7 +97,7 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
           action={changePlacement.bind(null, trip.id, { id: item.id, revision: item.revision,
             archivedDate: item.archived_date, candidate: item.local_date === null }, mode, date)} />}
       </section>
-      <TripTabs href={homeHref} active="itinerary" />
+      <TripTabs href={homeHref} active="itinerary" date={date} />
     </div>;
   }
 
@@ -168,7 +168,7 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
         <Link href={map} className="quiet-link">지도 열기<ChevronRight size={15} aria-hidden /></Link>
       </aside>
     </div>
-    <TripTabs href={homeHref} active="itinerary" />
+    <TripTabs href={homeHref} active="itinerary" date={date} />
     {quick && <EditorialDialog title={addLabel} back={back}>
       {editor(undefined, plan.places.find(({ id }) => id === query.place))}
     </EditorialDialog>}

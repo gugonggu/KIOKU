@@ -1,5 +1,6 @@
 "use client";
 
+import { MapPin, Search, SquarePen } from "lucide-react";
 import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
@@ -15,8 +16,8 @@ const searchMessages = {
   unavailable: "지금은 검색할 수 없어요. 직접 등록하거나 잠시 후 다시 시도해 주세요.",
 };
 
-export function PlaceSearch({ tripId, choose, schedule = false }: {
-  tripId: string; choose: (row: PlaceSuggestion) => void; schedule?: boolean;
+export function PlaceSearch({ tripId, choose, schedule = false, onFallback }: {
+  tripId: string; choose: (row: PlaceSuggestion) => void; schedule?: boolean; onFallback?: (query: string) => void;
 }) {
   const [input, setInput] = useState("");
   const [response, setResponse] = useState<{ query: string; result: GeoapifyResult }>();
@@ -59,6 +60,9 @@ export function PlaceSearch({ tripId, choose, schedule = false }: {
       {result.status === "unavailable" && <button type="button" className="quiet-link"
         onClick={() => { setResponse(undefined); setAttempt((count) => count + 1); }}>다시 검색</button>}
     </div>}
+    {onFallback && result && (result.status !== "ok" || !result.results.length) &&
+      <button type="button" className="quiet-link places-fallback" onClick={() => onFallback(query)}>
+        <SquarePen size={16} aria-hidden />“{query}” 직접 등록으로 계속</button>}
     <p className="plan-meta">검색 제공 <a href="https://www.geoapify.com/" target="_blank" rel="noreferrer">Geoapify</a></p>
   </section>;
 }
@@ -78,27 +82,49 @@ export function PlaceEditor({ action, tripId, item, back }: { action: Action; tr
   function choose(row: PlaceSuggestion) {
     setValues((before) => ({ ...before, ...suggestionFields(row) }));
   }
+  const [source, setSource] = useState<"search" | "manual">(item ? "manual" : "search");
+  const chosen = values.provider === "GEOAPIFY";
+  const searching = !item && source === "search" && !chosen;
+  const toManual = () => setValues((before) => ({ ...before, provider: "MANUAL", provider_place_id: "" }));
   const existing = state.duplicate ?? state.existing;
-  return <>
-    {!item && <PlaceSearch tripId={tripId} choose={choose} />}
-    <form className="plan-card" action={dispatch}>
+  return <div className="place-editor">
+    {!item && <div className="editorial-sources places-sources" role="group" aria-label="장소 등록 방식">
+      <button type="button" aria-pressed={source === "search"} onClick={() => setSource("search")}><Search size={15} aria-hidden />장소 검색</button>
+      <button type="button" aria-pressed={source === "manual"} onClick={() => { setSource("manual"); if (chosen) toManual(); }}>
+        <SquarePen size={15} aria-hidden />직접 입력</button>
+    </div>}
+    {searching && <PlaceSearch tripId={tripId} choose={choose} onFallback={(query) => {
+      setValues((before) => ({ ...before, display_name: before.display_name || query.slice(0, placeLimits.name) }));
+      setSource("manual");
+    }} />}
+    {!searching && <form className="editorial-quick-form place-editor-form" action={dispatch}>
       <fieldset className="plan-fields" disabled={pending}>
-        <legend>{item ? "장소 정보" : "직접 등록 또는 검색 결과 확인"}</legend>
-        {values.provider === "GEOAPIFY" && <div className="notice">
-          <p>Geoapify에서 가져온 장소예요. 정보를 확인한 뒤 저장해 주세요.</p>
-          <button type="button" className="quiet-link" onClick={() => setValues((before) => ({ ...before, provider:"MANUAL", provider_place_id:"" }))}>직접 입력으로 전환</button>
+        {chosen && <div className="editorial-selected-place place-chosen">
+          <MapPin size={18} aria-hidden />
+          <div><span>검색한 장소 · Geoapify</span><strong>{values.display_name || "이름 없음"}</strong>
+            {values.address_text && <small>{values.address_text}</small>}</div>
+          {!item && <button type="button" className="quiet-link" onClick={() => {
+            setValues((before) => ({ ...before, display_name: "", address_text: "", address_ja: "", latitude: "", longitude: "",
+              name_ko: "", name_ja: "", name_en: "", provider: "MANUAL", provider_place_id: "" }));
+            setSource("search");
+          }}>다시 검색</button>}
+        </div>}
+        {chosen && <div className="place-chosen-note">
+          <p className="plan-meta">Geoapify에서 가져온 장소예요. 정보를 확인한 뒤 저장해 주세요.</p>
+          <button type="button" className="quiet-link" onClick={() => { toManual(); setSource("manual"); }}>직접 입력으로 전환</button>
         </div>}
         <input type="hidden" name="provider" value={values.provider} />
         <input type="hidden" name="provider_place_id" value={values.provider_place_id} />
-        {field("display_name", "장소 이름", { required:true, maxLength:placeLimits.name })}
-        {field("address_text", "주소", { maxLength:placeLimits.address })}
-        <div className="plan-pair">
-          {field("latitude", "위도", { type:"number", inputMode:"decimal", min:-90, max:90, step:"any" })}
-          {field("longitude", "경도", { type:"number", inputMode:"decimal", min:-180, max:180, step:"any" })}
-        </div>
-        <details open={item ? true : undefined}>
-          <summary className="quiet-link">다국어 이름과 메모</summary>
+        {field("display_name", "장소 이름", { required:true, maxLength:placeLimits.name, placeholder: chosen ? undefined : "예: 오도리 공원" })}
+        {!chosen && field("address_text", "주소", { maxLength:placeLimits.address })}
+        <details className="place-editor-more" open={item ? true : undefined}>
+          <summary className="quiet-link">{chosen ? "주소·좌표·다국어 이름·메모" : "좌표·다국어 이름·메모"}</summary>
           <div className="plan-fields itinerary-details">
+            {chosen && field("address_text", "주소", { maxLength:placeLimits.address })}
+            <div className="plan-pair">
+              {field("latitude", "위도", { type:"number", inputMode:"decimal", min:-90, max:90, step:"any" })}
+              {field("longitude", "경도", { type:"number", inputMode:"decimal", min:-180, max:180, step:"any" })}
+            </div>
             {field("name_ko", "한국어 이름", { maxLength:placeLimits.name })}
             {field("name_ja", "일본어 이름", { maxLength:placeLimits.name })}
             {field("name_en", "영어 이름", { maxLength:placeLimits.name })}
@@ -110,7 +136,7 @@ export function PlaceEditor({ action, tripId, item, back }: { action: Action; tr
       </fieldset>
       {state.error && !pending && <p className="notice notice-error" role="alert">{state.error}</p>}
       {state.duplicate && !pending && <p className="notice" role="alert">이 여행에 같은 장소가 있어요. 기존 장소를 쓰거나 별도로 저장할 수 있어요.</p>}
-      <div className="state-actions">
+      <div className="state-actions editorial-form-actions">
         <button type="submit" className="primary-button" disabled={pending || state.conflict || Boolean(state.existing)}
           name={state.duplicate ? "confirm_duplicate" : undefined} value={state.duplicate}>
           {pending ? "저장 중…" : state.duplicate ? "별도로 저장" : "장소 저장"}
@@ -118,19 +144,19 @@ export function PlaceEditor({ action, tripId, item, back }: { action: Action; tr
         {existing && <Link className="quiet-link" href={`${back}${back.includes("?") ? "&" : "?"}place=${existing}`}>기존 장소 보기</Link>}
         <Link className="quiet-link" href={back}>취소</Link>
       </div>
-    </form>
-  </>;
+    </form>}
+  </div>;
 }
 
 export function DeletePlaceForm({ action, name, count, back }: { action: Action; name: string; count: number; back: string }) {
   const [state, dispatch, pending] = useActionState(action, {});
   const latest = state.linkCount ?? count;
-  return <form className="plan-card" action={dispatch}>
+  return <form className="editorial-quick-form" action={dispatch}>
     <p><strong>{name}</strong> 장소를 삭제할까요?</p>
     <p className="notice" role="status">{latest ? `연결된 일정 ${latest}개의 장소 연결을 해제합니다. 일정과 메모는 그대로 유지됩니다.` : "연결된 일정이 없어요."}</p>
     {state.linkCount !== undefined && <p className="notice" role="alert">연결된 일정 수가 바뀌었어요. 변경 내용을 다시 확인해 주세요.</p>}
     {state.error && <p className="notice notice-error" role="alert">{state.error}</p>}
-    <div className="state-actions">
+    <div className="state-actions editorial-form-actions">
       <button type="submit" className="primary-button danger-button" name="confirm_count" value={latest}
         disabled={pending || state.conflict}>{pending ? "삭제 중…" : "장소 삭제 확인"}</button>
       <Link href={back} className="quiet-link">취소</Link>

@@ -1,9 +1,10 @@
 "use client";
 
 import type { Map as MapLibre, Marker } from "maplibre-gl";
+import { LocateFixed } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export type MapPin = { id: string; label: string; point: [number, number] };
+export type MapPin = { id: string; label: string; point: [number, number]; number: number };
 type GeoPoint = [number, number];
 export const mapLatitudeLimit = 85.051129;
 const styleUrl = "https://tiles.openfreemap.org/styles/liberty";
@@ -15,6 +16,7 @@ export function MapCanvas({ pins, selected, onSelect }: { pins: MapPin[]; select
   const [retry, setRetry] = useState(0);
   const [geo, setGeo] = useState<{ message: string; point?: GeoPoint }>();
   const callback = useRef(onSelect);
+  const fit = useRef<() => void>(() => {});
   const alive = useRef(true);
   useEffect(() => { callback.current = onSelect; }, [onSelect]);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
@@ -43,31 +45,61 @@ export function MapCanvas({ pins, selected, onSelect }: { pins: MapPin[]; select
   useEffect(() => {
     if (!runtime) return;
     const { map, lib } = runtime;
-    const markers: Marker[] = pins.map(({ id, label, point }) => {
+    const markers: Marker[] = pins.map(({ id, label, point, number }) => {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "kioku-map-pin";
       button.dataset.placeId = id;
       button.setAttribute("aria-label", `지도 핀: ${label}`);
-      button.textContent = "●";
+      button.textContent = String(number);
       button.addEventListener("click", () => callback.current(id));
       return new lib.Marker({ element: button, anchor: "center" }).setLngLat(point).addTo(map);
     });
-    if (pins.length === 1) map.jumpTo({ center: pins[0].point, zoom: 13 });
-    if (pins.length > 1) {
-      const bounds = new lib.LngLatBounds();
-      for (const pin of pins) bounds.extend(pin.point);
-      map.fitBounds(bounds, { padding: 44, maxZoom: 13, duration: 0 });
-    }
+    fit.current = () => {
+      if (pins.length === 1) map.jumpTo({ center: pins[0].point, zoom: 13 });
+      if (pins.length > 1) {
+        const bounds = new lib.LngLatBounds();
+        for (const pin of pins) bounds.extend(pin.point);
+        map.fitBounds(bounds, { padding: 44, maxZoom: 13, duration: 0 });
+      }
+    };
+    fit.current();
     return () => markers.forEach((marker) => marker.remove());
   }, [runtime, pins]);
 
   const active = pins.find((pin) => pin.id === selected);
+  const focus = useRef<() => void>(() => {});
   useEffect(() => {
     container.current?.querySelectorAll<HTMLButtonElement>("button.kioku-map-pin").forEach((button) =>
       button.setAttribute("aria-pressed", String(button.dataset.placeId === selected)));
-    if (runtime && active) runtime.map.jumpTo({ center: active.point, zoom: Math.max(13, runtime.map.getZoom()) });
+    focus.current = () => {
+      if (!runtime || !active) return;
+      // Keep the selected pin clear of the place card: it covers the lower map on phones and the left edge on desktop.
+      const narrow = window.matchMedia("(max-width: 839px)").matches;
+      const { clientWidth, clientHeight } = runtime.map.getContainer();
+      runtime.map.easeTo({ center: active.point, zoom: Math.max(13, runtime.map.getZoom()), duration: 0,
+        offset: narrow ? [0, -Math.round(clientHeight * 0.22)] : [Math.min(192, Math.round(clientWidth * 0.2)), 0] });
+    };
+    focus.current();
   }, [runtime, active, pins, selected]);
+
+  // The map can start hidden behind the mobile list view; re-measure and re-frame when it becomes visible.
+  useEffect(() => {
+    const node = container.current;
+    if (!runtime || !node) return;
+    let wasHidden = node.clientWidth === 0;
+    const observer = new ResizeObserver(() => {
+      runtime.map.resize();
+      const hidden = node.clientWidth === 0;
+      if (wasHidden && !hidden) {
+        fit.current();
+        focus.current();
+      }
+      wasHidden = hidden;
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [runtime]);
 
   const point = geo?.point;
   useEffect(() => {
@@ -103,6 +135,9 @@ export function MapCanvas({ pins, selected, onSelect }: { pins: MapPin[]; select
   return <section id="trip-place-map" className="place-map" aria-label="장소 지도">
     <div className="place-map-viewport" data-map-state={status}>
       <div ref={container} className="place-map-canvas" aria-label="일본 지도" />
+      <button type="button" className="place-map-locate" disabled={status !== "ready" || geo?.message === "현재 위치를 확인하는 중이에요."}
+        onClick={locate}><LocateFixed size={17} aria-hidden />내 위치</button>
+      {geo && <p className="place-map-toast" role="status">{geo.message}</p>}
       {status === "loading" && <p className="place-map-overlay notice" role="status">지도를 불러오는 중이에요.</p>}
       {status === "failed" && <div className="place-map-overlay notice notice-error" role="alert">
         <p>지도를 불러오지 못했어요. 저장된 장소 목록에서 주소와 길찾기를 사용할 수 있어요.</p>
@@ -110,11 +145,9 @@ export function MapCanvas({ pins, selected, onSelect }: { pins: MapPin[]; select
       </div>}
     </div>
     <div className="place-map-footer">
-      <button type="button" className="quiet-link" disabled={status !== "ready" || geo?.message === "현재 위치를 확인하는 중이에요."} onClick={locate}>내 위치</button>
       <p className="plan-meta">지도 <a href="https://openfreemap.org/" target="_blank" rel="noreferrer">OpenFreeMap</a>
         {" · "}<a href="https://openmaptiles.org/" target="_blank" rel="noreferrer">© OpenMapTiles</a>
         {" · "}<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a></p>
     </div>
-    {geo && <p className="notice" role="status">{geo.message}</p>}
   </section>;
 }

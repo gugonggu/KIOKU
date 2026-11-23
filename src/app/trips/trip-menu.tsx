@@ -9,7 +9,7 @@ import { signOut } from "./actions";
 export function TripMenu() {
   const path = usePathname();
   const [state, action, pending] = useActionState(signOut, { failed: false });
-  const inPlanner = /^\/trips\/[^/]+(?:\/itinerary)?$/.test(path) && path !== "/trips/new";
+  const inPlanner = /^\/trips\/[^/]+(?:\/(?:itinerary|map))?$/.test(path) && path !== "/trips/new";
   const newTrip = <Link href="/trips/new" aria-current={path === "/trips/new" ? "page" : undefined}>
     <Plus size={18} aria-hidden="true" />새 여행
   </Link>;
