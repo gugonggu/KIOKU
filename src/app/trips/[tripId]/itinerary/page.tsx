@@ -2,6 +2,7 @@ import { ArrowLeft, ArrowRight, ChevronRight, MapPin, Plus } from "lucide-react"
 import Link from "next/link";
 import { Blossom } from "@/components/brand";
 import { EditorialDialog } from "@/components/editorial-dialog";
+import { loadBookingSummaries } from "@/lib/trip-booking-data";
 import { Input } from "@/components/ui/input";
 import { dateLabel, isCalendarDate, japanDate, type Trip } from "@/lib/trip-details";
 import { outsideTrip, planCalendar as calendar, planDay, shiftDay, sortSchedule } from "@/lib/trip-plan";
@@ -48,7 +49,8 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
   const [{ tripId }, query] = await Promise.all([params, searchParams]);
   const { data: trip, error } = await getTrip(tripId);
   if (error || !trip) return <TripLoadError />;
-  const plan = await loadTripPlan(trip.id);
+  const [plan, bookingRows] = await Promise.all([loadTripPlan(trip.id), loadBookingSummaries(trip.id)]);
+  const bookings = bookingRows ?? [];
   const date = planDay(trip, typeof query.date === "string" ? query.date : undefined, japanDate());
   const candidates = query.view === "candidates";
   const back = itineraryHref(trip.id, date, undefined, undefined, candidates);
@@ -84,6 +86,7 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
     const initialDate = initialPlace && typeof query.date === "string" && isCalendarDate(query.date) ? query.date : date;
     return <ScheduleEditor key={entry?.id ?? back} action={saveItinerary.bind(null, trip.id, entry?.id ?? randomUUID(), entry?.revision ?? null, date)}
       cancel={back} item={entry} date={candidates ? null : initialDate} initialPlace={initialPlace} places={plan.places}
+      bookings={bookings} initialBooking={quick ? bookings.find(({ id }) => id === query.booking) : undefined}
       quickTripId={quick ? trip.id : undefined} />;
   };
   if (mode === "edit" || placing) {
@@ -135,9 +138,9 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
             </div>
             <Blossom className="editorial-timeline-sprig" />
           </div>
-          {candidates ? undated.length ? <ScheduleList key={back} items={undated} tripId={trip.id} date={date} places={plan.places} candidate /> :
+          {candidates ? undated.length ? <ScheduleList key={back} items={undated} tripId={trip.id} date={date} places={plan.places} bookings={bookings} candidate /> :
             <p className="plan-empty">날짜를 아직 정하지 않은 일정이 없어요.</p>
-            : date ? onDay.length ? <ScheduleList key={back} items={onDay} tripId={trip.id} date={date} places={plan.places} /> :
+            : date ? onDay.length ? <ScheduleList key={back} items={onDay} tripId={trip.id} date={date} places={plan.places} bookings={bookings} /> :
               <p className="plan-empty">이 날짜에 등록된 일정이 없어요.</p>
               : <p className="plan-empty">여행 기간을 정하면 날짜별로 일정을 볼 수 있어요. <Link href={`${homeHref}/edit#trip-dates`} className="quiet-link">여행 날짜 정하기</Link></p>}
           <Link href={add} scroll={false} className="editorial-add" data-itinerary-add>
@@ -147,7 +150,7 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
         {!candidates && otherDates.size > 0 && <section className="plan-section" aria-labelledby="outside-title">
           <h2 id="outside-title">{date ? "여행 기간 밖 일정" : "날짜가 정해진 일정"}</h2>
           {[...otherDates].sort(([first], [second]) => first.localeCompare(second)).map(([day, rows]) => (
-            <ScheduleList key={day} items={rows} tripId={trip.id} date={date} places={plan.places} showDates />
+            <ScheduleList key={day} items={rows} tripId={trip.id} date={date} places={plan.places} bookings={bookings} showDates />
           ))}
         </section>}
       </div>

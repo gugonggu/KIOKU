@@ -16,11 +16,13 @@ export function parseSchedule(data: FormData): ScheduleFields | string {
   const kind = read(data, "kind") || "NOTE";
   const mode = read(data, "time_mode") || "UNSCHEDULED";
   const place = read(data, "place_id");
+  const booking = read(data, "booking_id");
   if (!title || title.length > planLimits.title) return "일정 이름을 1~100자로 입력해 주세요.";
   if (privateNote.length > planLimits.notes || sharedNote.length > planLimits.notes) return "메모는 각각 1,500자까지 입력할 수 있어요.";
-  if (kind !== "NOTE" && kind !== "MOVE" && kind !== "PLACE") return "일정 유형을 다시 선택해 주세요.";
+  if (kind !== "NOTE" && kind !== "MOVE" && kind !== "PLACE" && kind !== "BOOKING_REF") return "일정 유형을 다시 선택해 주세요.";
   if (mode !== "FIXED" && mode !== "PERIOD" && mode !== "UNSCHEDULED") return "시간 방식을 선택해 주세요.";
   if (place && !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(place)) return "연결할 장소를 다시 선택해 주세요.";
+  if (booking && !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(booking)) return "연결할 예약을 다시 선택해 주세요.";
   const date = read(data, "local_date");
   if ((date || mode !== "UNSCHEDULED") && !isCalendarDate(date)) return "일정 날짜를 입력해 주세요.";
   const fixed = mode === "FIXED" ? read(data, "fixed_local_time") : "";
@@ -28,7 +30,9 @@ export function parseSchedule(data: FormData): ScheduleFields | string {
   if (mode === "FIXED" && !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(fixed)) return "일본 현지 시각을 입력해 주세요.";
   if (mode === "PERIOD" && period !== "MORNING" && period !== "AFTERNOON" && period !== "EVENING") return "오전, 오후 또는 저녁을 선택해 주세요.";
   return {
-    title, kind, time_mode: mode, place_id: place || null, local_date: date || null,
+    title, kind: kind === "BOOKING_REF" && data.has("booking_id") && !booking ? "NOTE" : kind,
+    time_mode: mode, place_id: place || null, local_date: date || null,
+    ...(data.has("booking_id") && { booking_id: booking || null }),
     fixed_local_time: fixed || null, period: (period || null) as SchedulePeriod | null,
     private_note: privateNote || null, shared_note: sharedNote || null,
   };

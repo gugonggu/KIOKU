@@ -2,6 +2,8 @@ import { ArrowLeft, CalendarDays, ChevronRight, MapPin, PencilLine, UsersRound }
 import Link from "next/link";
 import { Blossom } from "@/components/brand";
 import { Cover } from "@/components/cover";
+import { loadBookingSummaries } from "@/lib/trip-booking-data";
+import { bookingKinds } from "@/lib/trip-bookings";
 import { dateLabel, japanDate } from "@/lib/trip-details";
 import { planDay, sortSchedule } from "@/lib/trip-plan";
 import { loadTripPlan } from "@/lib/trip-plan-data";
@@ -10,6 +12,8 @@ import { TripLoadError } from "../trip-load-error";
 import { TripSummary } from "../trip-summary";
 import { DayCards, timeLabel, TripTabs } from "./editorial";
 import { itineraryHref } from "./itinerary/links";
+import { BookingBadge, BookingKindLabel } from "./bookings/booking-card";
+import { bookingsHref } from "./bookings/links";
 
 export const metadata = { title: "여행 수첩" };
 
@@ -19,7 +23,7 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
   if (error || !trip) return <TripLoadError />;
   const today = japanDate();
   const date = planDay(trip, undefined, today);
-  const plan = await loadTripPlan(trip.id);
+  const [plan, bookings] = await Promise.all([loadTripPlan(trip.id), loadBookingSummaries(trip.id)]);
   const href = `/trips/${trip.id}`;
   const scheduleHref = itineraryHref(trip.id, date);
   const groups = new Map<string, string>();
@@ -81,7 +85,26 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
         <Link href={`${href}/map`} className="quiet-link">장소와 지도<ChevronRight size={16} aria-hidden /></Link>
       </section>
     </div>
+    <section className="editorial-paper booking-home" aria-labelledby="booking-home-heading">
+      <div className="editorial-section-heading">
+        <h2 id="booking-home-heading">예약 한눈에 보기</h2>
+        <Link href={bookingsHref(trip.id, date)} className="quiet-link">예약 전체 보기<ChevronRight size={16} aria-hidden /></Link>
+      </div>
+      {!bookings ? <p className="plan-meta">예약 요약을 불러오지 못했어요.</p> : bookings.length ? <ul>
+        {(Object.keys(bookingKinds) as (keyof typeof bookingKinds)[]).map((kind) => {
+          const group = bookings.filter((booking) => booking.kind === kind);
+          const first = group[0];
+          return first && <li key={kind}>
+            <Link className="booking-home-entry" href={bookingsHref(trip.id, date, "view", first.id)}>
+              <span className="booking-home-kind"><BookingKindLabel kind={kind} /></span>
+              <strong>{first.title}</strong><BookingBadge status={first.status} />
+              {group.length > 1 && <span className="plan-meta">외 {group.length - 1}건</span>}
+            </Link>
+          </li>;
+        })}
+      </ul> : <p className="plan-meta">예약 정보 미등록</p>}
+    </section>
     <Link href={`${href}/delete`} className="quiet-link danger-link editorial-delete">여행 삭제</Link>
-    <TripTabs href={href} active="home" />
+    <TripTabs href={href} active="home" date={date} />
   </div>;
 }

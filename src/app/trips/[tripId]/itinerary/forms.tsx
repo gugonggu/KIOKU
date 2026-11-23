@@ -8,6 +8,8 @@ import { suggestionFields, type PlaceSuggestion } from "@/lib/geoapify";
 import { dateLabel } from "@/lib/trip-details";
 import { periods, planCalendar as calendar, planLimits } from "@/lib/trip-plan";
 import type { PlanSchedule } from "@/lib/trip-plan-data";
+import type { BookingSummary } from "@/lib/trip-booking-data";
+import { bookingKinds, bookingStatuses } from "@/lib/trip-bookings";
 import type { ItineraryState } from "./actions";
 import { PlaceSearch } from "../map/place-editor";
 
@@ -35,16 +37,20 @@ function FormFooter({ state, pending, cancel, label, danger }: {
   </>;
 }
 
-export function ScheduleEditor({ action, cancel, item, date, places, initialPlace, quickTripId }: {
+export function ScheduleEditor({ action, cancel, item, date, places, initialPlace, bookings = [], initialBooking, quickTripId }: {
   action: Action; cancel: string; item?: PlanSchedule; date: string | null; places: { id: string; name: string }[];
   initialPlace?: { id: string; name: string };
+  bookings?: BookingSummary[];
+  initialBooking?: BookingSummary;
   quickTripId?: string;
 }) {
   const [state, dispatch, pending] = useActionState(action, {});
   const [values, setValues] = useState<Record<string, string>>({
-    title: item?.title ?? initialPlace?.name ?? "", kind: item?.kind ?? (initialPlace ? "PLACE" : "NOTE"), local_date: item ? item.local_date ?? "" : date ?? "",
+    title: item?.title ?? initialPlace?.name ?? initialBooking?.title ?? "",
+    kind: item?.kind ?? (initialPlace ? "PLACE" : initialBooking ? "BOOKING_REF" : "NOTE"), local_date: item ? item.local_date ?? "" : date ?? "",
     time_mode: item?.time_mode ?? "UNSCHEDULED", fixed_local_time: item?.fixed_local_time?.slice(0, 5) ?? "",
-    period: item?.period ?? "", place_id: item?.place_id ?? initialPlace?.id ?? "", private_note: item?.private_note ?? "", shared_note: item?.shared_note ?? "",
+    period: item?.period ?? "", place_id: item?.place_id ?? initialPlace?.id ?? "", booking_id: item?.booking_id ?? initialBooking?.id ?? "",
+    private_note: item?.private_note ?? "", shared_note: item?.shared_note ?? "",
   });
   const set = (key: string, value: string) => setValues((previous) => ({ ...previous, [key]: value }));
   const [source, setSource] = useState<"manual" | "saved" | "search">("manual");
@@ -106,6 +112,7 @@ export function ScheduleEditor({ action, cancel, item, date, places, initialPlac
           <input key={name} type="hidden" name={name} value={value} />)}
       </>}
       {field("title", "일정 이름", { required: true, maxLength: planLimits.title, placeholder: quickTripId ? "예: 오도리 공원 산책" : undefined })}
+      {initialBooking && values.booking_id === initialBooking.id && <p className="plan-meta">연결된 예약 · {initialBooking.title}</p>}
       {quickTripId && <div className="editorial-quick-context">
         <span><CalendarDays size={16} aria-hidden />{values.local_date ? dateLabel(values.local_date) : "날짜 미정 · 후보함"}</span>
         <span><Clock3 size={16} aria-hidden />{values.time_mode === "FIXED" ? values.fixed_local_time || "정확한 시각" :
@@ -130,12 +137,24 @@ export function ScheduleEditor({ action, cancel, item, date, places, initialPlac
           <label className="form-field"><span>일정 유형</span><select className="plan-input" name="kind" value={values.kind}
             onChange={(event) => set("kind", event.target.value)}>
             <option value="NOTE">메모</option><option value="PLACE">장소 방문</option><option value="MOVE">이동</option>
+            {values.booking_id && <option value="BOOKING_REF">예약 참조</option>}
           </select></label>
           {places.length > 0 && <label className="form-field"><span>연결할 장소</span><select className="plan-input" name="place_id" value={values.place_id}
               onChange={(event) => { setExternal(undefined); set("place_id", event.target.value); }}>
             <option value="">장소 연결 안 함</option>
             {places.map((place) => <option key={place.id} value={place.id}>{place.name}</option>)}
           </select></label>}
+          {bookings.length > 0 && <label className="form-field"><span>연결할 예약</span>
+            <select className="plan-input" name="booking_id" value={values.booking_id} onChange={(event) => {
+              const id = event.target.value;
+              setValues((previous) => ({ ...previous, booking_id: id, kind: previous.kind === "BOOKING_REF" && !id ? "NOTE" : previous.kind }));
+            }}>
+              <option value="">예약 연결 안 함</option>
+              {bookings.map((booking) => <option key={booking.id} value={booking.id}>
+                {bookingKinds[booking.kind]} · {booking.title} · {bookingStatuses[booking.status]}
+              </option>)}
+            </select>
+          </label>}
           {notes("private_note", "개인 메모")}
           {notes("shared_note", "공유용 메모")}
         </div>

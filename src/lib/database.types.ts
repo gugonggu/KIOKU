@@ -29,6 +29,7 @@ export type ScheduleFields = {
   fixed_local_time: string | null;
   period: SchedulePeriod | null;
   place_id: string | null;
+  booking_id?: string | null;
   private_note: string | null;
   shared_note: string | null;
 };
@@ -63,6 +64,51 @@ export type ScheduleRow = ScheduleFields & Omit<PlanRow, "content_version"> & {
 };
 export type PlaceRow = PlaceFields & PlanRow & { created_at: string };
 
+export type BookingKind = "FLIGHT" | "STAY" | "TOUR";
+export type BookingStatus = "NEEDS_BOOKING" | "PENDING" | "CONFIRMED" | "CANCELLED";
+export type BookingFields = { kind: BookingKind; title: string; status: BookingStatus; shared_note: string | null };
+export type FlightFields = {
+  airline_name: string | null;
+  flight_number: string | null;
+  departure_airport: string | null;
+  arrival_airport: string | null;
+  departure_local_date: string | null;
+  arrival_local_date: string | null;
+  departure_local_time: string | null;
+  arrival_local_time: string | null;
+  departure_timezone: string | null;
+  arrival_timezone: string | null;
+};
+export type StayFields = {
+  address_text: string | null;
+  check_in_local_date: string | null;
+  check_out_local_date: string | null;
+  check_in_local_time: string | null;
+  check_out_local_time: string | null;
+  guest_count: number | null;
+  room_count: number | null;
+};
+export type TourFields = {
+  event_local_date: string | null;
+  event_local_time: string | null;
+  meeting_local_time: string | null;
+  meeting_place_name: string | null;
+  meeting_address_text: string | null;
+  meeting_latitude: number | null;
+  meeting_longitude: number | null;
+};
+export type PrivateBookingFields = {
+  confirmation_reference: string | null;
+  amount: number | null;
+  currency: string | null;
+  private_note: string | null;
+};
+export type BookingInput = BookingFields & { private: PrivateBookingFields | null } & (
+  { kind: "FLIGHT"; detail: FlightFields[] } | { kind: "STAY"; detail: StayFields } | { kind: "TOUR"; detail: TourFields }
+);
+type BookingChild = { trip_id: string; booking_id: string };
+type BookingTable<Row extends object> = { Row: Row; Insert: never; Update: never; Relationships: [] };
+
 export type Database = {
   public: {
     Tables: {
@@ -84,9 +130,24 @@ export type Database = {
         Update: Partial<PlaceFields>;
         Relationships: [];
       };
+      bookings: BookingTable<BookingFields & PlanRow & { created_at: string }>;
+      flight_segments: BookingTable<FlightFields & BookingChild & {
+        id: string; segment_order: number; departure_utc: string | null; arrival_utc: string | null;
+      }>;
+      stay_details: BookingTable<StayFields & BookingChild & { property_name: string }>;
+      tour_details: BookingTable<TourFields & BookingChild>;
+      booking_private_details: BookingTable<PrivateBookingFields & BookingChild>;
     };
     Views: Record<never, never>;
     Functions: {
+      save_booking: {
+        Args: { p_trip: string; p_id: string; p_version: number | null; p_fields: BookingInput };
+        Returns: "saved" | "existing" | "changed";
+      };
+      delete_booking: {
+        Args: { p_trip: string; p_id: string; p_version: number; p_expected: string[] };
+        Returns: "deleted" | "preview" | "changed";
+      };
       save_trip_place: {
         Args: { p_trip: string; p_id: string; p_version: number | null; p_fields: PlaceFields; p_confirm: string | null };
         Returns: { status: "saved" | "existing" | "duplicate" | "changed"; id?: string };

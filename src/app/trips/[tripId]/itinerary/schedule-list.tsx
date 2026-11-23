@@ -1,14 +1,16 @@
 "use client";
 
-import { EllipsisVertical, Footprints, MapPin, NotebookPen, Pencil, ChevronUp, ChevronDown, GripVertical } from "lucide-react";
+import { EllipsisVertical, Footprints, MapPin, NotebookPen, Pencil, ChevronUp, ChevronDown, GripVertical, Ticket } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { dateLabel } from "@/lib/trip-details";
 import { scheduleGroup, sortSchedule } from "@/lib/trip-plan";
 import type { PlanSchedule } from "@/lib/trip-plan-data";
+import type { BookingSummary } from "@/lib/trip-booking-data";
 import { timeLabel } from "../editorial";
 import { mapHref } from "../map/links";
+import { bookingsHref } from "../bookings/links";
 import { changePlacement, reorderItinerary } from "./actions";
 import { ArchiveButton } from "./forms";
 import { itineraryHref } from "./links";
@@ -16,8 +18,8 @@ import { itineraryHref } from "./links";
 type Place = { id: string; name: string; address: string | null };
 const versionOf = (item: PlanSchedule) => ({ id: item.id, revision: item.revision });
 
-export function ScheduleList({ items, tripId, date, places, candidate = false, showDates = false }: {
-  items: PlanSchedule[]; tripId: string; date: string | null; places: Place[]; candidate?: boolean; showDates?: boolean;
+export function ScheduleList({ items, tripId, date, places, bookings, candidate = false, showDates = false }: {
+  items: PlanSchedule[]; tripId: string; date: string | null; places: Place[]; bookings: BookingSummary[]; candidate?: boolean; showDates?: boolean;
 }) {
   const router = useRouter();
   const [pending, transition] = useTransition();
@@ -25,6 +27,7 @@ export function ScheduleList({ items, tripId, date, places, candidate = false, s
   const [notice, setNotice] = useState("");
   const rows = sortSchedule(items);
   const placeById = new Map(places.map((place) => [place.id, place]));
+  const bookingById = new Map(bookings.map((booking) => [booking.id, booking]));
   const sameGroup = (first: PlanSchedule, second?: PlanSchedule) =>
     Boolean(second && first.local_date === second.local_date && scheduleGroup(first) === scheduleGroup(second));
 
@@ -52,6 +55,7 @@ export function ScheduleList({ items, tripId, date, places, candidate = false, s
         const canMoveUp = sameGroup(item, previous);
         const canMoveDown = sameGroup(item, next);
         const place = item.place_id ? placeById.get(item.place_id) : undefined;
+        const booking = item.booking_id ? bookingById.get(item.booking_id) : undefined;
         const Icon = item.kind === "MOVE" ? Footprints : item.kind === "PLACE" || place ? MapPin : NotebookPen;
         const placement = { ...versionOf(item), archivedDate: item.archived_date, candidate };
         const href = (mode: "edit" | "move" | "restore" | "delete") => itineraryHref(tripId, date, mode, item.id, candidate);
@@ -83,6 +87,9 @@ export function ScheduleList({ items, tripId, date, places, candidate = false, s
                 <MapPin size={14} aria-hidden /><span><strong>{place.name}</strong>
                   {place.address && <span className="editorial-entry-address" title={place.address}>{place.address}</span>}
                 </span>
+              </Link>}
+              {booking && <Link className="editorial-place-link" href={bookingsHref(tripId, date, "view", booking.id)}>
+                <Ticket size={14} aria-hidden /><span><strong>예약 · {booking.title}</strong></span>
               </Link>}
               {item.private_note && <p className="plan-notes">개인 메모 · {item.private_note}</p>}
               {item.shared_note && <p className="plan-notes">공유용 메모 · {item.shared_note}</p>}

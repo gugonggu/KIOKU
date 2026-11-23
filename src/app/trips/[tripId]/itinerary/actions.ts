@@ -27,6 +27,7 @@ function checkOutside(trip: Trip, date: string | null, form: FormData): Itinerar
 }
 
 function finish(tripId: string, date: string | null, candidates = false): never {
+  revalidatePath("/trips/" + tripId + "/bookings");
   revalidatePath(`/trips/${tripId}/itinerary`);
   revalidatePath(`/trips/${tripId}`);
   return redirect(itineraryHref(tripId, date, undefined, undefined, candidates));
@@ -65,6 +66,7 @@ export async function saveItinerary(
   const { data, error } = await client.rpc("save_itinerary_item", {
     p_trip: tripId, p_item: id, p_revision: revision, p_trip_version: trip.content_version, p_fields: fields,
   });
+  if (data === "invalid_booking") return { error: "이 여행에 등록된 예약을 다시 선택해 주세요.", refresh: true };
   if (error?.code === "23503") return { error: "이 여행에 등록된 장소를 다시 선택해 주세요." };
   if (error) return saveError;
   if (data === "existing") return { error: "이 일정은 이미 저장됐어요. 목록에서 확인해 주세요.", refresh: true };

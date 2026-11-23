@@ -150,7 +150,9 @@ test.beforeAll(async () => {
       }
     }
 
-    if (["/rest/v1/itinerary_items", "/rest/v1/trip_places", "/rest/v1/rpc/save_trip_place", "/rest/v1/rpc/delete_trip_place",
+    if (["/rest/v1/itinerary_items", "/rest/v1/trip_places", "/rest/v1/bookings", "/rest/v1/flight_segments",
+      "/rest/v1/stay_details", "/rest/v1/tour_details", "/rest/v1/booking_private_details",
+      "/rest/v1/rpc/save_booking", "/rest/v1/rpc/delete_booking", "/rest/v1/rpc/save_trip_place", "/rest/v1/rpc/delete_trip_place",
       "/rest/v1/rpc/authorize_place_search", "/rest/v1/rpc/save_itinerary_item", "/rest/v1/rpc/update_trip_period",
       "/rest/v1/rpc/swap_itinerary_items", "/rest/v1/rpc/place_itinerary_item"].includes(url.pathname)) {
       const userId = issuedTokens.get(request.headers.authorization?.replace(/^Bearer /, "") ?? "");
@@ -171,7 +173,8 @@ test.beforeAll(async () => {
 test.beforeEach(async () => {
   failNextTripRead = false;
   pkceChallenge = undefined;
-  await database.exec("truncate table public.itinerary_items, public.trip_places, public.trips");
+  await database.exec("truncate table public.booking_private_details, public.flight_segments, public.stay_details, public.tour_details, " +
+    "public.bookings, public.itinerary_items, public.trip_places, public.trips");
 });
 
 test.afterAll(async () => {
@@ -1050,4 +1053,180 @@ test("editorial map lets users select places with overlapping pins", async ({ pa
       await expect(page.getByRole("button", { name: `지도 핀: ${name}` })).toHaveAttribute("aria-pressed", "true");
     }
   }
+});
+
+test("M4 creates and edits flight, stay and tour cards with owner-only details", async ({ page, browser }) => {
+  test.setTimeout(120_000);
+  const trip = await seedFiveDayTrip("북해도 겨울 수첩");
+  const list = trip + "/bookings?date=2027-02-17";
+  const dialog = page.getByRole("dialog");
+  const add = async (kind: string) => {
+    await page.getByRole("link", { name: "예약 추가", exact: true }).click();
+    await dialog.getByRole("button", { name: kind, exact: true }).click();
+  };
+  const edit = async () => dialog.getByRole("link", { name: "예약 수정" }).click();
+  const save = async (title: string) => {
+    await dialog.getByRole("button", { name: "예약 저장" }).click();
+    await expect(page.getByRole("dialog", { name: title, exact: true })).toBeVisible();
+  };
+  const close = async () => {
+    await dialog.getByRole("button", { name: "닫기" }).click();
+    await expect(dialog).toHaveCount(0);
+  };
+  const capture = async (name: string) => {
+    const folder = process.env.KIOKU_UI_SCREENSHOTS;
+    if (!folder) return;
+    await page.evaluate(() => document.fonts.ready);
+    await page.screenshot({ path: folder + "/" + name + ".png", animations: "disabled" });
+  };
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  await page.goto(list);
+  await expect(page.getByRole("heading", { name: "예약 정보 미등록" })).toBeVisible();
+  await add("항공");
+  await dialog.getByLabel("항공 예약 이름").fill("홋카이도 왕복 항공");
+  const first = dialog.getByRole("region", { name: "1구간" });
+  await first.getByLabel("출발 공항 코드").fill("PUS");
+  await first.getByLabel("도착 공항 코드").fill("CTS");
+  await first.getByText("항공편 · 현지 날짜와 시각").click();
+  await first.getByLabel("출발 현지 날짜").fill("2027-02-17");
+  await first.getByLabel("출발 공항 시간대").fill("Asia/Seoul");
+  await dialog.getByRole("button", { name: "항공 구간 추가" }).click();
+  const second = dialog.getByRole("region", { name: "2구간" });
+  await second.getByLabel("출발 공항 코드").fill("CTS");
+  await second.getByLabel("도착 공항 코드").fill("PUS");
+  await second.getByText("항공편 · 현지 날짜와 시각").click();
+  await second.getByLabel("편명").fill("TEST42");
+  await second.getByLabel("출발 현지 날짜").fill("2027-02-21");
+  await second.getByLabel("출발 현지 시각").fill("12:30");
+  await second.getByLabel("출발 공항 시간대").fill("Asia/Tokyo");
+  await second.getByLabel("도착 현지 시각").fill("15:25");
+  await dialog.getByText("비공개 정보", { exact: true }).click();
+  await dialog.getByLabel("개인 메모").fill("synthetic private marker for assertions");
+  await save("홋카이도 왕복 항공");
+  await expect(dialog.getByText("예약 필요", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("시각 미입력", { exact: true })).toHaveCount(2);
+  await expect(dialog.getByText("12:30", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("15:25", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("TEST42")).toBeVisible();
+  const privateDetail = page.url();
+  await expect(dialog.getByText("synthetic private marker for assertions")).toBeHidden();
+  await dialog.getByText("비공개 정보", { exact: true }).click();
+  await expect(dialog.getByText("synthetic private marker for assertions")).toBeVisible();
+  await edit();
+  await dialog.getByLabel("예약 상태").selectOption("CONFIRMED");
+  await save("홋카이도 왕복 항공");
+  await expect(dialog.getByText("예약 완료", { exact: true })).toBeVisible();
+  await close();
+
+  await add("숙소");
+  await dialog.getByLabel("숙소명").fill("가상 삿포로 호텔");
+  await dialog.getByLabel("숙소 주소").fill("北海道札幌市中央区");
+  await dialog.getByLabel("체크인 날짜").fill("2027-02-17");
+  await dialog.getByLabel("체크아웃 날짜").fill("2027-02-21");
+  await dialog.getByText("체크인·체크아웃 시각과 인원").click();
+  await dialog.getByLabel("체크인 시각").fill("15:00");
+  await dialog.getByLabel("체크아웃 시각").fill("11:00");
+  await dialog.getByLabel("예약 상태").selectOption("CONFIRMED");
+  await save("가상 삿포로 호텔");
+  await edit();
+  await dialog.getByText("체크인·체크아웃 시각과 인원").click();
+  await expect(dialog.getByLabel("체크인 날짜")).toHaveValue("2027-02-17");
+  await expect(dialog.getByLabel("체크아웃 날짜")).toHaveValue("2027-02-21");
+  await expect(dialog.getByLabel("체크아웃 시각")).toHaveValue("11:00");
+  await dialog.getByLabel("체크아웃 시각").fill("10:30");
+  await save("가상 삿포로 호텔");
+  await expect(dialog.getByText("15:00", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("10:30", { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("link", { name: "Google Maps 길찾기" })).toBeVisible();
+  await capture("m4-desktop-detail-1440");
+  await close();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await add("투어");
+  await dialog.getByLabel("투어명").fill("비에이 설경 산책");
+  await dialog.getByLabel("투어 날짜").fill("2027-02-18");
+  await dialog.getByLabel("집합 장소").fill("가상 안내소");
+  await dialog.getByText("시작·집합 시각과 주소").click();
+  await dialog.getByLabel("투어 시작 시각").fill("09:30");
+  await dialog.getByLabel("집합 시각").fill("08:15");
+  await save("비에이 설경 산책");
+  await edit();
+  await dialog.getByText("시작·집합 시각과 주소").click();
+  await expect(dialog.getByLabel("투어 시작 시각")).toHaveValue("09:30");
+  await dialog.getByLabel("집합 시각").fill("08:45");
+  await dialog.getByLabel("예약 상태").selectOption("PENDING");
+  await dialog.getByRole("heading", { name: "예약 수정" }).click();
+  await capture("m4-mobile-editor-390");
+  await save("비에이 설경 산책");
+  await expect(dialog.getByText("09:30", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("08:45", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("예약 진행 중", { exact: true })).toBeVisible();
+  await capture("m4-mobile-detail-390");
+  await close();
+  for (const width of [320, 390, 1440]) {
+    await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
+    await expect(page.getByRole("article")).toHaveCount(3);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await capture("m4-bookings-" + width);
+  }
+  await page.setViewportSize({ width: 320, height: 844 });
+  await page.getByRole("navigation", { name: "예약 유형으로 이동" }).getByRole("link", { name: "투어" }).click();
+  await expect(page.getByRole("heading", { name: "투어", exact: true })).toBeInViewport();
+  expect(await page.content()).not.toContain("synthetic private marker for assertions");
+  await page.goto(trip);
+  await expect(page.getByRole("region", { name: "예약 한눈에 보기" }).getByText("가상 삿포로 호텔")).toBeVisible();
+  expect(await page.content()).not.toContain("synthetic private marker for assertions");
+  const other = await browser.newPage();
+  try {
+    await other.goto(appUrl + "/auth/confirm?type=email&token_hash=local-fixture-second");
+    await other.goto(privateDetail);
+    await expect(other.getByRole("heading", { name: "여행을 찾을 수 없어요" })).toBeVisible();
+    expect(await other.content()).not.toContain("synthetic private marker for assertions");
+  } finally { await other.close(); }
+});
+
+test("M4 links and detaches schedules without overwriting the itinerary or deleting the booking", async ({ page }) => {
+  test.setTimeout(90_000);
+  const trip = await seedFiveDayTrip("예약과 일정 수첩");
+  const tripId = trip.split("/").at(-1);
+  const { rows: [booking] } = await asUser(database, ownerA, (tx) =>
+    tx.query<{ id: string }>("insert into public.bookings (trip_id,kind,title,status) values ($1,'TOUR','가상 투어','NEEDS_BOOKING') returning id", [tripId]));
+  const detailUrl = trip + "/bookings?date=2027-02-18&mode=view&id=" + booking.id;
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  await page.goto(detailUrl);
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("link", { name: "일정에 추가" }).click();
+  await expect(dialog.getByText("연결된 예약 · 가상 투어")).toBeVisible();
+  await dialog.getByLabel("일정 이름").fill("투어 전 만남");
+  await dialog.getByText("일정 상세 설정").click();
+  await dialog.getByLabel("시간 방식").selectOption("FIXED");
+  await dialog.getByLabel("일본 현지 시각").fill("08:30");
+  await dialog.getByRole("button", { name: "일정 저장" }).click();
+  const entry = page.locator("[data-schedule-id]").filter({ hasText: "투어 전 만남" });
+  await expect(entry.getByRole("link", { name: "예약 · 가상 투어" })).toBeVisible();
+  await entry.getByRole("link", { name: "투어 전 만남 일정 수정" }).click();
+  await page.getByLabel("연결할 예약").selectOption("");
+  await page.getByRole("button", { name: "일정 저장" }).click();
+  await expect(entry.getByRole("link", { name: "예약 · 가상 투어" })).toHaveCount(0);
+  await expect(entry.getByText("08:30", { exact: true })).toBeVisible();
+  await entry.getByRole("link", { name: "투어 전 만남 일정 수정" }).click();
+  await page.getByLabel("연결할 예약").selectOption(booking.id);
+  await page.getByRole("button", { name: "일정 저장" }).click();
+  await entry.getByRole("link", { name: "예약 · 가상 투어" }).click();
+  await dialog.getByRole("link", { name: "예약 수정" }).click();
+  await expect(dialog.getByText("투어 전 만남")).toBeVisible();
+  await dialog.getByLabel("예약 상태").selectOption("CANCELLED");
+  await dialog.getByRole("button", { name: "예약 저장" }).click();
+  await expect(dialog.getByText("취소됨")).toBeVisible();
+  await dialog.getByRole("link", { name: "예약 삭제" }).click();
+  await expect(dialog.getByText("연결된 일정 1개")).toBeVisible();
+  await expect(dialog.getByText("투어 전 만남")).toBeVisible();
+  await dialog.getByRole("button", { name: "예약 삭제 확인" }).click();
+  await expect(page.getByRole("heading", { name: "예약 정보 미등록" })).toBeVisible();
+  await page.goto(trip + "/itinerary?date=2027-02-18");
+  await expect(entry.getByText("08:30", { exact: true })).toBeVisible();
+  await expect(entry.getByRole("link", { name: "예약 · 가상 투어" })).toHaveCount(0);
 });

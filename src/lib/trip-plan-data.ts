@@ -1,13 +1,13 @@
 import type { PlaceRow, ScheduleRow } from "./database.types";
 import { requireTripClient } from "./trips";
 
-export const scheduleColumns = "id,title,kind,time_mode,local_date,fixed_local_time,period,place_id,private_note,shared_note,revision,sort_order,archived_date";
+export const scheduleColumns = "id,title,kind,time_mode,local_date,fixed_local_time,period,place_id,booking_id,private_note,shared_note,revision,sort_order,archived_date";
 export const placeColumns = "id,display_name,name_ko,name_ja,name_en,address_text,address_ja,latitude,longitude,notes,provider,provider_place_id,content_version";
 
-export type PlanSchedule = Pick<ScheduleRow, "id" | "revision" | "sort_order" | "archived_date"> & import("./database.types").ScheduleFields;
+export type PlanSchedule = Pick<ScheduleRow, "id" | "revision" | "sort_order" | "archived_date" | "booking_id"> & import("./database.types").ScheduleFields;
 export type PlanPlace = Omit<PlaceRow, "trip_id" | "created_at" | "updated_at">;
 
-async function readRows<Row>(read: (start: number, end: number) => PromiseLike<{ data: Row[] | null; error: unknown }>) {
+export async function readRows<Row>(read: (start: number, end: number) => PromiseLike<{ data: Row[] | null; error: unknown }>) {
   const rows: Row[] = [];
   const batchSize = 100;
   for (let start = 0; ; start += batchSize) {

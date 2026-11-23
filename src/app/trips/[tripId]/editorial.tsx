@@ -1,4 +1,4 @@
-import { CalendarDays, Ellipsis, House, MapPinned } from "lucide-react";
+import { CalendarDays, Ellipsis, House, MapPinned, Ticket } from "lucide-react";
 import Link from "next/link";
 import { dateLabel, type Trip } from "@/lib/trip-details";
 import { periods, shiftDay } from "@/lib/trip-plan";
@@ -42,12 +42,13 @@ export function DayCards({ trip, date, summaries, href = (day) => itineraryHref(
   </div>;
 }
 
-export function TripTabs({ href, active, date }: { href: string; active: "home" | "itinerary" | "map"; date?: string | null }) {
+export function TripTabs({ href, active, date }: { href: string; active: "home" | "itinerary" | "map" | "bookings"; date?: string | null }) {
   const day = date ? `?date=${date}` : "";
   return <nav className="editorial-tabs" aria-label="여행 바로가기">
     <Link href={href} aria-current={active === "home" ? "page" : undefined}><House size={18} aria-hidden />홈</Link>
     <Link href={`${href}/itinerary${day}`} aria-current={active === "itinerary" ? "page" : undefined}><CalendarDays size={18} aria-hidden />일정</Link>
     <Link href={`${href}/map${day}`} aria-current={active === "map" ? "page" : undefined}><MapPinned size={18} aria-hidden />장소</Link>
+    <Link href={`${href}/bookings${day}`} aria-current={active === "bookings" ? "page" : undefined}><Ticket size={18} aria-hidden />예약</Link>
     <Link href={`${href}/edit`} aria-label="더보기 · 여행 정보"><Ellipsis size={18} aria-hidden />더보기</Link>
   </nav>;
 }

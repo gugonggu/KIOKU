@@ -13,7 +13,7 @@ npm run dev
 
 브라우저에서 [localhost:3000](http://localhost:3000)을 엽니다. Supabase 설정을 생략하면 로그인 화면에서 설정 안내를 볼 수 있습니다. 비로그인 사용자가 `/trips` 또는 `/trips/new`를 열면 `/login`으로 이동합니다.
 
-여행·일정·장소 저장을 사용하려면 아래 인증 설정과 [M1~M3 마이그레이션](supabase/README.md)을 같은 Supabase 인스턴스에 적용합니다.
+여행·일정·장소·예약 저장을 사용하려면 아래 인증 설정과 [M1~M4 마이그레이션](supabase/README.md)을 같은 Supabase 인스턴스에 적용합니다.
 
 ## 집과 회사 PC에서 이어서 개발하기
 
@@ -123,7 +123,9 @@ Next.js 16.4.6 App Router, React 19.3.1, TypeScript 6.0.3, Tailwind CSS 4.3.5, s
 - **M3 검증 기록** — 2026-11-23 회사 PC에서 린트·타입 검사·빌드, 단위 9건, DB 12건, Chrome E2E 26건을 통과했습니다. 별도 Chrome 실행에서 실제 OpenFreeMap 스타일·타일과 핀을 확인했습니다. Geoapify는 요청·응답 단위 테스트와 브라우저 모의 응답으로 검증했습니다.
 - **장소 검색과 지도 운영** — 검색은 두 글자부터 400ms 대기 후 실행하며 사용자당 분당 10회, 프로젝트 전체 UTC 기준 하루 100회까지 외부 요청을 허용합니다. 키 누락, 검색 장애, 지도 장애에도 직접 등록과 저장 목록을 쓸 수 있습니다. **내 위치**를 누를 때만 브라우저에서 위치를 한 번 조회합니다. 좌표 또는 사용 가능한 주소로 Google Maps 길찾기를 엽니다. [Geoapify 검색 API](https://apidocs.geoapify.com/docs/geocoding/address-autocomplete/) · [OpenFreeMap](https://openfreemap.org/quick_start/)
 - **호스팅 M1~M3** — 2026-11-23 기존 KIOKU Supabase에 M2와 M3를 순서대로 적용했습니다. 적용 이력과 실사용 확인 내역은 [Supabase 문서](supabase/README.md)에 기록합니다.
-- **후속 단계** — M4는 항공·숙박·투어 예약 CRUD부터 시작합니다. 예약 상태와 일정의 시간 모드는 독립적으로 유지하고, 일정에는 같은 여행의 예약만 연결합니다. Geoapify 실검색 품질 확인은 키가 준비되면 별도로 진행합니다.
+- **M4 예약 관리** — 여행 홈 예약 요약 또는 하단 **예약**에서 `/trips/[tripId]/bookings`를 엽니다. 항공·숙소·투어별 카드에서 상태와 현지 시각을 확인하고, 유형 선택 후 편집 대화상자에서 등록합니다. 비공개 정보는 소유자 전용 상세에서 확인합니다. 일정 편집에서 같은 여행의 예약을 연결할 수 있고, 예약 삭제 시 연결을 해제하면서 일정과 시각을 보존합니다.
+- **M4 로컬 검증** — 린트·타입 검사·빌드, 단위 12건, PGlite DB 14건, Chrome E2E 32건을 통과했습니다. 회사 PC Chrome은 `PLAYWRIGHT_BASE_PORT=4300`으로 실행했습니다. 빌드 후 `KIOKU_UI_SCREENSHOTS`에 폴더를 지정하고 `npm test -- --grep 'M4 creates'`를 실행하면 가상 데이터로 320·390·1440px 예약 화면을 남깁니다.
+- **후속 단계** — M5는 공유 링크와 서버의 공개 필드 화이트리스트를 구현합니다. 호스팅 M4 적용과 Auth·PostgREST 확인은 승인 후 진행합니다. Geoapify 실검색 품질 확인은 키가 준비되면 별도로 진행합니다.
 - **다른 PC에서 이어가기** — 공식 기준은 비공개 킥오프 ZIP의 `docs/01~05`입니다. 기간 밖 정책은 결정 로그 D-017을 참고하세요. `docs/`와 `reference/`는 각 PC에서 별도로 복구하고, Supabase 적용 전 [마이그레이션 이력과 권한 검사](supabase/README.md)를 확인합니다.
 
 ## 목적
