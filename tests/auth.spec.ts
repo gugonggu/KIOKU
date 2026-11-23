@@ -589,7 +589,7 @@ test("M2 sorts five Japan travel days with three time modes on mobile and deskto
   await expect(page.getByText("이 날짜에 등록된 일정이 없어요.")).toBeVisible();
 });
 
-test("M2 archives and restores a linked afternoon item and confirms dates outside the trip", async ({ page }) => {
+test("M2 archives and restores a linked afternoon item and confirms dates outside the trip", async ({ page, baseURL }) => {
   const trip = await seedFiveDayTrip("오타루 여행");
   const id = trip.split("/").at(-1);
   await asUser(database, ownerA, async (tx) => {
@@ -648,6 +648,7 @@ test("M2 archives and restores a linked afternoon item and confirms dates outsid
   await expect(impact).toContainText("2027. 2. 22.");
   await expect(impact).not.toContainText("2027. 2. 16.");
   await page.getByRole("button", { name: "영향을 확인하고 저장" }).click();
+  await expect(page).toHaveURL(new URL(trip, baseURL).href);
   await page.goto(`${trip}/itinerary?date=2027-02-22`);
   await expect(page.getByRole("region", { name: "날짜별 일정" }).getByRole("heading", { name: "운하 산책" })).toBeVisible();
   await expect(outside.getByRole("heading", { name: "사전 준비" })).toBeVisible();
