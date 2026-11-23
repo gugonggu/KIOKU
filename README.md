@@ -41,6 +41,38 @@ Windows에서 `listen EACCES`로 개발 서버가 시작되지 않으면 `netsh 
 
 회사 PC에서 로컬 포트를 바꾼 `.env.local`은 볼트로 내보내지 않습니다. 볼트에서 다시 가져오면 회사 PC의 `APP_URL`을 다시 맞춰야 합니다.
 
+### 2026-11-23 집 PC 인계
+
+- `feature/m5-trip-sharing`의 원격 최신 커밋 `3b3236f`에서 검증했습니다. 볼트와 기존 `.env.local`은 동일했습니다. 인증에 필요한 세 변수는 형식이 유효했고, `GEOAPIFY_API_KEY`와 `KIOKU_SHARE_ENCRYPTION_KEY`는 비어 있었습니다. 장소는 수동 등록을 사용할 수 있습니다. 기존 공유 링크를 재복사하려면 발급 때 사용한 암호화 키를 볼트로 복구합니다.
+- `npm ci`, lint, typecheck, 단위 13건, PGlite DB 15건, PowerShell 복원 스크립트 테스트, 프로덕션 빌드가 통과했습니다. 개발 서버 `localhost:3000`에서 `/login`은 200, 비로그인 `/trips`는 `/login`으로 307을 반환했습니다. 설치된 Chrome과 루프백 기본 포트 3100~3102로 실행한 `npm test` 35건과 실제 OpenFreeMap 시나리오 1건이 통과했습니다.
+- 모의 Google OAuth에서 기존 여행 접근, 토큰 갱신, Chrome 재시작 후 세션 유지와 로그아웃을 검증했습니다. 호스팅 공개 설정은 Google 비활성화, 이메일 활성화, 신규 가입 허용 상태였습니다. 이 설정을 사용하는 로컬 Chrome에서 Google 로그인 시작이 차단되고 이메일 대안이 안내되는 것을 확인했습니다. 실제 계정 연결 검증은 Google Provider, 가입 차단과 콜백 설정 확인 후 진행합니다.
+- Vercel 공개 `/login`과 `/s`는 200, 비로그인 `/trips`는 `/login`으로 307을 반환했습니다. 응답에서 `no-store`와 `Referrer-Policy: no-referrer`를 확인했습니다. 공개 로그인에 Google 버튼은 표시되지 않았습니다. Vercel 프로젝트 조회 권한이 열리면 배포 커밋, GitHub·Production 브랜치, 환경변수 대상, 로그와 실제 사용량을 대조합니다.
+
+### 2026-11-23 호스팅 인증 설정
+
+- Supabase 대시보드에서 신규 가입을 차단하고 집 PC Google 콜백 `http://localhost:3000/auth/confirm?flow=google`을 추가했습니다. 저장 후 공개 Auth 설정에서 신규 가입 차단, 이메일 활성화, Google 비활성화를 확인했습니다.
+- 현재 Supabase Site URL은 `https://kioku-xi.vercel.app`입니다. 운영 주소를 확정할 때 Vercel Production `APP_URL`과 Supabase Site URL·Redirect URLs를 함께 대조합니다.
+- 전용 Google Cloud 프로젝트 `kioku-515612`의 OAuth 웹 클라이언트 `KIOKU Web`을 호스팅 Supabase Google Provider에 연결했습니다. Google 인증 플랫폼은 테스트 모드이며 소유자 계정 한 개를 등록했습니다. 집 PC 출처 `http://localhost:3000`과 호스팅 Supabase의 `/auth/v1/callback`을 사용합니다.
+- 실제 Chrome에서 Google로 로그인해 같은 Supabase 사용자 ID에 Google 인증이 연결되고 기존 여행 목록이 열리는 것을 확인했습니다. 새로고침과 탭을 닫았다 다시 열 때 세션이 유지됐으며, 로그아웃 후 `/trips` 재접근은 `/login`으로 이동했습니다. 실제 Chrome 프로세스 재시작과 Vercel 공개 주소의 Google 로그인은 후속 검증 범위입니다.
+
+### 2026-11-23 Production 점검 및 배포 준비
+
+- Vercel Hobby의 `kioku` 프로젝트는 GitHub `gugonggu/KIOKU`와 연결되어 있습니다. 대표 도메인 `kioku-trip.vercel.app`의 현재 Production은 `main`의 `61b9dee`이며 상태는 Ready입니다. Preview `feature/m5-trip-sharing`의 `3b3236f`에서는 Google 버튼이 표시됩니다.
+- Production `/login`은 200이지만 Google 버튼이 없고, 비로그인 `/trips`는 `kioku-xi.vercel.app/login`으로 이동합니다. 이전 도메인은 Vercel `DEPLOYMENT_NOT_FOUND`를 반환합니다. Vercel의 Production `APP_URL`과 Supabase Site URL을 현재 대표 도메인에 맞추는 작업이 필요합니다.
+- Production에 기본 인증 변수와 공유 암호화 키가 등록되어 있습니다. `GEOAPIFY_API_KEY`는 등록 목록에 없으므로 실검색은 키 준비 후 검증합니다. 기존 공유 키는 배포에 그대로 사용합니다.
+- Supabase는 Google·이메일 로그인 활성화와 신규 가입 차단을 확인했습니다. 운영 도메인의 이메일·Google 콜백을 Supabase에 추가하고 Google 웹 클라이언트의 승인된 출처를 맞춥니다. 기존 로컬 콜백과 Google에서 Supabase로 돌아오는 콜백은 유지합니다.
+- Production 빌드는 18초에 완료됐습니다. Vercel 로그에서 `engines.node` 범위로 인해 프로젝트의 Node 24 설정이 Node 26으로 바뀐 것을 확인해 `package.json`과 잠금 파일의 루트 엔진을 `24.x`로 맞췄습니다.
+- 엔진 설정 변경 후 Node `24.11.1`에서 `npm ci`, lint, typecheck, 단위 13건, PGlite DB 15건, 프로덕션 빌드, 모의 Auth·데이터 API를 사용하는 Chrome E2E 35건이 통과했습니다. 운영 Google 로그인과 운영 DB를 사용하는 가상 여행 E2E는 아직 실행하지 않았습니다.
+- 설정 변경과 `main` 릴리스는 승인 후 진행합니다. Vercel 환경변수 변경은 새 배포부터 적용됩니다. 먼저 올바른 도메인 설정으로 `main`의 기존 코드를 다시 빌드해 이메일 로그인과 보호 경로를 확인합니다. 이후 Google 로그인 커밋과 Node 설정을 릴리스합니다. 장애가 생기면 도메인을 교정한 직전 빌드를 롤백 대상으로 사용합니다. 가상 여행의 운영 E2E는 별도 승인 후 진행합니다.
+
+### 2026-11-23 Production 1차 복구 완료
+
+- Vercel `APP_URL`을 Production 전용으로 분리해 대표 도메인 `https://kioku-trip.vercel.app`과 일치시켰습니다. 기본 Preview와 `feature/m5-trip-sharing` 전용 Preview 설정을 보존했습니다.
+- Supabase Site URL을 대표 도메인과 맞추고 운영 이메일·Google 콜백을 추가했습니다. Google `KIOKU Web`에 대표 도메인의 JavaScript Origin을 추가했습니다. 기존 로컬 콜백, Google의 Supabase 리디렉션 URI와 공유 암호화 키는 유지했습니다.
+- 현재 Production은 `main@61b9dee23efc67a793ffa11b20d1a45ae316c98b` 재배포이며 상태는 Ready입니다. Deployment ID는 `dpl_HByoDnz8QMfCBUx1mKebkH2U5eMN`, 고유 URL은 `https://kioku-2ax5u4vhx-gugonggus-projects.vercel.app`입니다. 2차 Google 로그인 배포의 롤백 지점으로 사용합니다. [Vercel 배포 상세](https://vercel.com/gugonggus-projects/kioku/HByoDnz8QMfCBUx1mKebkH2U5eMN)
+- 공개 `/login`은 HTTP 200이었고, 비로그인 `/trips`는 대표 도메인의 `/login`으로 HTTP 307을 반환했습니다. 실제 이메일 매직 링크 요청·수신, 인증 콜백 303, 보호 페이지 접근, 로그아웃과 재접근 차단을 확인했습니다. 확인한 최근 30분 로그에서 런타임 오류와 HTTP 5xx는 0건이었습니다. 여행·예약 데이터에는 쓰기 작업을 실행하지 않았습니다.
+- Google 버튼을 포함하는 코드와 로컬 Node 24.x 엔진 변경은 2차 배포 범위입니다. GitHub 반영·병합·배포와 운영 가상 여행 E2E는 별도 승인 후 진행합니다.
+
 ## Supabase 이메일 로그인 설정
 
 1. `Copy-Item .env.example .env.local`로 로컬 설정 파일을 만들고 아래 값을 입력합니다.
@@ -70,7 +102,7 @@ Windows에서 `listen EACCES`로 개발 서버가 시작되지 않으면 `netsh 
 3. Vercel의 Production `APP_URL`과 Supabase **Authentication → URL Configuration**의 **Site URL**을 `https://kioku-trip.vercel.app`으로 설정합니다. **Redirect URLs**에 매직 링크용 `https://kioku-trip.vercel.app/auth/confirm`과 Google용 `https://kioku-trip.vercel.app/auth/confirm?flow=google`을 추가합니다. 기존 로컬 이메일 콜백은 유지합니다. 로컬에서 Google 로그인을 쓸 경우 `http://localhost:3000/auth/confirm?flow=google` 및 `http://localhost:4000/auth/confirm?flow=google` 중 사용하는 주소를 추가합니다. Google용 Vercel 환경변수는 필요하지 않습니다.
 4. 기존 계정과 **동일한 확인된 이메일**의 Google 계정으로 로그인합니다. Supabase가 같은 사용자 ID에 Google 인증을 연결하므로 여행 소유권이 유지됩니다. 이메일이 다르면 기존 이메일 링크로 먼저 접근하고 프로젝트 소유자와 별도 계정 연결을 확인합니다. 계정 데이터와 소유권을 자동으로 옮기지 않습니다.
 
-로컬 테스트에서는 모의 Google OAuth로 기존 여행 접근, 액세스 토큰 갱신, Chrome 재시작 후 세션 유지와 로그아웃을 확인합니다. 실제 Google 계정 연결 검증은 운영 Provider 설정과 코드 배포 후 진행합니다.
+로컬 테스트에서는 모의 Google OAuth로 기존 여행 접근, 액세스 토큰 갱신, Chrome 재시작 후 세션 유지와 로그아웃을 확인합니다. 실제 Google 계정 연결은 Provider 설정과 Redirect URL을 준비한 뒤, Google 코드가 포함된 로컬 앱 또는 배포본에서 기존 사용자 ID와 여행 접근이 유지되는지 확인합니다.
 
 [Supabase Google 로그인](https://supabase.com/docs/guides/auth/social-sign-in/auth-google) · [Supabase 계정 연결](https://supabase.com/docs/guides/auth/auth-identity-linking)
 
@@ -142,7 +174,7 @@ Next.js 16.4.6 App Router, React 19.3.1, TypeScript 6.0.3, Tailwind CSS 4.3.5, s
 - **사내 M5 미리보기** — 회사 PC의 로컬 실행 스크립트는 가상 데이터로 읽기 전용 여행 홈과 로그인이 필요 없는 `/companion` 진입을 제공합니다. Chrome에서 여행 홈·일정·장소·예약·공유와 모바일 지도 핀을 확인했습니다. 미리보기는 `.next/m5` 빌드를 사용합니다. 이 출력 경로를 재빌드하려면 미리보기를 중지하고 `$env:KIOKU_BUILD_DIR = '.next/m5'`로 빌드한 뒤 다시 시작합니다.
 - **공유 운영** — 서버에서 `node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('base64url'))"`로 키를 생성해 비밀 저장소에 보관합니다. 같은 프로젝트에서 기존 링크를 재확인하려는 PC와 서버는 같은 키를 사용합니다. 키를 잃으면 기존 링크의 승인 여부는 검증할 수 있지만 원문을 재확인할 수 없으므로 새 키로 재발급합니다. 배포 프록시·CDN·분석에서 `/s/*` 및 `/api/shared/*` 주소, URL이 포함된 요청 헤더, 공유 검증 RPC의 본문을 기록하지 않도록 설정하고 공개 경로의 요청 빈도를 제한합니다. 링크를 중지해도 이미 내려받거나 캡처한 내용은 회수할 수 없습니다.
 - **Vercel 공유 링크** — `APP_URL`이 `.vercel.app` 주소이면 공유 링크의 비밀값을 `/s#…`에 둡니다. 브라우저가 고정 경로로 읽기 요청을 보내므로 Vercel 런타임의 요청 경로에 비밀값이 들어가지 않습니다. 읽기 요청 본문과 전체 공유 주소는 분석·오류 로그에서 제외합니다. 이메일 콜백에도 검증한 환경별 `APP_URL`만 사용합니다.
-- **후속 단계** — 호스팅 M4·M5 적용과 Auth·PostgREST 확인은 승인 후 진행합니다. Geoapify 실검색 품질 확인은 키가 준비되면 별도로 진행합니다.
+- **호스팅 M4·M5** — 집 PC에서 두 마이그레이션의 적용 이력과 주요 DB 권한을 읽기 전용으로 확인했습니다. 실제 계정·PostgREST를 사용하는 예약·공유 종단 간 검증을 이어갑니다. 자세한 내용은 [Supabase 문서](supabase/README.md)를 참고하세요.
 - **다른 PC에서 이어가기** — 공식 기준은 비공개 킥오프 ZIP의 `docs/01~05`입니다. 기간 밖 정책은 결정 로그 D-017을 참고하세요. `docs/`와 `reference/`는 각 PC에서 별도로 복구하고, Supabase 적용 전 [마이그레이션 이력과 권한 검사](supabase/README.md)를 확인합니다.
 
 ## 목적
