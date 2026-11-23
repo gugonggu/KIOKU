@@ -306,7 +306,7 @@ test("an owner creates a trip with no dates, edits it and confirms deletion on m
   await page.getByRole("button", { name: "여행 만들기" }).click();
   await expect(page).toHaveURL(/\/trips\/[a-f0-9-]{36}$/);
   await expect(page.getByRole("heading", { name: "봄빛 여행" })).toBeVisible();
-  await expect(page.getByRole("img", { name: "산과 해가 그려진 기본 여행 표지" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "겨울 거리의 기본 여행 표지" })).toBeVisible();
   await expect(page.getByText("날짜 미정", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
 
@@ -449,7 +449,7 @@ test("M2 sorts five Japan travel days with three time modes on mobile and deskto
     await page.getByLabel("일정 이름").fill(title);
     if (time || period) {
       await page.getByText("일정 상세 설정", { exact: true }).click();
-      await expect(page.getByLabel("일정 날짜")).toHaveValue("2027-02-19");
+      await expect(page.getByLabel("일정 날짜", { exact: true })).toHaveValue("2027-02-19");
       await page.getByLabel("시간 방식").selectOption(time ? "FIXED" : "PERIOD");
       if (time) await page.getByLabel("일본 현지 시각").fill(time);
       if (period) await page.getByLabel("시간대", { exact: true }).selectOption(period);
@@ -499,7 +499,8 @@ test("M2 archives and restores a linked afternoon item and confirms dates outsid
   });
   await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
   await page.goto(`${trip}/itinerary?date=2027-02-19`);
-  await expect(page.getByText("오타루 운하", { exact: true })).toBeVisible();
+  await expect(page.locator("[data-schedule-id]").getByText("오타루 운하", { exact: true })).toBeVisible();
+  await page.locator('summary[aria-label="운하 산책 일정 메뉴"]').click();
   await page.getByRole("button", { name: "후보로 보관" }).click();
   await expect(page.getByRole("heading", { name: "후보함" })).toBeVisible();
   await expect(page.getByText(/원래 날짜 2027\. 2\. 19/)).toBeVisible();
@@ -507,14 +508,16 @@ test("M2 archives and restores a linked afternoon item and confirms dates outsid
   await page.getByLabel("일정 이름").fill("위치 미정 후보");
   await page.getByRole("button", { name: "일정 저장", exact: true }).click();
   await expect(page.getByRole("heading", { name: "위치 미정 후보" })).toBeVisible();
+  await page.locator('summary[aria-label="운하 산책 일정 메뉴"]').click();
   await page.getByRole("link", { name: "복원", exact: true }).click();
   await page.getByRole("button", { name: "원래 일정으로 복원" }).click();
   await expect(page).toHaveURL(/date=2027-02-19$/);
   await expect(page.getByText("오후", { exact: true })).toBeVisible();
   await expect(page.getByText(/개인 준비 메모/)).toBeVisible();
   await expect(page.getByText(/동행 안내/)).toBeVisible();
-  await expect(page.getByText("오타루 운하", { exact: true })).toBeVisible();
+  await expect(page.locator("[data-schedule-id]").getByText("오타루 운하", { exact: true })).toBeVisible();
 
+  await page.locator('summary[aria-label="운하 산책 일정 메뉴"]').click();
   await page.getByRole("link", { name: "운하 산책 날짜 이동" }).click();
   await page.getByLabel("옮길 날짜").fill("2027-02-22");
   await page.getByRole("button", { name: "날짜 이동", exact: true }).click();
@@ -531,7 +534,7 @@ test("M2 archives and restores a linked afternoon item and confirms dates outsid
   await page.getByRole("link", { name: "일정 추가" }).click();
   await page.getByLabel("일정 이름").fill("사전 준비");
   await page.getByText("일정 상세 설정", { exact: true }).click();
-  await page.getByLabel("일정 날짜").fill("2027-02-16");
+  await page.getByLabel("일정 날짜", { exact: true }).fill("2027-02-16");
   await page.getByRole("button", { name: "일정 저장", exact: true }).click();
   await expect(page.getByRole("main").getByRole("alert")).toContainText("2027. 2. 16.");
   await page.getByRole("button", { name: "기간 밖 일정 저장 확인" }).click();
@@ -583,6 +586,7 @@ test("M2 preserves failed form input, refuses stale overwrites, and blocks a dif
   await expect(other.getByRole("heading", { name: "여행을 찾을 수 없어요" })).toBeVisible();
   await other.close();
 
+  await page.locator('summary[aria-label="먼저 저장한 일정 일정 메뉴"]').click();
   await page.getByRole("link", { name: "먼저 저장한 일정 일정 삭제" }).click();
   await page.getByRole("button", { name: "일정 삭제 확인" }).click();
   await expect(page.getByRole("heading", { name: "먼저 저장한 일정" })).toHaveCount(0);
@@ -735,4 +739,105 @@ test("M3 keeps the place list when the basemap fails and denies a different owne
     const response = await visitor.request.get(`${appUrl}/api/places/search?tripId=${id}&q=Sapporo`);
     expect(response.status()).toBe(404);
   } finally { await visitor.close(); }
+});
+
+test("editorial home opens a keyboard-dismissable quick add without losing the date", async ({ page }) => {
+  const trip = await seedFiveDayTrip("편집형 여행 수첩");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  await page.goto(trip);
+  await expect(page.getByRole("region", { name: "여행 일정 한눈에 보기" })).toBeVisible();
+  await page.getByRole("link", { name: "일정 보기", exact: true }).click();
+  await page.getByRole("link", { name: "2027. 2. 19.", exact: true }).click();
+  await page.getByRole("link", { name: "일정 추가", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "일정 추가" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "저장한 장소" }).click();
+  await expect(dialog.getByText("저장한 장소가 없어요.")).toBeVisible();
+  await dialog.getByRole("button", { name: "직접 입력" }).click();
+  await dialog.getByRole("button", { name: "일정 저장" }).click();
+  expect(await dialog.getByLabel("일정 이름").evaluate((input: HTMLInputElement) => input.validity.valueMissing)).toBe(true);
+  await dialog.getByLabel("일정 이름").fill("느긋한 산책");
+  await dialog.getByRole("button", { name: "일정 저장" }).click();
+  await expect(page.getByRole("heading", { name: "느긋한 산책" })).toBeVisible();
+  await expect(page).toHaveURL(/date=2027-02-19$/);
+  await page.getByRole("link", { name: "일정 추가", exact: true }).click();
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(page).toHaveURL(/date=2027-02-19$/);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+
+  await page.route("**/api/places/search?*", (route) => route.fulfill({ json: { status: "ok", results: [
+    { id: "editorial-search-fixture", name: "삿포로역", address: "홋카이도 삿포로", latitude: 43.068, longitude: 141.35 },
+  ] } }));
+  await page.getByRole("link", { name: "일정 추가", exact: true }).click();
+  await dialog.getByRole("button", { name: "장소 검색", exact: true }).click();
+  await dialog.getByRole("searchbox", { name: "일본 장소 검색" }).fill("삿포로역");
+  await dialog.getByRole("button", { name: /삿포로역/ }).click();
+  await expect(dialog.getByLabel("일정 이름")).toHaveValue("삿포로역");
+  await dialog.getByRole("button", { name: "일정 저장" }).click();
+  await expect(page.getByRole("heading", { name: "삿포로역", exact: true })).toBeVisible();
+});
+
+test("editorial desktop and mobile keep saved places and quick-add controls in reach", async ({ page }) => {
+  const trip = await seedFiveDayTrip("삿포로 겨울 여행");
+  const tripId = trip.split("/").at(-1);
+  await asUser(database, ownerA, async (tx) => {
+    await tx.query("update public.trips set traveler_count=2 where id=$1", [tripId]);
+    const { rows: [park] } = await tx.query<{ id: string }>(
+      "insert into public.trip_places (trip_id,display_name,address_text) values ($1,'오도리 공원','北海道札幌市中央区') returning id", [tripId],
+    );
+    await tx.query("insert into public.trip_places (trip_id,display_name) values ($1,'삿포로 TV 타워'),($1,'삿포로 맥주 박물관')", [tripId]);
+    await tx.query(`insert into public.itinerary_items (trip_id,title,kind,local_date,time_mode,fixed_local_time,period,place_id)
+      values ($1,'신치토세 공항 도착','MOVE','2027-02-17','FIXED','13:00',null,null),
+      ($1,'오도리 공원 산책','PLACE','2027-02-17','PERIOD',null,'AFTERNOON',$2),
+      ($1,'삿포로 TV 타워','PLACE','2027-02-17','UNSCHEDULED',null,null,null),
+      ($1,'스프카레 먹기','NOTE','2027-02-17','PERIOD',null,'EVENING',null),
+      ($1,'시내 둘러보기','NOTE','2027-02-18','UNSCHEDULED',null,null,null),
+      ($1,'오타루 당일치기','NOTE','2027-02-19','UNSCHEDULED',null,null,null)`, [tripId, park.id]);
+  });
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  const capture = async (name: string) => {
+    const directory = process.env.KIOKU_UI_SCREENSHOTS;
+    if (directory) {
+      await page.evaluate(() => document.fonts.ready);
+      await page.screenshot({ path: `${directory}/${name}.png`, animations: "disabled" });
+    }
+  };
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 });
+    await page.goto(trip);
+    await expect(page.getByRole("heading", { name: "삿포로 겨울 여행" })).toBeVisible();
+    await expect(page.locator(".editorial-stats")).toContainText("6개");
+    await expect(page.locator(".editorial-stats")).toContainText("3개");
+    const cover = await page.request.get("/kioku-winter-cover.webp");
+    expect(cover.ok()).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+    await capture(`home-${width}`);
+    await page.getByRole("link", { name: "일정 보기", exact: true }).click();
+    const places = page.getByRole("complementary", { name: "일정 장소 요약" });
+    if (width === 1440) await expect(places).toBeVisible();
+    else await expect(places).toBeHidden();
+    await expect(page.getByRole("heading", { name: "오도리 공원 산책" })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+    await capture(`itinerary-${width}`);
+    await page.getByRole("link", { name: "일정 추가", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "일정 추가" });
+    await dialog.getByRole("button", { name: "저장한 장소" }).click();
+    await expect(dialog.getByRole("button", { name: "오도리 공원", exact: true })).toBeVisible();
+    const bounds = (await dialog.boundingBox())!;
+    if (width < 600) expect(Math.round(bounds.y + bounds.height)).toBe(844);
+    await capture(`quick-add-${width}`);
+    if (width === 320) {
+      await dialog.getByRole("button", { name: "오도리 공원", exact: true }).click();
+      await expect(dialog.getByLabel("일정 이름")).toHaveValue("오도리 공원");
+      await dialog.getByRole("button", { name: "일정 저장" }).click();
+      await expect(page.locator("[data-schedule-id]").filter({ has: page.getByRole("heading", { name: "오도리 공원", exact: true }) })
+        .getByRole("link", { name: "지도에서 장소 보기" })).toBeVisible();
+    } else {
+      await dialog.getByRole("button", { name: "닫기" }).click();
+      await expect(dialog).toHaveCount(0);
+    }
+  }
 });

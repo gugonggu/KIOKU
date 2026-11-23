@@ -15,7 +15,9 @@ const searchMessages = {
   unavailable: "지금은 검색할 수 없어요. 직접 등록하거나 잠시 후 다시 시도해 주세요.",
 };
 
-function PlaceSearch({ tripId, choose }: { tripId: string; choose: (row: PlaceSuggestion) => void }) {
+export function PlaceSearch({ tripId, choose, schedule = false }: {
+  tripId: string; choose: (row: PlaceSuggestion) => void; schedule?: boolean;
+}) {
   const [input, setInput] = useState("");
   const [response, setResponse] = useState<{ query: string; result: GeoapifyResult }>();
   const [attempt, setAttempt] = useState(0);
@@ -50,9 +52,10 @@ function PlaceSearch({ tripId, choose }: { tripId: string; choose: (row: PlaceSu
       {result.results.map((row) => <li key={row.id}><button type="button" className="quiet-link" onClick={() => { choose(row); setInput(""); }}>
         <strong>{row.name}</strong>{row.address && <span>{row.address}</span>}
       </button></li>)}
-    </ul> : <p className="notice" role="status">검색 결과가 없어요. 장소를 직접 등록할 수 있어요.</p>)}
+    </ul> : <p className="notice" role="status">{schedule ? "검색 결과가 없어요. 일정 이름을 직접 입력할 수 있어요." :
+      "검색 결과가 없어요. 장소를 직접 등록할 수 있어요."}</p>)}
     {result && result.status !== "ok" && <div className="notice" role="status">
-      <p>{searchMessages[result.status]}</p>
+      <p>{schedule && result.status === "unconfigured" ? "장소 검색이 설정되지 않았어요. 일정 이름을 직접 입력할 수 있어요." : searchMessages[result.status]}</p>
       {result.status === "unavailable" && <button type="button" className="quiet-link"
         onClick={() => { setResponse(undefined); setAttempt((count) => count + 1); }}>다시 검색</button>}
     </div>}

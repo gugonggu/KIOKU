@@ -1,7 +1,7 @@
 import { CalendarDays, MapPin, UsersRound } from "lucide-react";
 import { dateLabel, durationLabel, type Trip } from "@/lib/trip-details";
 
-export function TripSummary({ trip }: { trip: Trip }) {
+export function TripSummary({ trip, showTravelers = true }: { trip: Trip; showTravelers?: boolean }) {
   const { start_date: start, end_date: end } = trip;
 
   return (
@@ -17,7 +17,7 @@ export function TripSummary({ trip }: { trip: Trip }) {
           </span>
         ) : <span>날짜 미정</span>}
       </p>
-      {trip.traveler_count !== null && <p><UsersRound size={17} aria-hidden="true" /><span>{trip.traveler_count}명</span></p>}
+      {showTravelers && trip.traveler_count !== null && <p><UsersRound size={17} aria-hidden="true" /><span>{trip.traveler_count}명</span></p>}
     </div>
   );
 }

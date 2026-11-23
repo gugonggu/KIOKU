@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
+import "./editorial.css";
 
 export const metadata: Metadata = {
   title: { default: "KIOKU — Japan Travel Planner", template: "%s | KIOKU" },

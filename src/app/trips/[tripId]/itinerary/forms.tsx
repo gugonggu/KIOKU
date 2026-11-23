@@ -1,5 +1,6 @@
 "use client";
 
+import { CalendarDays, Clock3, MapPin, Search, SquarePen } from "lucide-react";
 import Link from "next/link";
 import { useActionState, useState } from "react";
 import { Input } from "@/components/ui/input";
@@ -7,6 +8,7 @@ import { dateLabel } from "@/lib/trip-details";
 import { periods, planCalendar as calendar, planLimits } from "@/lib/trip-plan";
 import type { PlanSchedule } from "@/lib/trip-plan-data";
 import type { ItineraryState } from "./actions";
+import { PlaceSearch } from "../map/place-editor";
 
 type Action = (state: ItineraryState, form: FormData) => Promise<ItineraryState>;
 
@@ -32,9 +34,10 @@ function FormFooter({ state, pending, cancel, label, danger }: {
   </>;
 }
 
-export function ScheduleEditor({ action, cancel, item, date, places, initialPlace }: {
+export function ScheduleEditor({ action, cancel, item, date, places, initialPlace, quickTripId }: {
   action: Action; cancel: string; item?: PlanSchedule; date: string | null; places: { id: string; name: string }[];
   initialPlace?: { id: string; name: string };
+  quickTripId?: string;
 }) {
   const [state, dispatch, pending] = useActionState(action, {});
   const [values, setValues] = useState<Record<string, string>>({
@@ -43,6 +46,11 @@ export function ScheduleEditor({ action, cancel, item, date, places, initialPlac
     period: item?.period ?? "", place_id: item?.place_id ?? initialPlace?.id ?? "", private_note: item?.private_note ?? "", shared_note: item?.shared_note ?? "",
   });
   const set = (key: string, value: string) => setValues((previous) => ({ ...previous, [key]: value }));
+  const [source, setSource] = useState<"manual" | "saved" | "search">("manual");
+  const [placeQuery, setPlaceQuery] = useState("");
+  const matched = places.filter(({ name }) => name.normalize("NFKC").toLowerCase()
+    .includes(placeQuery.normalize("NFKC").trim().toLowerCase()));
+  const activePlace = places.find(({ id }) => id === values.place_id);
   function field(name: string, label: string, options: React.ComponentProps<"input"> = {}) {
     return <label className="form-field"><span>{label}</span><Input name={name} value={values[name]}
       onChange={(event) => set(name, event.target.value)} {...options} /></label>;
@@ -51,9 +59,37 @@ export function ScheduleEditor({ action, cancel, item, date, places, initialPlac
     return <label className="form-field"><span>{label}</span><textarea className="plan-input" name={name}
       rows={3} maxLength={planLimits.notes} value={values[name]} onChange={(event) => set(name, event.target.value)} /></label>;
   }
-  return <form className="plan-card" action={dispatch}>
+  return <form className={quickTripId ? "editorial-quick-form" : "plan-card"} action={dispatch}>
     <fieldset className="plan-fields" disabled={pending}>
-      {field("title", "일정 이름", { required: true, maxLength: planLimits.title })}
+      {quickTripId && <>
+        <div className="editorial-sources" role="group" aria-label="일정 입력 방식">
+          <button type="button" aria-pressed={source === "manual"} onClick={() => setSource("manual")}><SquarePen size={15} aria-hidden />직접 입력</button>
+          <button type="button" aria-pressed={source === "saved"} onClick={() => setSource("saved")}><MapPin size={15} aria-hidden />저장한 장소</button>
+          <button type="button" aria-pressed={source === "search"} onClick={() => setSource("search")}><Search size={15} aria-hidden />장소 검색</button>
+        </div>
+        {source === "search" && <>
+          <PlaceSearch tripId={quickTripId} schedule choose={(place) => {
+            setValues((previous) => ({ ...previous, title: place.name.slice(0, planLimits.title), kind: "PLACE", place_id: "" }));
+            setSource("manual");
+          }} />
+          <p className="plan-meta">검색한 이름을 일정에 사용해요. 장소 자체는 장소와 지도에서 저장할 수 있어요.</p>
+        </>}
+        {source === "saved" && (places.length ? <div className="editorial-saved-picker">
+          <label className="form-field"><span>저장한 장소 찾기</span><Input type="search" value={placeQuery} onChange={(event) => setPlaceQuery(event.target.value)} /></label>
+          {matched.length ? <ul>{matched.map((place) => <li key={place.id}><button type="button" className="quiet-link" onClick={() => {
+            setValues((previous) => ({ ...previous, title: place.name.slice(0, planLimits.title), kind: "PLACE", place_id: place.id }));
+            setSource("manual");
+          }}><MapPin size={16} aria-hidden />{place.name}</button></li>)}</ul>
+            : <p className="plan-meta">일치하는 장소가 없어요.</p>}
+        </div> : <p className="plan-empty">저장한 장소가 없어요.</p>)}
+      </>}
+      {field("title", "일정 이름", { required: true, maxLength: planLimits.title, placeholder: quickTripId ? "예: 오도리 공원 산책" : undefined })}
+      {quickTripId && <div className="editorial-quick-context">
+        <span><CalendarDays size={16} aria-hidden />{values.local_date ? dateLabel(values.local_date) : "날짜 미정 · 후보함"}</span>
+        <span><Clock3 size={16} aria-hidden />{values.time_mode === "FIXED" ? values.fixed_local_time || "정확한 시각" :
+          values.time_mode === "PERIOD" ? periods[values.period as keyof typeof periods] || "시간대 선택" : "시간 미정"}</span>
+        {activePlace && <span><MapPin size={16} aria-hidden />{activePlace.name}</span>}
+      </div>}
       <details open={item || initialPlace ? true : undefined}>
         <summary className="quiet-link">일정 상세 설정</summary>
         <div className="plan-fields itinerary-details">

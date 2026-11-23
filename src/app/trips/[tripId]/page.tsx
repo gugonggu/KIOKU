@@ -1,10 +1,14 @@
-import { ArrowLeft, PencilLine } from "lucide-react";
+import { ArrowLeft, CalendarDays, ChevronRight, MapPin, PencilLine, UsersRound } from "lucide-react";
 import Link from "next/link";
-import { Cover } from "@/components/cover";
-import { japanDate, tripStatus, tripStatuses } from "@/lib/trip-details";
+import { Blossom } from "@/components/brand";
+import { dateLabel, japanDate } from "@/lib/trip-details";
+import { planDay, sortSchedule } from "@/lib/trip-plan";
+import { loadTripPlan } from "@/lib/trip-plan-data";
 import { getTrip } from "@/lib/trips";
 import { TripLoadError } from "../trip-load-error";
 import { TripSummary } from "../trip-summary";
+import { DayCards, timeLabel, TripTabs } from "./editorial";
+import { itineraryHref } from "./itinerary/links";
 
 export const metadata = { title: "여행 수첩" };
 
@@ -12,32 +16,66 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
   const { tripId } = await params;
   const { data: trip, error } = await getTrip(tripId);
   if (error || !trip) return <TripLoadError />;
-  const status = tripStatus(trip, japanDate());
+  const today = japanDate();
+  const date = planDay(trip, undefined, today);
+  const plan = await loadTripPlan(trip.id);
   const href = `/trips/${trip.id}`;
+  const scheduleHref = itineraryHref(trip.id, date);
+  const groups = new Map<string, string>();
+  for (const item of sortSchedule(plan?.schedule ?? [])) {
+    if (item.local_date && !groups.has(item.local_date)) groups.set(item.local_date, item.title);
+  }
+  const dayItems = date ? sortSchedule(plan?.schedule.filter((item) => item.local_date === date) ?? []) : [];
+  const candidateCount = plan?.schedule.filter((item) => !item.local_date).length;
 
-  return (
-    <>
-      <Link href="/trips" className="quiet-link"><ArrowLeft size={17} aria-hidden="true" />내 여행으로</Link>
-      <article className="trip-home">
-        <Cover compact label="산과 해가 그려진 기본 여행 표지" />
-        <div className="trip-home-body">
-          {status !== "unscheduled" && <span className="trip-status">{tripStatuses[status].label}</span>}
-          <h1>{trip.title}</h1>
-          <TripSummary trip={trip} />
-          <div className="state-actions">
-            {status === "unscheduled" && <Link href={`${href}/edit#trip-dates`} className="primary-button">날짜 정하기</Link>}
-            <Link href={`${href}/edit`} className={status === "unscheduled" ? "quiet-link" : "primary-button"}>
-              <PencilLine size={17} aria-hidden="true" />여행 편집
-            </Link>
-          </div>
-        </div>
-      </article>
-      <div className="state-actions">
-        <Link href={`${href}/itinerary`} className="primary-button">일정 보기</Link>
-        <Link href={`${href}/itinerary?view=candidates`} className="quiet-link">후보함</Link>
-        <Link href={`${href}/map`} className="quiet-link">장소와 지도</Link>
+  return <div className="editorial-page editorial-overview">
+    <div className="editorial-breadcrumb">
+      <Link href="/trips" className="quiet-link"><ArrowLeft size={16} aria-hidden />내 여행으로</Link>
+      <Link href={`${href}/edit`} className="quiet-link"><PencilLine size={16} aria-hidden />여행 편집</Link>
+    </div>
+    <article className="editorial-hero">
+      <div role="img" aria-label="겨울 거리의 기본 여행 표지" className="editorial-cover" />
+      <div className="editorial-hero-content">
+        <p className="editorial-kicker">일본 여행 수첩</p>
+        <h1>{trip.title}</h1>
+        <TripSummary trip={trip} showTravelers={!plan} />
+        {!date && <Link href={`${href}/edit#trip-dates`} className="quiet-link">날짜 정하기</Link>}
       </div>
-      <Link href={`${href}/delete`} className="quiet-link danger-link">여행 삭제</Link>
-    </>
-  );
+    </article>
+    {plan ? <dl className="editorial-stats" aria-label="여행 요약">
+      <div><CalendarDays aria-hidden /><dt>일정</dt><dd>{plan.schedule.length}개</dd></div>
+      <div><MapPin aria-hidden /><dt>저장한 장소</dt><dd>{plan.places.length}개</dd></div>
+      {trip.traveler_count !== null && <div><UsersRound aria-hidden /><dt>여행 인원</dt><dd>{trip.traveler_count}명</dd></div>}
+    </dl> : <p className="notice notice-error" role="status">일정과 장소 요약을 불러오지 못했어요.</p>}
+    <section className="editorial-section" aria-labelledby="trip-days-heading">
+      <div className="editorial-section-heading">
+        <h2 id="trip-days-heading">여행 일정 한눈에 보기</h2>
+        <Link href={scheduleHref} className="quiet-link">일정 보기<ChevronRight size={15} aria-hidden /></Link>
+      </div>
+      {date ? <DayCards trip={trip} date={date} summaries={plan ? groups : undefined} /> :
+        <p className="plan-empty">여행 날짜가 정해지면 날짜별 계획을 여기에서 볼 수 있어요.</p>}
+    </section>
+    <div className="editorial-overview-bottom">
+      <section className="editorial-paper editorial-preview" aria-labelledby="trip-preview-heading">
+        <Blossom className="editorial-sprig" />
+        <h2 id="trip-preview-heading">{date === today ? "오늘 일정" : date ? "선택한 날의 일정" : "후보함"}</h2>
+        {date && <p className="plan-meta">{dateLabel(date)} · 일본 현지 날짜</p>}
+        {plan && dayItems.length > 0 ? <ul>{dayItems.slice(0, 3).map((item) =>
+          <li key={item.id}><span className="editorial-time">{timeLabel(item)}</span><strong>{item.title}</strong></li>)}</ul>
+          : plan && <p className="plan-meta">{date ? "이 날짜에 등록된 일정이 없어요." : `날짜를 정하지 않은 일정 ${candidateCount}개`}</p>}
+        <Link href={date ? scheduleHref : itineraryHref(trip.id, null, undefined, undefined, true)} className="quiet-link">
+          {date ? "이날 일정 열기" : "후보함 열기"}<ChevronRight size={16} aria-hidden />
+        </Link>
+      </section>
+      <section className="editorial-paper editorial-home-places">
+        <div className="editorial-icon"><MapPin size={22} aria-hidden /></div>
+        <h2>장소와 지도</h2>
+        {plan?.places.length ? <p className="plan-meta">{plan.places.slice(0, 3).map((place) => place.name).join(" · ")}</p> :
+          plan && <p className="plan-meta">가보고 싶은 곳을 모아두세요.</p>}
+        <Link href={`${href}/map`} className="quiet-link">장소와 지도<ChevronRight size={16} aria-hidden /></Link>
+      </section>
+    </div>
+    <Link href={`${href}/delete`} className="quiet-link danger-link editorial-delete">여행 삭제</Link>
+    <TripTabs href={href} active="home" />
+  </div>;
 }
