@@ -10,7 +10,7 @@ import { getTrip } from "@/lib/trips";
 import { notFound } from "next/navigation";
 import { randomUUID } from "node:crypto";
 import { TripLoadError } from "../../trip-load-error";
-import { DayCards, dayNumber, TripTabs } from "../editorial";
+import { DayCards, dayNumber, timeLabel, TripTabs } from "../editorial";
 import { mapHref } from "../map/links";
 import { changePlacement, saveItinerary } from "./actions";
 import { PlacementForm, ScheduleEditor } from "./forms";
@@ -25,17 +25,22 @@ function DateNavigation({ trip, date }: { trip: Trip; date: string }) {
   return <nav className="editorial-date-nav" aria-label="일정 날짜 이동">
     <h2>여행 날짜</h2>
     <DayCards trip={trip} date={date} />
-    <div className="editorial-date-arrows">
+    <details className="editorial-date-tools" key={date}>
+      <summary className="quiet-link">날짜 직접 이동</summary>
+      <div className="editorial-date-options">
+      <div className="editorial-date-arrows">
       {previous && trip.start_date && previous >= trip.start_date &&
         <Link className="quiet-link plan-step" aria-label="이전 날짜" href={itineraryHref(trip.id, previous)}><ArrowLeft size={18} aria-hidden /></Link>}
       {next && trip.end_date && next <= trip.end_date &&
         <Link className="quiet-link plan-step" aria-label="다음 날짜" href={itineraryHref(trip.id, next)}><ArrowRight size={18} aria-hidden /></Link>}
-    </div>
-    <form method="get" action={itineraryHref(trip.id, null)} className="plan-date-picker">
+      </div>
+      <form method="get" action={itineraryHref(trip.id, null)} className="plan-date-picker">
       <Input key={date} aria-label="볼 날짜" name="date" {...calendar} min={trip.start_date ?? calendar.min}
         max={trip.end_date ?? calendar.max} defaultValue={date} required />
       <button className="quiet-link" type="submit">이동</button>
-    </form>
+      </form>
+      </div>
+    </details>
   </nav>;
 }
 
@@ -105,8 +110,13 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
     group.push(row);
     otherDates.set(row.local_date, group);
   }
-  const currentPlaces = Array.from(new Set(sortSchedule(candidates ? undated : onDay).map((row) => row.place_id).filter(Boolean)))
-    .map((id) => plan.places.find((place) => place.id === id)).filter((place) => place !== undefined);
+  const visibleItems = sortSchedule(candidates ? undated : onDay);
+  const placesById = new Map(plan.places.map((place) => [place.id, place]));
+  const visits = Map.groupBy(visibleItems, (entry) => entry.place_id);
+  const currentPlaces = Array.from(visits.keys()).flatMap((id) => {
+    const place = id && placesById.get(id);
+    return place ? [place] : [];
+  });
   const addLabel = candidates ? "후보 추가" : "일정 추가";
   const add = itineraryHref(trip.id, date, "add", undefined, candidates);
 
@@ -144,11 +154,16 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
       <aside className="editorial-side-panel editorial-paper" aria-label="일정 장소 요약">
         <div className="editorial-side-heading"><div className="editorial-icon"><MapPin size={19} aria-hidden /></div>
           <h2>{candidates ? "후보의 장소" : "이날의 장소"}</h2></div>
-        {currentPlaces.length ? <ul>{currentPlaces.map((place) => <li key={place.id}>
+        {currentPlaces.length ? <ul>{currentPlaces.map((place) => <li key={place.id} className="editorial-side-place">
           <Link href={mapHref(trip.id, { date, place: place.id, filter: candidates ? "candidates" : "date" })}>
-            <div><strong>{place.name}</strong>{place.address && <p className="plan-meta">{place.address}</p>}</div>
+            <div><strong>{place.name}</strong>{place.address && <p className="plan-meta" title={place.address}>{place.address}</p>}</div>
             <ChevronRight size={17} aria-hidden />
           </Link>
+          <ul aria-label={`${place.name}에 연결된 일정`}>{visits.get(place.id)?.map((entry) => <li key={entry.id}>
+            <a className="editorial-side-visit" href={`#schedule-${entry.id}`}>
+              <span>{timeLabel(entry)}</span><span>{entry.title}</span>
+            </a>
+          </li>)}</ul>
         </li>)}</ul> : <p className="plan-meta">연결된 장소가 없어요.</p>}
         <Link href={map} className="quiet-link">지도 열기<ChevronRight size={15} aria-hidden /></Link>
       </aside>

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
-import type { PlaceSuggestion, GeoapifyResult } from "@/lib/geoapify";
+import { suggestionFields, type PlaceSuggestion, type GeoapifyResult } from "@/lib/geoapify";
 import { placeLimits } from "@/lib/trip-places";
 import type { PlanPlace } from "@/lib/trip-plan-data";
 import type { PlaceState } from "./actions";
@@ -76,10 +76,7 @@ export function PlaceEditor({ action, tripId, item, back }: { action: Action; tr
       onChange={(event) => setValues((before) => ({ ...before, [name]: event.target.value }))} {...options} /></label>;
   }
   function choose(row: PlaceSuggestion) {
-    setValues((before) => ({ ...before, display_name: row.name, address_text: row.address, latitude: String(row.latitude), longitude: String(row.longitude),
-      name_ko: row.language === "ko" ? row.name : "", name_ja: row.language === "ja" ? row.name : "",
-      name_en: row.language === "en" ? row.name : "", address_ja: row.language === "ja" ? row.address : "",
-      provider: "GEOAPIFY", provider_place_id: row.id }));
+    setValues((before) => ({ ...before, ...suggestionFields(row) }));
   }
   const existing = state.duplicate ?? state.existing;
   return <>

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { parsePlace } from "@/lib/trip-places";
 import { isTripId, requireTripClient } from "@/lib/trips";
 import { mapHref } from "./links";
+import { writeTripPlace } from "./place-write";
 
 export type PlaceState = { error?: string; conflict?: boolean; duplicate?: string; existing?: string; linkCount?: number };
 const changed = { error: "여행이나 장소가 다른 화면에서 변경됐어요. 최신 목록을 확인해 주세요.", conflict: true };
@@ -28,10 +29,8 @@ export async function savePlace(
   const fields = parsePlace(form);
   if (typeof fields === "string") return { error: fields };
   const confirm = form.get("confirm_duplicate");
-  const { data, error } = await client.rpc("save_trip_place", {
-    p_trip: tripId, p_id: id, p_version: version, p_fields: fields,
-    p_confirm: typeof confirm === "string" && isTripId(confirm) ? confirm : null,
-  });
+  const { data, error } = await writeTripPlace(client, tripId, id, version, fields,
+    typeof confirm === "string" && isTripId(confirm) ? confirm : null);
   if (error || !data) return failed;
   if (data.status === "duplicate" && data.id) return { duplicate: data.id };
   if (data.status === "existing" && data.id) return { error: "이 장소는 이미 저장됐어요.", existing: data.id };

@@ -199,6 +199,51 @@ body:has(.editorial-dialog[open]) { overflow: hidden; }
 .editorial-saved-picker li + li { border-top: 1px solid var(--ed-line); }
 .editorial-saved-picker button { width: 100%; justify-content: start; text-align: left; overflow-wrap: anywhere; }
 
+/* Phase 1.1 usability */
+.editorial-cover-neutral { background: #ece6da; }
+.editorial-cover-neutral .cover {
+  position: absolute; inset: 0; min-height: 0; aspect-ratio: auto; border-radius: 0;
+  -webkit-mask-image: linear-gradient(to bottom, #000 34%, transparent 97%); mask-image: linear-gradient(to bottom, #000 34%, transparent 97%);
+}
+.editorial-cover-neutral .cover-frame { display: none; }
+.editorial-hero .editorial-hero-shortcut { display: inline-flex; align-items: center; gap: 3px; color: #2f5641; font-weight: 700; }
+.editorial-date-tools { justify-self: end; font-size: .82rem; }
+.editorial-date-tools > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; min-height: 44px; color: #4b5a4f; text-decoration: underline; text-underline-offset: 3px; }
+.editorial-date-tools > summary::-webkit-details-marker { display: none; }
+.editorial-date-options { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-top: 4px; }
+.editorial-date-nav .editorial-date-options .editorial-date-arrows,
+.editorial-date-nav .editorial-date-options .plan-date-picker { grid-area: auto; justify-self: auto; }
+.editorial-entry-copy h3 { word-break: keep-all; overflow-wrap: anywhere; }
+.editorial-place-link { gap: 5px; max-width: 100%; text-decoration: none; line-height: 1.35; }
+.editorial-place-link svg { flex: none; }
+.editorial-place-link > span { display: grid; min-width: 0; }
+.editorial-place-link strong { font-weight: 650; text-decoration: underline; text-underline-offset: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editorial-entry-address { color: var(--color-muted-ink); font-size: .74rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editorial-menu-edit { display: none; }
+.editorial-selected-place {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 9px;
+  border: 1px solid #b9c7b3; background: #eef2ea; border-radius: 12px; padding: 6px 4px 6px 12px; color: #2f5641;
+}
+.editorial-selected-place > div { display: grid; min-width: 0; }
+.editorial-selected-place span { font-size: .74rem; color: #4f6355; }
+.editorial-selected-place strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-ink); }
+.editorial-global-menu { position: relative; }
+.editorial-global-menu > summary { color: #425346; }
+.editorial-global-menu .editorial-menu-content { top: calc(100% + 4px); min-width: 150px; }
+.trips-shell:has(.editorial-page) .editorial-global-menu .editorial-menu-content a,
+.trips-shell:has(.editorial-page) .editorial-global-menu .editorial-menu-content button { font-size: .86rem; justify-content: start; width: 100%; }
+.editorial-side-panel li.editorial-side-place > a { border-block-end: 0; }
+.editorial-side-panel li.editorial-side-place { border-block-end: 1px solid var(--ed-line); padding-bottom: 4px; }
+.editorial-side-panel li.editorial-side-place .plan-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editorial-side-panel li.editorial-side-place > div, .editorial-side-panel li.editorial-side-place > a > div { min-width: 0; }
+.editorial-side-panel li.editorial-side-place ul { margin: 0 0 0 5px; gap: 0; }
+.editorial-side-panel a.editorial-side-visit {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); justify-content: start; gap: 7px; min-height: 36px;
+  padding: 4px 5px; border: 0; font-size: .8rem; color: #45524a;
+}
+.editorial-side-visit span:first-child { font-size: .72rem; background: var(--ed-peach); border-radius: 999px; padding: 1px 7px; white-space: nowrap; }
+.editorial-side-visit span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 @media (max-width: 374px) {
   .brand-illustration { width: 48px; height: 34px; }
   .brand-wordmark { font-size: 21px; }
@@ -222,6 +267,20 @@ body:has(.editorial-dialog[open]) { overflow: hidden; }
   .editorial-add:hover { background: #385a49; }
   .editorial-add span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .editorial-dialog { max-height: calc(var(--editorial-visible-height, 100dvh) - 12px); bottom: var(--editorial-keyboard-inset, 0px); }
+  .editorial-hero { min-height: 280px; }
+  .editorial-cover { height: 168px; }
+  .editorial-hero-content { padding: 104px 16px 18px; }
+  .editorial-date-nav { gap: 2px; }
+  .editorial-date-nav > h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .editorial-date-tools { margin-block: -2px -8px; }
+  .editorial-entry-edit { display: none; }
+  .editorial-menu-edit { display: flex; }
+  .editorial-entry-card { padding-inline-end: 0; }
+  .editorial-quick-form .editorial-form-actions {
+    position: sticky; bottom: 0; z-index: 2; margin-inline: -14px;
+    padding: 10px 14px 12px; background: var(--ed-paper); border-block-start: 1px solid var(--ed-line);
+  }
+  .editorial-quick-form .editorial-form-actions .primary-button { flex: 1; }
 }
 @media (min-width: 600px) {
   .editorial-cover {
@@ -229,6 +288,12 @@ body:has(.editorial-dialog[open]) { overflow: hidden; }
     background: linear-gradient(to right, var(--ed-paper) 0%, #fbf8f1f9 12%, #fbf8f1a3 35%, transparent 66%),
       linear-gradient(to top, var(--ed-paper), transparent 36%),
       url("/kioku-winter-cover.webp") 64% 49% / cover no-repeat, #e6e4df;
+  }
+  .editorial-cover-neutral { background: var(--ed-paper); }
+  .editorial-cover-neutral .cover {
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, #0006 22%, #000 55%), linear-gradient(to top, transparent, #000 36%);
+    mask-image: linear-gradient(to right, transparent 0%, #0006 22%, #000 55%), linear-gradient(to top, transparent, #000 36%);
+    -webkit-mask-composite: source-in; mask-composite: intersect;
   }
   .editorial-hero { min-height: 350px; align-items: center; }
   .editorial-hero-content { padding: 38px clamp(25px, 5vw, 62px); max-width: 65%; }

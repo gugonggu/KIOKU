@@ -55,7 +55,7 @@ export function ScheduleList({ items, tripId, date, places, candidate = false, s
         const Icon = item.kind === "MOVE" ? Footprints : item.kind === "PLACE" || place ? MapPin : NotebookPen;
         const placement = { ...versionOf(item), archivedDate: item.archived_date, candidate };
         const href = (mode: "edit" | "move" | "restore" | "delete") => itineraryHref(tripId, date, mode, item.id, candidate);
-        return <li key={item.id} className="editorial-entry plan-entry" data-schedule-id={item.id}
+        return <li key={item.id} id={`schedule-${item.id}`} className="editorial-entry plan-entry" data-schedule-id={item.id}
           onDragOver={(event) => {
             const source = rows.find((row) => row.id === dragId);
             if (source && source.id !== item.id && sameGroup(source, item)) {
@@ -78,17 +78,21 @@ export function ScheduleList({ items, tripId, date, places, candidate = false, s
             <div className="editorial-entry-copy">
               <h3>{item.title}</h3>
               {candidate && item.archived_date && <p className="plan-meta">원래 날짜 {dateLabel(item.archived_date)}</p>}
-              {place && <p className="plan-meta">{place.name}{place.address && ` · ${place.address}`}</p>}
-              {place && <Link className="editorial-place-link" href={mapHref(tripId, { place: place.id,
-                date: item.local_date, filter: item.local_date ? "date" : "candidates" })}>지도에서 장소 보기</Link>}
+              {place && <Link className="editorial-place-link" aria-label="지도에서 장소 보기" href={mapHref(tripId, { place: place.id,
+                date: item.local_date, filter: item.local_date ? "date" : "candidates" })}>
+                <MapPin size={14} aria-hidden /><span><strong>{place.name}</strong>
+                  {place.address && <span className="editorial-entry-address" title={place.address}>{place.address}</span>}
+                </span>
+              </Link>}
               {item.private_note && <p className="plan-notes">개인 메모 · {item.private_note}</p>}
               {item.shared_note && <p className="plan-notes">공유용 메모 · {item.shared_note}</p>}
             </div>
             <div className="editorial-entry-controls">
-              <Link className="editorial-icon-button" href={href("edit")} aria-label={`${item.title} 일정 수정`}><Pencil size={15} aria-hidden /></Link>
+              <Link className="editorial-icon-button editorial-entry-edit" href={href("edit")} aria-label={`${item.title} 일정 수정`}><Pencil size={15} aria-hidden /></Link>
               <details className="editorial-entry-menu" name="editorial-schedule-menu">
                 <summary className="editorial-icon-button" aria-label={`${item.title} 일정 메뉴`}><EllipsisVertical size={18} aria-hidden /></summary>
                 <div className="editorial-menu-content">
+                  <Link className="quiet-link editorial-menu-edit" href={href("edit")} aria-label={`${item.title} 일정 수정`}>수정</Link>
                   <Link className="quiet-link" href={href("move")} aria-label={`${item.title} 날짜 이동`}>날짜 이동</Link>
                   {candidate ? item.archived_date && <Link className="quiet-link" href={href("restore")}>복원</Link> :
                     <ArchiveButton action={changePlacement.bind(null, tripId, placement, "archive", date)} />}

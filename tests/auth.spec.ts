@@ -306,9 +306,10 @@ test("an owner creates a trip with no dates, edits it and confirms deletion on m
   await page.getByRole("button", { name: "여행 만들기" }).click();
   await expect(page).toHaveURL(/\/trips\/[a-f0-9-]{36}$/);
   await expect(page.getByRole("heading", { name: "봄빛 여행" })).toBeVisible();
-  await expect(page.getByRole("img", { name: "겨울 거리의 기본 여행 표지" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "산 풍경의 기본 여행 표지" })).toBeVisible();
   await expect(page.getByText("날짜 미정", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+  if (process.env.KIOKU_UI_SCREENSHOTS) await page.screenshot({ path: `${process.env.KIOKU_UI_SCREENSHOTS}/home-default-cover-320.png`, animations: "disabled" });
 
   await page.getByRole("link", { name: "날짜 정하기" }).click();
   await page.getByLabel("여행 이름").fill("봄빛 당일치기");
@@ -439,7 +440,10 @@ test("M2 sorts five Japan travel days with three time modes on mobile and deskto
   await page.getByRole("link", { name: "일정 보기" }).click();
   const calendar = page.getByRole("navigation", { name: "일정 날짜 이동" });
   await expect(calendar.getByRole("link", { name: /^2027/ })).toHaveCount(5);
+  await expect(page.getByLabel("볼 날짜")).toBeHidden();
+  await calendar.getByText("날짜 직접 이동").click();
   await expect(page.getByLabel("볼 날짜")).toHaveValue("2027-02-17");
+  await calendar.getByText("날짜 직접 이동").click();
   await calendar.getByRole("link", { name: "2027. 2. 19." }).click();
   await expect(page).toHaveURL(/itinerary\?date=2027-02-19$/);
   await expect(page.getByText("이 날짜에 등록된 일정이 없어요.")).toBeVisible();
@@ -484,7 +488,9 @@ test("M2 sorts five Japan travel days with three time modes on mobile and deskto
   await expect(entries).toHaveText(["아침 산책", "아침 사진", "늦은 출발", "오전 시장", "오후 운하", "저녁 약속", "시간 미정 카페"]);
   await page.reload();
   await expect(entries).toHaveText(["아침 산책", "아침 사진", "늦은 출발", "오전 시장", "오후 운하", "저녁 약속", "시간 미정 카페"]);
+  await calendar.getByText("날짜 직접 이동").click();
   await page.getByRole("link", { name: "다음 날짜" }).click();
+  await calendar.getByText("날짜 직접 이동").click();
   await expect(page.getByLabel("볼 날짜")).toHaveValue("2027-02-20");
   await expect(page.getByText("이 날짜에 등록된 일정이 없어요.")).toBeVisible();
 });
@@ -512,7 +518,7 @@ test("M2 archives and restores a linked afternoon item and confirms dates outsid
   await page.getByRole("link", { name: "복원", exact: true }).click();
   await page.getByRole("button", { name: "원래 일정으로 복원" }).click();
   await expect(page).toHaveURL(/date=2027-02-19$/);
-  await expect(page.getByText("오후", { exact: true })).toBeVisible();
+  await expect(page.locator("[data-schedule-id]").getByText("오후", { exact: true })).toBeVisible();
   await expect(page.getByText(/개인 준비 메모/)).toBeVisible();
   await expect(page.getByText(/동행 안내/)).toBeVisible();
   await expect(page.locator("[data-schedule-id]").getByText("오타루 운하", { exact: true })).toBeVisible();
@@ -769,15 +775,24 @@ test("editorial home opens a keyboard-dismissable quick add without losing the d
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
 
   await page.route("**/api/places/search?*", (route) => route.fulfill({ json: { status: "ok", results: [
-    { id: "editorial-search-fixture", name: "삿포로역", address: "홋카이도 삿포로", latitude: 43.068, longitude: 141.35 },
+    { id: "editorial-search-fixture", name: "삿포로역", address: "홋카이도 삿포로", latitude: 43.068, longitude: 141.35, language: "ko" },
   ] } }));
   await page.getByRole("link", { name: "일정 추가", exact: true }).click();
   await dialog.getByRole("button", { name: "장소 검색", exact: true }).click();
   await dialog.getByRole("searchbox", { name: "일본 장소 검색" }).fill("삿포로역");
   await dialog.getByRole("button", { name: /삿포로역/ }).click();
+  await expect(dialog.getByText("검색한 장소 · 저장 후 연결")).toBeVisible();
+  await expect(dialog.getByRole("searchbox")).toHaveCount(0);
   await expect(dialog.getByLabel("일정 이름")).toHaveValue("삿포로역");
+  await dialog.getByLabel("일정 이름").fill("삿포로역에서 만나기");
   await dialog.getByRole("button", { name: "일정 저장" }).click();
-  await expect(page.getByRole("heading", { name: "삿포로역", exact: true })).toBeVisible();
+  const visit = page.locator("[data-schedule-id]").filter({ has: page.getByRole("heading", { name: "삿포로역에서 만나기" }) });
+  await expect(visit.getByRole("link", { name: "지도에서 장소 보기" })).toBeVisible();
+  const { rows: [saved] } = await asUser(database, ownerA, (tx) => tx.query(
+    "select s.local_date::text, s.time_mode, p.display_name from itinerary_items s join trip_places p on p.id=s.place_id where s.title=$1",
+    ["삿포로역에서 만나기"],
+  ));
+  expect(saved).toEqual({ local_date: "2027-02-19", time_mode: "UNSCHEDULED", display_name: "삿포로역" });
 });
 
 test("editorial desktop and mobile keep saved places and quick-add controls in reach", async ({ page }) => {
@@ -829,9 +844,21 @@ test("editorial desktop and mobile keep saved places and quick-add controls in r
     const bounds = (await dialog.boundingBox())!;
     if (width < 600) expect(Math.round(bounds.y + bounds.height)).toBe(844);
     await capture(`quick-add-${width}`);
+    await dialog.getByRole("button", { name: "오도리 공원", exact: true }).click();
+    await expect(dialog.getByText("저장한 장소 · 일정에 연결")).toBeVisible();
+    await expect(dialog.getByRole("searchbox")).toHaveCount(0);
+    await expect(dialog.getByLabel("일정 이름")).toHaveValue("오도리 공원");
+    await capture(`quick-add-selected-${width}`);
+    if (width < 600) {
+      // Approximate an open on-screen keyboard by shrinking the visible viewport.
+      await page.setViewportSize({ width, height: 480 });
+      await dialog.getByLabel("일정 이름").focus();
+      const save = dialog.getByRole("button", { name: "일정 저장" });
+      await expect(save).toBeInViewport({ ratio: 1 });
+      await capture(`quick-add-keyboard-${width}`);
+      await page.setViewportSize({ width, height: 844 });
+    }
     if (width === 320) {
-      await dialog.getByRole("button", { name: "오도리 공원", exact: true }).click();
-      await expect(dialog.getByLabel("일정 이름")).toHaveValue("오도리 공원");
       await dialog.getByRole("button", { name: "일정 저장" }).click();
       await expect(page.locator("[data-schedule-id]").filter({ has: page.getByRole("heading", { name: "오도리 공원", exact: true }) })
         .getByRole("link", { name: "지도에서 장소 보기" })).toBeVisible();

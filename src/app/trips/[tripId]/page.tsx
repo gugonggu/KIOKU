@@ -1,6 +1,7 @@
 import { ArrowLeft, CalendarDays, ChevronRight, MapPin, PencilLine, UsersRound } from "lucide-react";
 import Link from "next/link";
 import { Blossom } from "@/components/brand";
+import { Cover } from "@/components/cover";
 import { dateLabel, japanDate } from "@/lib/trip-details";
 import { planDay, sortSchedule } from "@/lib/trip-plan";
 import { loadTripPlan } from "@/lib/trip-plan-data";
@@ -27,6 +28,7 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
   }
   const dayItems = date ? sortSchedule(plan?.schedule.filter((item) => item.local_date === date) ?? []) : [];
   const candidateCount = plan?.schedule.filter((item) => !item.local_date).length;
+  const winterCover = /삿포로|홋카이도|札幌|北海道|sapporo|hokkaido/i.test(trip.destination_label);
 
   return <div className="editorial-page editorial-overview">
     <div className="editorial-breadcrumb">
@@ -34,12 +36,16 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
       <Link href={`${href}/edit`} className="quiet-link"><PencilLine size={16} aria-hidden />여행 편집</Link>
     </div>
     <article className="editorial-hero">
-      <div role="img" aria-label="겨울 거리의 기본 여행 표지" className="editorial-cover" />
+      <div role="img" aria-label={winterCover ? "겨울 거리의 기본 여행 표지" : "산 풍경의 기본 여행 표지"}
+        className={`editorial-cover${winterCover ? "" : " editorial-cover-neutral"}`}>
+        {!winterCover && <Cover />}
+      </div>
       <div className="editorial-hero-content">
         <p className="editorial-kicker">일본 여행 수첩</p>
         <h1>{trip.title}</h1>
         <TripSummary trip={trip} showTravelers={!plan} />
         {!date && <Link href={`${href}/edit#trip-dates`} className="quiet-link">날짜 정하기</Link>}
+        {date && <Link href={scheduleHref} className="quiet-link editorial-hero-shortcut">이날 일정 바로가기<ChevronRight size={15} aria-hidden /></Link>}
       </div>
     </article>
     {plan ? <dl className="editorial-stats" aria-label="여행 요약">

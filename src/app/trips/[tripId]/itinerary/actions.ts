@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { isCalendarDate, type Trip } from "@/lib/trip-details";
 import { outsideTrip, parseSchedule } from "@/lib/trip-plan";
+import { parsePlace } from "@/lib/trip-places";
 import { getTrip, isTripId, requireTripClient } from "@/lib/trips";
+import { writeTripPlace } from "../map/place-write";
 import { itineraryHref } from "./links";
 
 export type ItineraryState = { error?: string; refresh?: boolean; outside?: { key: string; date: string } };
@@ -41,6 +43,24 @@ export async function saveItinerary(
   if (!trip || tripError) return saveError;
   const warning = checkOutside(trip, fields.local_date, form);
   if (warning) return warning;
+
+  const searchPlaceId = form.get("search_place_id");
+  if (searchPlaceId) {
+    if (revision !== null || typeof searchPlaceId !== "string" || !isTripId(searchPlaceId) || fields.place_id) return conflict;
+    const place = parsePlace(form);
+    if (typeof place === "string") return { error: place };
+    if (place.provider !== "GEOAPIFY") return { error: "검색 결과를 다시 선택해 주세요." };
+    const saved = await writeTripPlace(client, tripId, searchPlaceId, null, place);
+    if (saved.error || !saved.data?.id) return { error: "장소를 저장하지 못했어요. 입력은 유지됐어요. 다시 시도해 주세요." };
+    if (saved.data.status === "existing") {
+      const { data: existing } = await client.from("trip_places").select("provider,provider_place_id")
+        .eq("trip_id", tripId).eq("id", saved.data.id).maybeSingle();
+      if (existing?.provider !== place.provider || existing.provider_place_id !== place.provider_place_id) return conflict;
+    } else if (saved.data.status !== "saved" && saved.data.status !== "duplicate") return conflict;
+    fields.place_id = saved.data.id;
+    revalidatePath(`/trips/${tripId}/map`);
+    revalidatePath(`/trips/${tripId}`);
+  }
 
   const { data, error } = await client.rpc("save_itinerary_item", {
     p_trip: tripId, p_item: id, p_revision: revision, p_trip_version: trip.content_version, p_fields: fields,

@@ -6,6 +6,13 @@ export type GeoapifyResult = { status: "ok"; results: PlaceSuggestion[] } | { st
 export const SEARCH_MIN = 2;
 export const SEARCH_MAX = 100;
 
+export function suggestionFields(row: PlaceSuggestion) {
+  return { display_name: row.name, address_text: row.address, latitude: String(row.latitude), longitude: String(row.longitude),
+    name_ko: row.language === "ko" ? row.name : "", name_ja: row.language === "ja" ? row.name : "",
+    name_en: row.language === "en" ? row.name : "", address_ja: row.language === "ja" ? row.address : "",
+    provider: "GEOAPIFY", provider_place_id: row.id };
+}
+
 export function normalizeQuery(value: string) {
   const text = value.normalize("NFKC").trim().replace(/\s+/g, " ");
   return text.length >= SEARCH_MIN && text.length <= SEARCH_MAX ? text : null;
