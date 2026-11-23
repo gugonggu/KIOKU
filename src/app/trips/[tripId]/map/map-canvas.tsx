@@ -9,8 +9,8 @@ type GeoPoint = [number, number];
 export const mapLatitudeLimit = 85.051129;
 const styleUrl = "https://tiles.openfreemap.org/styles/liberty";
 
-export function MapCanvas({ pins, selected, onSelect }: {
-  pins: MapPin[]; selected?: string; onSelect: (id: string, nearby: MapPin[]) => void;
+export function MapCanvas({ pins, selected, onSelect, showLocation = true }: {
+  pins: MapPin[]; selected?: string; onSelect: (id: string, nearby: MapPin[]) => void; showLocation?: boolean;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const [runtime, setRuntime] = useState<{ map: MapLibre; lib: typeof import("maplibre-gl") }>();
@@ -147,8 +147,8 @@ export function MapCanvas({ pins, selected, onSelect }: {
     </div>
     <div className="place-map-viewport" data-map-state={status}>
       <div ref={container} className="place-map-canvas" aria-label="일본 지도" />
-      <button type="button" className="place-map-locate" disabled={status !== "ready" || geo?.message === "현재 위치를 확인하는 중이에요."}
-        onClick={locate}><LocateFixed size={17} aria-hidden />내 위치</button>
+      {showLocation && <button type="button" className="place-map-locate" disabled={status !== "ready" || geo?.message === "현재 위치를 확인하는 중이에요."}
+        onClick={locate}><LocateFixed size={17} aria-hidden />내 위치</button>}
       {geo && <p className="place-map-toast" role="status">{geo.message}</p>}
       {status === "loading" && <p className="place-map-overlay notice" role="status">지도를 불러오는 중이에요.</p>}
       {status === "failed" && <div className="place-map-overlay notice notice-error" role="alert">

@@ -13,7 +13,7 @@ npm run dev
 
 브라우저에서 [localhost:3000](http://localhost:3000)을 엽니다. Supabase 설정을 생략하면 로그인 화면에서 설정 안내를 볼 수 있습니다. 비로그인 사용자가 `/trips` 또는 `/trips/new`를 열면 `/login`으로 이동합니다.
 
-여행·일정·장소·예약 저장을 사용하려면 아래 인증 설정과 [M1~M4 마이그레이션](supabase/README.md)을 같은 Supabase 인스턴스에 적용합니다.
+여행·일정·장소·예약·공유를 사용하려면 아래 인증 설정과 [M1~M5 마이그레이션](supabase/README.md)을 같은 Supabase 인스턴스에 적용합니다.
 
 ## 집과 회사 PC에서 이어서 개발하기
 
@@ -51,6 +51,7 @@ Windows에서 `listen EACCES`로 개발 서버가 시작되지 않으면 `netsh 
    | `SUPABASE_URL` | Supabase 프로젝트 URL |
    | `SUPABASE_PUBLISHABLE_KEY` | 프로젝트의 Publishable 키(`sb_publishable_…`) |
    | `GEOAPIFY_API_KEY` | 선택 사항. 서버에서만 사용하는 일본 장소 검색 키 |
+   | `KIOKU_SHARE_ENCRYPTION_KEY` | 공유 링크 발급·재확인에 필요한 서버 전용 키. 무작위 32바이트를 base64url로 인코딩한 값 |
 
 2. Supabase **Authentication → URL Configuration**에서 Site URL을 `APP_URL`과 맞추고 Redirect URLs에 `http://localhost:3000/auth/confirm`을 추가합니다. 브라우저 주소가 다르면 `APP_URL`과 허용 목록에도 같은 오리진을 사용합니다.
 3. Supabase 기본 매직 링크 템플릿은 그대로 사용할 수 있습니다. 기본 링크는 PKCE 방식이므로 요청을 시작한 브라우저에서 가장 최근 이메일의 링크를 엽니다. 신규 Free 프로젝트가 기본 SMTP를 쓰면 템플릿 수정이 제한되고 조직 팀 이메일로만 발송할 수 있습니다. 이미 커스텀 SMTP와 토큰 해시 템플릿을 쓰고 있다면 기존 `/auth/confirm`의 `token_hash`와 `type=email` 흐름도 지원합니다.
@@ -125,7 +126,10 @@ Next.js 16.4.6 App Router, React 19.3.1, TypeScript 6.0.3, Tailwind CSS 4.3.5, s
 - **호스팅 M1~M3** — 2026-11-23 기존 KIOKU Supabase에 M2와 M3를 순서대로 적용했습니다. 적용 이력과 실사용 확인 내역은 [Supabase 문서](supabase/README.md)에 기록합니다.
 - **M4 예약 관리** — 여행 홈 예약 요약 또는 하단 **예약**에서 `/trips/[tripId]/bookings`를 엽니다. 항공·숙소·투어별 카드에서 상태와 현지 시각을 확인하고, 유형 선택 후 편집 대화상자에서 등록합니다. 비공개 정보는 소유자 전용 상세에서 확인합니다. 일정 편집에서 같은 여행의 예약을 연결할 수 있고, 예약 삭제 시 연결을 해제하면서 일정과 시각을 보존합니다.
 - **M4 로컬 검증** — 린트·타입 검사·빌드, 단위 12건, PGlite DB 14건, Chrome E2E 32건을 통과했습니다. 회사 PC Chrome은 `PLAYWRIGHT_BASE_PORT=4300`으로 실행했습니다. 빌드 후 `KIOKU_UI_SCREENSHOTS`에 폴더를 지정하고 `npm test -- --grep 'M4 creates'`를 실행하면 가상 데이터로 320·390·1440px 예약 화면을 남깁니다.
-- **후속 단계** — M5는 공유 링크와 서버의 공개 필드 화이트리스트를 구현합니다. 호스팅 M4 적용과 Auth·PostgREST 확인은 승인 후 진행합니다. Geoapify 실검색 품질 확인은 키가 준비되면 별도로 진행합니다.
+- **M5 동행자 공유** — 여행 홈의 **여행 공유**에서 공유 범위, 만료일, 링크 발급·복사·재발급·중지와 미리보기를 사용합니다. 만료는 선택한 일본 현지 날짜가 끝날 때 적용됩니다. 중지하거나 만료된 링크는 다시 활성화하지 않으며, 공유를 켤 때 새 링크를 발급합니다. 동행자는 로그인 없이 `/s/[token]`에서 날짜별 일정, 장소·지도·길찾기와 허용된 예약 요약을 확인합니다. 날짜 미정 후보는 공유 일정에서 제외합니다.
+- **M5 로컬 검증** — 린트·타입 검사·빌드, 단위 13건, PGlite DB 15건, Chrome E2E 33건과 실제 OpenFreeMap 시나리오 1건을 통과했습니다. 빌드 후 `npm test -- --grep 'M5 shares'`로 재실행합니다. 캡처는 `KIOKU_UI_SCREENSHOTS`에 경로를 지정합니다. 이 PC의 사내 미리보기를 운영하는 동안에는 빌드와 테스트에 모두 `$env:KIOKU_BUILD_DIR = '.next/m5'`를 지정해 별도 출력 경로를 사용합니다.
+- **공유 운영** — 서버에서 `node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('base64url'))"`로 키를 생성해 비밀 저장소에 보관합니다. 같은 프로젝트에서 기존 링크를 재확인하려는 PC와 서버는 같은 키를 사용합니다. 키를 잃으면 기존 링크의 승인 여부는 검증할 수 있지만 원문을 재확인할 수 없으므로 새 키로 재발급합니다. 배포 프록시·CDN·분석에서 `/s/*` 및 `/api/shared/*` 주소, URL이 포함된 요청 헤더, 공유 검증 RPC의 본문을 기록하지 않도록 설정하고 공개 경로의 요청 빈도를 제한합니다. 링크를 중지해도 이미 내려받거나 캡처한 내용은 회수할 수 없습니다.
+- **후속 단계** — 호스팅 M4·M5 적용과 Auth·PostgREST 확인은 승인 후 진행합니다. Geoapify 실검색 품질 확인은 키가 준비되면 별도로 진행합니다.
 - **다른 PC에서 이어가기** — 공식 기준은 비공개 킥오프 ZIP의 `docs/01~05`입니다. 기간 밖 정책은 결정 로그 D-017을 참고하세요. `docs/`와 `reference/`는 각 PC에서 별도로 복구하고, Supabase 적용 전 [마이그레이션 이력과 권한 검사](supabase/README.md)를 확인합니다.
 
 ## 목적

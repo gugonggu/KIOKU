@@ -9,15 +9,29 @@ export async function handlePlanRequest({ database, userId, method, url, readJso
   method?: string;
   url: URL;
   readJson: () => Promise<Json>;
-  send: (status: number, payload: object | boolean | string) => void;
+  send: (status: number, payload: object | boolean | string | null) => void;
   failedSaves: Set<string>;
 }) {
+  if (url.pathname === "/rest/v1/rpc/read_shared_trip" && method === "POST") {
+    const { p_proof } = await readJson();
+    const { rows } = await asUser(database, userId ?? null,
+      (tx) => tx.query<{ result: object | null }>("select public.read_shared_trip($1) as result", [p_proof]));
+    return send(200, rows[0].result);
+  }
   if (!userId) return send(401, { message: "fixture session required" });
   if (url.pathname.startsWith("/rest/v1/rpc/") && method === "POST") {
     const body = await readJson();
     let query: string;
     let args: unknown[];
     switch (url.pathname) {
+      case "/rest/v1/rpc/read_share_settings":
+        query = "select public.read_share_settings($1,$2) as result";
+        args = [body.p_trip, body.p_preview];
+        break;
+      case "/rest/v1/rpc/write_share_settings":
+        query = "select public.write_share_settings($1,$2,$3,$4,$5,$6,$7,$8) as result";
+        args = [body.p_trip, body.p_revision, body.p_mode, body.p_expiry, body.p_bookings, body.p_notes, body.p_hash, body.p_cipher];
+        break;
       case "/rest/v1/rpc/save_booking":
         query = "select public.save_booking($1,$2,$3,$4) as result";
         args = [body.p_trip, body.p_id, body.p_version, body.p_fields];

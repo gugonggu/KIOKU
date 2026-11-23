@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { randomBytes } from "node:crypto";
 import { e2eHost, e2ePorts, e2eUrls } from "./tests/support/e2e-ports";
 
 export default defineConfig({
@@ -26,6 +27,7 @@ export default defineConfig({
         SUPABASE_URL: e2eUrls.provider,
         SUPABASE_PUBLISHABLE_KEY: "sb_publishable_e2e_fixture",
         GEOAPIFY_API_KEY: "",
+        KIOKU_SHARE_ENCRYPTION_KEY: randomBytes(32).toString("base64url"),
       },
     },
   ],

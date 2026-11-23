@@ -379,7 +379,7 @@ body:has(.editorial-dialog[open]) { overflow: hidden; }
 .places-page .place-map { gap: 6px; }
 .places-page .place-map-viewport { border-radius: 18px; border-color: var(--ed-line); box-shadow: var(--ed-shadow); background: #e8ebe3; }
 .places-page .place-map-footer p { font-size: .72rem; }
-.places-page .place-map-footer a { white-space: nowrap; }
+.places-page .place-map-footer a, .shared-guide .place-map-footer a { white-space: nowrap; }
 
 .place-map-locate {
   position: absolute; z-index: 2; top: 84px; right: 10px; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 13px;
@@ -528,6 +528,33 @@ body:has(.editorial-dialog[open]) { overflow: hidden; }
 .booking-home-entry strong { color: var(--color-ink); }
 .booking-home-entry:hover strong { text-decoration: underline; }
 .booking-home .editorial-section-heading { flex-wrap: wrap; }
+.editorial-breadcrumb > .state-actions { gap: 2px; }
+.editorial-breadcrumb > .state-actions .quiet-link { gap: 5px; }
+.share-settings-layout, .share-settings-card { display: grid; gap: 14px; min-width: 0; align-content: start; }
+.share-settings-card { padding: clamp(14px, 2vw, 22px); }
+.share-settings-card h2 { font-family: var(--ed-serif); font-size: 1.26rem; }
+.share-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.share-preview-link { gap: 7px; }
+.share-option { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
+.share-option input { width: 20px; height: 20px; accent-color: var(--color-primary); }
+.share-settings-card .quiet-link, .share-settings-card .primary-button { gap: 6px; justify-self: start; }
+.share-preview-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.shared-shell { min-height: 100dvh; }
+.shared-brand { display: flex; padding: 10px max(16px, env(safe-area-inset-left)); border-bottom: 1px solid var(--ed-line); background: var(--ed-paper); }
+.shared-brand > .brand { width: min(100%, 1320px); margin-inline: auto; justify-content: flex-start; }
+.shared-guide { width: min(100%, 1360px); padding: 16px max(16px, env(safe-area-inset-right)) max(32px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); margin-inline: auto; }
+.shared-guide .editorial-hero { margin: 0; }
+.shared-guide .editorial-day { flex-basis: 106px; }
+.shared-guide .editorial-entry-copy > .quiet-link, .shared-place .quiet-link { justify-self: start; gap: 6px; }
+.shared-sections { display: flex; gap: 8px; flex-wrap: wrap; }
+.shared-sections a { gap: 6px; border: 1px solid var(--ed-line); background: var(--ed-paper); }
+.shared-places, .shared-bookings { display: grid; gap: 12px; min-width: 0; }
+.shared-place, .shared-map { display: grid; gap: 4px; min-width: 0; }
+.shared-place { padding: 12px; overflow-wrap: anywhere; }
+@media (min-width: 840px) {
+  .share-settings-layout, .shared-places { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  .shared-bookings { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
+}
 .bookings-page .places-header > div:first-child { flex: 1; }
 .bookings-page .places-header > .primary-button { flex: none; }
 @media (min-width: 840px) {

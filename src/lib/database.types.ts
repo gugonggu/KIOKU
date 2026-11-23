@@ -1,3 +1,5 @@
+import type { SharedTrip, ShareSettings } from "./trip-share-types";
+
 export type TripFields = {
   title: string;
   destination_label: string;
@@ -140,6 +142,13 @@ export type Database = {
     };
     Views: Record<never, never>;
     Functions: {
+      read_shared_trip: { Args: { p_proof: string }; Returns: SharedTrip | null };
+      read_share_settings: { Args: { p_trip: string; p_preview: boolean }; Returns: ShareSettings | SharedTrip | null };
+      write_share_settings: {
+        Args: { p_trip: string; p_revision: number; p_mode: "issue" | "settings" | "stop"; p_expiry: string | null;
+          p_bookings: boolean; p_notes: boolean; p_hash: string | null; p_cipher: string | null };
+        Returns: boolean;
+      };
       save_booking: {
         Args: { p_trip: string; p_id: string; p_version: number | null; p_fields: BookingInput };
         Returns: "saved" | "existing" | "changed";

@@ -25,7 +25,7 @@ test.beforeAll(async () => {
 
   provider = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", providerUrl);
-    const send = (status: number, payload: object | boolean | string) => {
+    const send = (status: number, payload: object | boolean | string | null) => {
       response.writeHead(status, { "Content-Type": "application/json" }).end(JSON.stringify(payload));
     };
     const readJson = async () => {
@@ -152,6 +152,7 @@ test.beforeAll(async () => {
 
     if (["/rest/v1/itinerary_items", "/rest/v1/trip_places", "/rest/v1/bookings", "/rest/v1/flight_segments",
       "/rest/v1/stay_details", "/rest/v1/tour_details", "/rest/v1/booking_private_details",
+      "/rest/v1/rpc/read_shared_trip", "/rest/v1/rpc/read_share_settings", "/rest/v1/rpc/write_share_settings",
       "/rest/v1/rpc/save_booking", "/rest/v1/rpc/delete_booking", "/rest/v1/rpc/save_trip_place", "/rest/v1/rpc/delete_trip_place",
       "/rest/v1/rpc/authorize_place_search", "/rest/v1/rpc/save_itinerary_item", "/rest/v1/rpc/update_trip_period",
       "/rest/v1/rpc/swap_itinerary_items", "/rest/v1/rpc/place_itinerary_item"].includes(url.pathname)) {
@@ -174,7 +175,7 @@ test.beforeEach(async () => {
   failNextTripRead = false;
   pkceChallenge = undefined;
   await database.exec("truncate table public.booking_private_details, public.flight_segments, public.stay_details, public.tour_details, " +
-    "public.bookings, public.itinerary_items, public.trip_places, public.trips");
+    "kioku_private.trip_share_links, public.bookings, public.itinerary_items, public.trip_places, public.trips");
 });
 
 test.afterAll(async () => {
@@ -1229,4 +1230,130 @@ test("M4 links and detaches schedules without overwriting the itinerary or delet
   await page.goto(trip + "/itinerary?date=2027-02-18");
   await expect(entry.getByText("08:30", { exact: true })).toBeVisible();
   await expect(entry.getByRole("link", { name: "예약 · 가상 투어" })).toHaveCount(0);
+});
+
+test("M5 shares only the permitted itinerary, map and bookings and rechecks each request", async ({ page, browser }) => {
+  test.setTimeout(120_000);
+  const trip = await seedFiveDayTrip("삿포로 동행 수첩");
+  const tripId = trip.split("/").at(-1);
+  const otherTrip = await seedFiveDayTrip("공유되지 않은 별도 여행");
+  await asUser(database, ownerA, async (tx) => {
+    const { rows: [place] } = await tx.query<{ id: string }>("insert into public.trip_places (trip_id,display_name,address_text,latitude,longitude,notes) values ($1,'오도리 공원','北海道札幌市中央区大通西',43.0606,141.3488,'PRIVATE_PLACE_MARKER') returning id", [tripId]);
+    await tx.query("insert into public.itinerary_items (trip_id,title,local_date,place_id,shared_note,private_note) values ($1,'공원 산책','2027-02-17',$2,'공유 약속 메모','PRIVATE_SCHEDULE_MARKER'),($1,'아침 산책','2027-02-18',null,null,null)", [tripId, place.id]);
+    await tx.query("select public.save_booking($1,$2,null,$3)", [tripId, randomUUID(), {
+      kind: "STAY", title: "가상 삿포로 호텔", status: "CONFIRMED", detail: {
+        address_text: "札幌市中央区", check_in_local_date: "2027-02-17", check_in_local_time: "15:00",
+      }, shared_note: "호텔 공유 메모", private: { confirmation_reference: "PRIVATE_REFERENCE_MARKER",
+        private_note: "PRIVATE_BOOKING_MARKER", amount: 98654321, currency: "JPY" },
+    }]);
+  });
+  const screenshot = async (tab: typeof page, name: string) => {
+    if (!process.env.KIOKU_UI_SCREENSHOTS) return;
+    await tab.evaluate(() => document.fonts.ready);
+    await tab.screenshot({ path: process.env.KIOKU_UI_SCREENSHOTS + "/" + name + ".png", animations: "disabled" });
+  };
+  const openLink = async () => {
+    await page.getByRole("button", { name: "링크 확인" }).click();
+    const input = page.getByRole("textbox", { name: "동행자 공유 링크" });
+    await expect(input).toBeVisible();
+    const value = await input.inputValue();
+    expect(new URL(value).pathname.startsWith("/s/")).toBe(true);
+    return value;
+  };
+  const apiFor = (url: string) => appUrl + "/api/shared/" + new URL(url).pathname.split("/").at(-1);
+  page.on("dialog", (dialog) => dialog.accept());
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  await page.goto(trip);
+  await page.getByRole("link", { name: "여행 공유" }).click();
+  await expect(page.getByText("공유 꺼짐", { exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "동행자 화면 미리보기" }).click();
+  await expect(page.getByRole("heading", { name: "삿포로 동행 수첩" })).toBeVisible();
+  await page.getByRole("link", { name: "공유 설정", exact: true }).click();
+  await page.getByRole("button", { name: "링크 공유 켜기" }).click();
+  await expect(page.getByText("공유 중", { exact: true })).toBeVisible();
+  await screenshot(page, "m5-owner-1440");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await screenshot(page, "m5-owner-390");
+  const link = await openLink();
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: appUrl });
+  await page.getByRole("button", { name: "링크 복사" }).click();
+  await expect(page.getByText("링크를 복사했어요.")).toBeVisible();
+  expect((await page.evaluate(() => navigator.clipboard.readText())) === link).toBe(true);
+  await page.reload();
+  expect((await openLink()) === link).toBe(true);
+
+  const guest = await browser.newPage();
+  try {
+    let mapSeen = false;
+    let mapHasReferer = false;
+    await guest.route(mapStyle, (route) => {
+      mapSeen = true;
+      mapHasReferer ||= Boolean(route.request().headers().referer);
+      return process.env.PLAYWRIGHT_LIVE_MAP === "1" ? route.continue() :
+        route.fulfill({ json: testStyle, headers: { "access-control-allow-origin": "*" } });
+    });
+    const response = (await guest.goto(link))!;
+    expect(response.status()).toBe(200);
+    expect(response.headers()["cache-control"]).toContain("no-store");
+    expect(response.headers()["referrer-policy"]).toBe("no-referrer");
+    expect(response.headers()["x-robots-tag"]).toContain("noindex");
+    await expect(guest.getByRole("heading", { name: "공원 산책" })).toBeVisible();
+    await expect(guest.getByRole("heading", { name: "가상 삿포로 호텔" })).toBeVisible();
+    await expect(guest.getByRole("button", { name: "지도 핀: 오도리 공원" })).toBeVisible({ timeout: 12000 });
+    expect(mapSeen).toBe(true);
+    expect(mapHasReferer).toBe(false);
+    const directions = guest.getByRole("link", { name: "Google Maps 길찾기" }).first();
+    await expect(directions).toHaveAttribute("referrerpolicy", "no-referrer");
+    await expect(guest.getByText("공유 약속 메모")).toHaveCount(0);
+    await expect(guest.getByRole("link", { name: /수정|삭제|로그인/ })).toHaveCount(0);
+    const api = await guest.request.get(apiFor(link));
+    expect(api.status()).toBe(200);
+    expect(api.headers()["cache-control"]).toContain("no-store");
+    expect(await api.text()).not.toMatch(/PRIVATE_|98654321|공유되지 않은 별도 여행|encryptedToken|token_hash|owner_id/);
+    expect(await guest.content()).not.toMatch(/PRIVATE_|98654321|공유되지 않은 별도 여행/);
+    expect((await guest.request.post(apiFor(link), { data: {} })).status()).toBe(405);
+    expect((await guest.request.get(appUrl + otherTrip, { maxRedirects: 0 })).status()).toBe(307);
+    for (const width of [1440, 390, 320]) {
+      await guest.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
+      expect(await guest.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+      await screenshot(guest, "m5-shared-" + width);
+    }
+    await guest.setViewportSize({ width: 390, height: 844 });
+    await guest.getByRole("navigation", { name: "공유 여행 바로가기" }).getByRole("link", { name: "장소" }).click();
+    await expect(guest.getByRole("button", { name: "지도 핀: 오도리 공원" })).toBeInViewport();
+    await screenshot(guest, "m5-map-390");
+    await guest.setViewportSize({ width: 320, height: 844 });
+    await guest.getByRole("navigation", { name: "공유 일정 날짜" }).getByRole("link", { name: /2027\. 2\. 18\./ }).click();
+    await expect(guest.getByRole("heading", { name: "아침 산책" })).toBeVisible();
+    await expect(guest.getByRole("heading", { name: "공원 산책" })).toHaveCount(0);
+    await screenshot(guest, "m5-day-320");
+
+    await page.getByLabel("항공·숙소·투어 일정").uncheck();
+    await page.getByLabel("공유용 메모").check();
+    await page.getByRole("button", { name: "공유 설정 저장" }).click();
+    await expect(page.getByText("공유 설정을 저장했어요.")).toBeVisible();
+    const changed = await (await guest.request.get(apiFor(link))).json();
+    expect(changed.bookings).toBeNull();
+    expect(changed.schedule[0].note).toBe("공유 약속 메모");
+    await page.getByLabel("만료일 (일본 현지 날짜)").fill("2099-04-18");
+    await page.getByRole("button", { name: "새 링크 발급" }).click();
+    await expect(page.getByText("공유 링크를 발급했어요.")).toBeVisible();
+    await expect(page.getByLabel("만료일 (일본 현지 날짜)")).toHaveValue("2099-04-18");
+    const rotated = await openLink();
+    expect(rotated !== link).toBe(true);
+    expect((await guest.request.get(apiFor(link))).status()).toBe(404);
+    await guest.reload();
+    await expect(guest.getByRole("heading", { name: "공유 링크를 열 수 없어요" })).toBeVisible();
+    expect((await guest.request.get(apiFor(rotated))).status()).toBe(200);
+    await page.getByRole("button", { name: "공유 중지" }).click();
+    await expect(page.getByText("공유 꺼짐", { exact: true })).toBeVisible();
+    expect((await guest.request.get(apiFor(rotated))).status()).toBe(404);
+    await page.getByRole("button", { name: "링크 공유 켜기" }).click();
+    const expiring = await openLink();
+    await database.query("update kioku_private.trip_share_links set expires_at=now() - interval '1 second' where trip_id=$1", [tripId]);
+    expect((await guest.request.get(apiFor(expiring))).status()).toBe(404);
+    await page.reload();
+    await expect(page.getByText("링크 만료", { exact: true })).toBeVisible();
+  } finally { await guest.close(); }
 });

@@ -1,4 +1,4 @@
-import { ArrowLeft, CalendarDays, ChevronRight, MapPin, PencilLine, UsersRound } from "lucide-react";
+import { ArrowLeft, CalendarDays, ChevronRight, MapPin, PencilLine, Share2, UsersRound } from "lucide-react";
 import Link from "next/link";
 import { Blossom } from "@/components/brand";
 import { Cover } from "@/components/cover";
@@ -37,7 +37,10 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
   return <div className="editorial-page editorial-overview">
     <div className="editorial-breadcrumb">
       <Link href="/trips" className="quiet-link"><ArrowLeft size={16} aria-hidden />내 여행으로</Link>
-      <Link href={`${href}/edit`} className="quiet-link"><PencilLine size={16} aria-hidden />여행 편집</Link>
+      <div className="state-actions">
+        <Link href={`${href}/share`} className="quiet-link"><Share2 size={16} aria-hidden />여행 공유</Link>
+        <Link href={`${href}/edit`} className="quiet-link"><PencilLine size={16} aria-hidden />여행 편집</Link>
+      </div>
     </div>
     <article className="editorial-hero">
       <div role="img" aria-label={winterCover ? "겨울 거리의 기본 여행 표지" : "산 풍경의 기본 여행 표지"}

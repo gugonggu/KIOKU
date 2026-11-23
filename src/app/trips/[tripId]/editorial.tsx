@@ -5,7 +5,7 @@ import { periods, shiftDay } from "@/lib/trip-plan";
 import type { PlanSchedule } from "@/lib/trip-plan-data";
 import { itineraryHref } from "./itinerary/links";
 
-function tripDays(trip: Pick<Trip, "start_date" | "end_date">, selected: string) {
+export function tripDays(trip: Pick<Trip, "start_date" | "end_date">, selected: string) {
   if (!trip.start_date || !trip.end_date) return [];
   let first = selected;
   for (let index = 0; index < 2 && first > trip.start_date; index++) first = shiftDay(first, -1) ?? first;
