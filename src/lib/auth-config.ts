@@ -23,3 +23,7 @@ export function getAuthConfig() {
 
   return { appUrl, supabaseUrl, publishableKey, secure: appUrl.startsWith("https:") };
 }
+
+export function requiresFragmentShareLinks(appUrl = getAuthConfig()?.appUrl) {
+  return Boolean(appUrl && new URL(appUrl).hostname.endsWith(".vercel.app"));
+}

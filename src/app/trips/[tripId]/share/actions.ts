@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getAuthConfig } from "@/lib/auth-config";
+import { getAuthConfig, requiresFragmentShareLinks } from "@/lib/auth-config";
 import { isCalendarDate } from "@/lib/trip-details";
 import { loadShareSettings } from "@/lib/trip-share-data";
 import { issueShareToken, readShareToken, shareKey } from "@/lib/trip-share-token";
@@ -42,5 +42,5 @@ export async function revealShare(tripId: string) {
   const config = getAuthConfig();
   const token = key ? readShareToken(settings.encryptedToken, tripId, key) : null;
   if (!token || !config) return { error: "링크를 다시 표시할 수 없어요. 암호화 키를 확인하거나 새 링크를 발급해 주세요." };
-  return { url: new URL("/s/" + token, config.appUrl).href };
+  return { url: new URL((requiresFragmentShareLinks(config.appUrl) ? "/s#" : "/s/") + token, config.appUrl).href };
 }

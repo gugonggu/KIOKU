@@ -1313,6 +1313,18 @@ test("M5 shares only the permitted itinerary, map and bookings and rechecks each
     expect(await api.text()).not.toMatch(/PRIVATE_|98654321|공유되지 않은 별도 여행|encryptedToken|token_hash|owner_id/);
     expect(await guest.content()).not.toMatch(/PRIVATE_|98654321|공유되지 않은 별도 여행/);
     expect((await guest.request.post(apiFor(link), { data: {} })).status()).toBe(405);
+    const fragment = await browser.newPage();
+    const token = new URL(link).pathname.split("/").at(-1)!;
+    const fragmentOrigin = appUrl + "/s";
+    const fragmentResponse = fragment.waitForResponse((reply) =>
+      reply.url() === appUrl + "/api/shared" && reply.request().method() === "POST");
+    await fragment.goto(fragmentOrigin + "#" + token);
+    expect((await fragmentResponse).status()).toBe(200);
+    await expect(fragment.getByRole("heading", { name: "공원 산책" })).toBeVisible();
+    await fragment.getByRole("navigation", { name: "공유 여행 바로가기" }).getByRole("link", { name: "장소" }).click();
+    expect(new URL(fragment.url()).hash === "#" + token).toBe(true);
+    await fragment.getByRole("navigation", { name: "공유 일정 날짜" }).getByRole("link", { name: /2027\. 2\. 18\./ }).click();
+    await expect(fragment.getByRole("heading", { name: "아침 산책" })).toBeVisible();
     expect((await guest.request.get(appUrl + otherTrip, { maxRedirects: 0 })).status()).toBe(307);
     for (const width of [1440, 390, 320]) {
       await guest.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
@@ -1343,6 +1355,9 @@ test("M5 shares only the permitted itinerary, map and bookings and rechecks each
     const rotated = await openLink();
     expect(rotated !== link).toBe(true);
     expect((await guest.request.get(apiFor(link))).status()).toBe(404);
+    await fragment.reload();
+    await expect(fragment.getByRole("heading", { name: "공유 링크를 열 수 없어요" })).toBeVisible();
+    await fragment.close();
     await guest.reload();
     await expect(guest.getByRole("heading", { name: "공유 링크를 열 수 없어요" })).toBeVisible();
     expect((await guest.request.get(apiFor(rotated))).status()).toBe(200);

@@ -7,6 +7,7 @@ import type { SharedBooking, SharedPlace, SharedTrip } from "@/lib/trip-share-ty
 import { BookingBadge, BookingKindLabel } from "../trips/[tripId]/bookings/booking-card";
 import { dayNumber, timeLabel, tripDays } from "../trips/[tripId]/editorial";
 import { SharedMap } from "./shared-map";
+import { SharedSectionLink } from "./shared-section-link";
 
 function clock(date?: string | null, time?: string | null) {
   return [date ? dateLabel(date) : "날짜 미입력", time ? time.slice(0, 5) : "시각 미입력"].join(" · ");
@@ -58,7 +59,9 @@ function datesFor(trip: SharedTrip, requested?: string) {
   return { date, dates: [...new Set([...nearby, ...scheduled, ...edges])].sort() };
 }
 
-export function SharedGuide({ trip, requested, href }: { trip: SharedTrip; requested?: string; href: (day: string) => string }) {
+export function SharedGuide({ trip, requested, href, preserveFragment = false }: {
+  trip: SharedTrip; requested?: string; href: (day: string) => string; preserveFragment?: boolean;
+}) {
   const { date, dates } = datesFor(trip, requested);
   const entries = trip.schedule.filter((item) => item.date === date);
   const winter = /삿포로|홋카이도|札幌|北海道|sapporo|hokkaido/i.test(trip.destination);
@@ -73,9 +76,9 @@ export function SharedGuide({ trip, requested, href }: { trip: SharedTrip; reque
       </div>
     </article>
     <nav className="shared-sections" aria-label="공유 여행 바로가기">
-      <a className="quiet-link" href="#guide-itinerary"><CalendarDays size={17} aria-hidden />일정</a>
-      <a className="quiet-link" href="#guide-places"><MapPin size={17} aria-hidden />장소</a>
-      {trip.bookings && <a className="quiet-link" href="#guide-bookings"><Ticket size={17} aria-hidden />예약</a>}
+      <SharedSectionLink section="guide-itinerary" preserveFragment={preserveFragment}><CalendarDays size={17} aria-hidden />일정</SharedSectionLink>
+      <SharedSectionLink section="guide-places" preserveFragment={preserveFragment}><MapPin size={17} aria-hidden />장소</SharedSectionLink>
+      {trip.bookings && <SharedSectionLink section="guide-bookings" preserveFragment={preserveFragment}><Ticket size={17} aria-hidden />예약</SharedSectionLink>}
     </nav>
     <section id="guide-itinerary" className="editorial-section">
       <h2>날짜별 일정</h2>
