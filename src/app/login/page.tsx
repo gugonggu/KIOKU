@@ -19,7 +19,15 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         <section className="login-content" aria-labelledby="login-heading">
           <div className="login-inner">
             <h1 id="login-heading">로그인</h1>
-            <p className="intro">내 일본 여행 수첩을 열어 보세요.<br />등록된 이메일로 로그인 링크를 보내 드려요.</p>
+            <p className="intro">내 일본 여행 수첩을 열어 보세요.</p>
+            {(notice === "google" || notice === "google-account") && (
+              <p className="notice notice-error" role="alert">
+                <strong>Google 로그인을 완료할 수 없어요.</strong>
+                <span>{notice === "google-account"
+                  ? "등록한 이메일과 같은 Google 계정을 선택하거나 이메일 로그인 링크를 이용해 주세요."
+                  : "다시 시도하거나 이메일 로그인 링크를 이용해 주세요."}</span>
+              </p>
+            )}
             {notice === "link" && (
               <p className="notice notice-error" role="alert">
                 <strong>로그인 링크를 사용할 수 없어요.</strong>

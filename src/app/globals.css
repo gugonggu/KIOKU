@@ -127,6 +127,10 @@ h1 { font-size: clamp(1.9rem, 4.7vw, 2.9rem); font-weight: 700; line-height: 1.1
 h2 { font-weight: 700; line-height: 1.35; letter-spacing: -.035em; }
 .intro { color: var(--color-muted-ink); line-height: 1.75; margin-block-start: 12px; word-break: keep-all; }
 .login-form { display: grid; gap: 12px; margin-top: 24px; }
+.login-form-email { padding-top: 16px; border-top: 1px solid var(--color-line); }
+.login-form-email h2 { font-size: 1rem; }
+.login-form-email button { border: 1px solid var(--color-line); }
+.login-form-email button:disabled { opacity: .65; cursor: default; }
 .login-inner > .notice { margin-top: 18px; }
 .form-field { display: grid; gap: 7px; }
 .form-field label { font-size: .875rem; font-weight: 700; }

@@ -1,6 +1,6 @@
 import { createHash, generateKeyPairSync, randomUUID, sign } from "node:crypto";
 import { createServer, type Server } from "node:http";
-import { expect, test } from "@playwright/test";
+import { chromium, expect, test } from "@playwright/test";
 import { e2eHost, e2ePorts, e2eUrls } from "./support/e2e-ports";
 import { handlePlanRequest } from "./support/plan-provider";
 import { asUser, createTripsDatabase, ownerA, ownerB } from "./support/trips-db.mjs";
@@ -12,6 +12,9 @@ let releaseEmailRequest: (() => void) | undefined;
 let database: Awaited<ReturnType<typeof createTripsDatabase>>;
 let failNextTripRead = false;
 let pkceChallenge: string | undefined;
+let googleSignupDisabled = true;
+let googleChallenge: string | undefined;
+let refreshedGoogleSession = false;
 
 test.beforeAll(async () => {
   const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
@@ -33,10 +36,10 @@ test.beforeAll(async () => {
       for await (const chunk of request) chunks.push(chunk);
       return JSON.parse(Buffer.concat(chunks).toString());
     };
-    const sendSession = (user: { id: string; email: string }) => {
+    const sendSession = (user: { id: string; email: string }, google = false, expired = false) => {
       const payload = encode({
         sub: user.id, aud: "authenticated", role: "authenticated", aal: "aal1",
-        exp: Math.floor(Date.now() / 1000) + 3600, iss: `${providerUrl}/auth/v1`,
+        exp: Math.floor(Date.now() / 1000) + (expired ? -10 : 3600), iss: `${providerUrl}/auth/v1`,
       });
       const unsigned = `${encode({ alg: "ES256", kid })}.${payload}`;
       const signature = sign("sha256", Buffer.from(unsigned), { key: privateKey, dsaEncoding: "ieee-p1363" });
@@ -44,9 +47,25 @@ test.beforeAll(async () => {
       issuedTokens.set(accessToken, user.id);
       return send(200, {
         access_token: accessToken,
-        refresh_token: "fixture-refresh", expires_in: 3600, token_type: "bearer", user,
+        refresh_token: google ? "fixture-google-refresh" : "fixture-refresh",
+        expires_in: expired ? 1 : 3600, token_type: "bearer", user,
       });
     };
+
+    if (url.pathname === "/auth/v1/settings") {
+      return send(200, { disable_signup: googleSignupDisabled, external: { google: true } });
+    }
+
+    if (url.pathname === "/auth/v1/authorize") {
+      const callback = url.searchParams.get("redirect_to");
+      const challenge = url.searchParams.get("code_challenge");
+      if (url.searchParams.get("provider") !== "google" || callback !== `${appUrl}/auth/confirm?flow=google` ||
+          url.searchParams.get("code_challenge_method")?.toLowerCase() !== "s256" || !challenge) {
+        return send(400, { message: "fixture OAuth arguments did not match" });
+      }
+      googleChallenge = challenge;
+      return response.writeHead(302, { Location: `${callback}&code=fixture-google-code&next=https://example.test` }).end();
+    }
 
     if (request.method === "POST" && url.pathname === "/auth/v1/otp") {
       const { email, create_user, code_challenge, code_challenge_method } = await readJson();
@@ -82,11 +101,22 @@ test.beforeAll(async () => {
     if (request.method === "POST" && url.pathname === "/auth/v1/token" && url.searchParams.get("grant_type") === "pkce") {
       const { auth_code, code_verifier } = await readJson();
       const challenge = typeof code_verifier === "string" && createHash("sha256").update(code_verifier).digest("base64url");
+      if (auth_code === "fixture-google-code" && googleChallenge && challenge === googleChallenge) {
+        googleChallenge = undefined;
+        return sendSession({ id: ownerA, email: testEmail }, true, true);
+      }
       if (auth_code !== "fixture-issued-code" || !pkceChallenge || challenge !== pkceChallenge) {
         return send(400, { code: "bad_code_verifier", message: "fixture invalid or consumed code" });
       }
       pkceChallenge = undefined;
       return sendSession({ id: ownerA, email: "pkce@example.test" });
+    }
+
+    if (request.method === "POST" && url.pathname === "/auth/v1/token" &&
+        url.searchParams.get("grant_type") === "refresh_token") {
+      if ((await readJson()).refresh_token !== "fixture-google-refresh") return send(400, { message: "invalid fixture refresh" });
+      refreshedGoogleSession = true;
+      return sendSession({ id: ownerA, email: testEmail }, true);
     }
 
     if (url.pathname === "/auth/v1/.well-known/jwks.json") {
@@ -192,6 +222,66 @@ test("a visitor is denied a configured protected route without a verified sessio
   const response = await request.get("/trips/new", { maxRedirects: 0 });
   expect(response.status()).toBe(307);
   expect(response.headers().location).toBe("/login");
+});
+
+test("Google PKCE keeps the existing owner session after refresh and browser restart", async ({}, testInfo) => {
+  const tripId = randomUUID();
+  const title = "Google 연결 전부터 있던 여행";
+  const profile = testInfo.outputPath("chrome-profile");
+  const options = { baseURL: appUrl, channel: process.env.PLAYWRIGHT_CHANNEL };
+  const signIn = await chromium.launchPersistentContext(profile, options);
+  try {
+    await asUser(database, ownerA, (tx) => tx.query(
+      "insert into public.trips (id, title, destination_label) values ($1, $2, '삿포로')", [tripId, title],
+    ));
+    try {
+      const page = signIn.pages()[0];
+      await page.goto("/trips");
+      await page.getByRole("button", { name: "Google로 계속하기" }).click();
+      await expect(page).toHaveURL(/\/trips$/);
+      await expect(page.getByRole("link", { name: title })).toBeVisible();
+      expect(refreshedGoogleSession).toBe(true);
+      const session = (await signIn.cookies()).find((cookie) => cookie.name.endsWith("-auth-token"));
+      expect(session?.httpOnly).toBe(true);
+      expect(session?.sameSite).toBe("Lax");
+      expect(session?.expires).toBeGreaterThan(Date.now() / 1000);
+      await page.reload();
+      await expect(page.getByRole("link", { name: title })).toBeVisible();
+    } finally {
+      await signIn.close();
+    }
+
+    const reopened = await chromium.launchPersistentContext(profile, options);
+    try {
+      const page = reopened.pages()[0];
+      await page.goto("/login");
+      await expect(page).toHaveURL(/\/trips$/);
+      await expect(page.getByRole("link", { name: title })).toBeVisible();
+      await page.getByRole("button", { name: "로그아웃" }).click();
+      await expect(page).toHaveURL(/\/login$/);
+      await page.goto("/trips");
+      await expect(page).toHaveURL(/\/login$/);
+    } finally {
+      await reopened.close();
+    }
+  } finally {
+    await asUser(database, ownerA, (tx) => tx.query("delete from public.trips where id = $1", [tripId]));
+  }
+});
+
+test("Google sign-in respects the closed signup policy and shows safe callback errors", async ({ page }) => {
+  googleSignupDisabled = false;
+  try {
+    await page.goto("/login");
+    await page.getByRole("button", { name: "Google로 계속하기" }).click();
+    await expect(page.getByRole("main").getByRole("alert")).toContainText("이메일 로그인 링크");
+  } finally {
+    googleSignupDisabled = true;
+  }
+  await page.goto("/auth/confirm?flow=google&error_code=signup_disabled&error_description=fixture-private&next=https://example.test");
+  await expect(page).toHaveURL(/\/login\?notice=google-account$/);
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("등록한 이메일과 같은 Google 계정");
+  await expect(page.locator("body")).not.toContainText("fixture-private");
 });
 
 test("the login form shows a recoverable error and then acknowledges a request", async ({ page }) => {

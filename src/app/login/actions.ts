@@ -1,9 +1,41 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { createAuthClient } from "@/lib/auth";
 import { getAuthConfig } from "@/lib/auth-config";
 
 export type LoginState = { status: "idle" | "invalid" | "sent" | "limited" | "error" | "unconfigured" };
+export type GoogleLoginState = "idle" | "unavailable" | "error";
+
+export async function startGoogleLogin(): Promise<GoogleLoginState> {
+  const config = getAuthConfig();
+  if (!config) return "unavailable";
+
+  let authorizeUrl: string;
+  try {
+    const response = await fetch(new URL("/auth/v1/settings", config.supabaseUrl), {
+      cache: "no-store",
+      headers: { apikey: config.publishableKey },
+    });
+    if (!response.ok) return "unavailable";
+    const settings: { disable_signup?: boolean; external?: { google?: boolean } } = await response.json();
+    // OAuth can create a user unless signup is disabled at the Auth server.
+    if (settings.disable_signup !== true || settings.external?.google !== true) return "unavailable";
+
+    const client = await createAuthClient();
+    if (!client) return "unavailable";
+    const { data, error } = await client.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: new URL("/auth/confirm?flow=google", config.appUrl).href },
+    });
+    if (error || !data.url) return "error";
+    authorizeUrl = data.url;
+  } catch {
+    // Avoid logging provider responses and authorization URLs.
+    return "error";
+  }
+  redirect(authorizeUrl);
+}
 
 export async function requestLoginLink(_previous: LoginState, formData: FormData): Promise<LoginState> {
   const value = formData.get("email");

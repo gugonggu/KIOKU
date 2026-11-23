@@ -3,7 +3,7 @@
 import { ArrowRight, Mail } from "lucide-react";
 import { useActionState, useState } from "react";
 import { Input } from "@/components/ui/input";
-import { requestLoginLink, type LoginState } from "./actions";
+import { requestLoginLink, startGoogleLogin, type GoogleLoginState, type LoginState } from "./actions";
 
 const messages = {
   idle: "",
@@ -14,14 +14,45 @@ const messages = {
   unconfigured: "로그인 설정이 필요해요.",
 };
 
+function GoogleLoginForm({ configured }: { configured: boolean }) {
+  const [state, action, pending] = useActionState<GoogleLoginState>(startGoogleLogin, "idle");
+
+  return (
+    <form className="login-form" action={action} aria-busy={pending}>
+      <button className="primary-button" disabled={pending || !configured} type="submit">
+        {pending ? "Google에 연결하는 중…" : "Google로 계속하기"}
+        {!pending && <ArrowRight aria-hidden="true" size={17} />}
+      </button>
+      {pending && <p className="sr-only" role="status">Google에 연결하는 중</p>}
+      {!pending && state !== "idle" && (
+        <p className="notice notice-error" role="alert">
+          {state === "unavailable"
+            ? "Google 로그인이 아직 준비되지 않았어요. 이메일 로그인 링크를 이용해 주세요."
+            : "Google에 연결할 수 없어요. 다시 시도하거나 이메일 로그인 링크를 이용해 주세요."}
+        </p>
+      )}
+    </form>
+  );
+}
+
 export function LoginForm({ configured }: { configured: boolean }) {
+  return (
+    <>
+      <GoogleLoginForm configured={configured} />
+      <EmailLoginForm configured={configured} />
+    </>
+  );
+}
+
+function EmailLoginForm({ configured }: { configured: boolean }) {
   const [email, setEmail] = useState("");
   const [state, action, pending] = useActionState<LoginState, FormData>(requestLoginLink, { status: "idle" });
   const failed = state.status !== "idle" && state.status !== "sent";
   const buttonLabel = pending ? "보내는 중…" : state.status === "sent" ? "로그인 링크 다시 받기" : "로그인 링크 받기";
 
   return (
-    <form className="login-form" action={action}>
+    <form className="login-form login-form-email" aria-labelledby="login-email-heading" action={action}>
+      <h2 id="login-email-heading">이메일로 로그인</h2>
       <div className="form-field">
         <label htmlFor="email">이메일 주소</label>
         <div className="email-input">
@@ -46,7 +77,7 @@ export function LoginForm({ configured }: { configured: boolean }) {
           />
         </div>
       </div>
-      <button className="primary-button" disabled={pending || !configured} type="submit">
+      <button className="quiet-link" disabled={pending || !configured} type="submit">
         {buttonLabel}
         {!pending && <ArrowRight aria-hidden="true" size={17} />}
       </button>

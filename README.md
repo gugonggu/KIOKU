@@ -63,6 +63,17 @@ Windows에서 `listen EACCES`로 개발 서버가 시작되지 않으면 `netsh 
 
 [Supabase SSR 설정](https://supabase.com/docs/guides/auth/server-side/creating-a-client?framework=nextjs&queryGroups=framework) · [매직 링크와 이메일 템플릿](https://supabase.com/docs/guides/auth/auth-email-passwordless) · [SMTP 설정](https://supabase.com/docs/guides/auth/auth-smtp)
 
+### Google 로그인
+
+1. Google Cloud의 Google Auth Platform에서 OAuth 동의 화면을 설정하고 **웹 애플리케이션** OAuth Client를 만듭니다. 앱이 테스트 모드라면 Google 로그인을 사용할 기존 사용자만 테스트 사용자로 등록합니다. **Authorized JavaScript origins**에 `https://kioku-trip.vercel.app`을, **Authorized redirect URIs**에 Supabase **Authentication → Sign In / Providers → Google**에 표시되는 콜백 `https://iihimpbrrpueuqwybray.supabase.co/auth/v1/callback`을 추가합니다.
+2. Supabase에서 **Allow new users to sign up**을 끈 뒤 Google Provider에 Client ID와 Client Secret을 입력하고 켭니다. Email Provider는 유지합니다. 앱은 Supabase에서 Google 활성화와 신규 가입 차단을 확인한 뒤에만 Google 로그인을 시작합니다.
+3. Vercel의 Production `APP_URL`과 Supabase **Authentication → URL Configuration**의 **Site URL**을 `https://kioku-trip.vercel.app`으로 설정합니다. **Redirect URLs**에 매직 링크용 `https://kioku-trip.vercel.app/auth/confirm`과 Google용 `https://kioku-trip.vercel.app/auth/confirm?flow=google`을 추가합니다. 기존 로컬 이메일 콜백은 유지합니다. 로컬에서 Google 로그인을 쓸 경우 `http://localhost:3000/auth/confirm?flow=google` 및 `http://localhost:4000/auth/confirm?flow=google` 중 사용하는 주소를 추가합니다. Google용 Vercel 환경변수는 필요하지 않습니다.
+4. 기존 계정과 **동일한 확인된 이메일**의 Google 계정으로 로그인합니다. Supabase가 같은 사용자 ID에 Google 인증을 연결하므로 여행 소유권이 유지됩니다. 이메일이 다르면 기존 이메일 링크로 먼저 접근하고 프로젝트 소유자와 별도 계정 연결을 확인합니다. 계정 데이터와 소유권을 자동으로 옮기지 않습니다.
+
+로컬 테스트에서는 모의 Google OAuth로 기존 여행 접근, 액세스 토큰 갱신, Chrome 재시작 후 세션 유지와 로그아웃을 확인합니다. 실제 Google 계정 연결 검증은 운영 Provider 설정과 코드 배포 후 진행합니다.
+
+[Supabase Google 로그인](https://supabase.com/docs/guides/auth/social-sign-in/auth-google) · [Supabase 계정 연결](https://supabase.com/docs/guides/auth/auth-identity-linking)
+
 ## 검사 및 테스트
 
 ```powershell
