@@ -3,6 +3,7 @@ import { createServer, type Server } from "node:http";
 import { chromium, expect, test } from "@playwright/test";
 import { japanDate } from "../src/lib/trip-details";
 import { shiftDay } from "../src/lib/trip-plan";
+import { issueShareToken, readShareToken } from "../src/lib/trip-share-token";
 import { e2eHost, e2ePorts, e2eUrls } from "./support/e2e-ports";
 import { handlePlanRequest } from "./support/plan-provider";
 import { asUser, createTripsDatabase, ownerA, ownerB } from "./support/trips-db.mjs";
@@ -17,6 +18,8 @@ let pkceChallenge: string | undefined;
 let googleSignupDisabled = true;
 let googleChallenge: string | undefined;
 let refreshedGoogleSession = false;
+let sharedReadFailure: "rpc" | "connection" | undefined;
+let sharedReads = 0;
 
 test.beforeAll(async () => {
   const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
@@ -182,6 +185,11 @@ test.beforeAll(async () => {
       }
     }
 
+    if (url.pathname === "/rest/v1/rpc/read_shared_trip" && request.method === "POST") {
+      sharedReads++;
+      if (sharedReadFailure === "connection") return response.destroy();
+      if (sharedReadFailure === "rpc") return send(500, { code: "XX000", message: "FIXTURE_INTERNAL_RPC_DETAIL" });
+    }
     if (["/rest/v1/itinerary_items", "/rest/v1/trip_places", "/rest/v1/bookings", "/rest/v1/flight_segments",
       "/rest/v1/stay_details", "/rest/v1/tour_details", "/rest/v1/booking_private_details",
       "/rest/v1/rpc/read_shared_trip", "/rest/v1/rpc/read_share_settings", "/rest/v1/rpc/write_share_settings",
@@ -205,6 +213,8 @@ test.beforeAll(async () => {
 
 test.beforeEach(async () => {
   failNextTripRead = false;
+  sharedReadFailure = undefined;
+  sharedReads = 0;
   pkceChallenge = undefined;
   await database.exec("truncate table public.booking_private_details, public.flight_segments, public.stay_details, public.tour_details, " +
     "kioku_private.trip_share_links, public.bookings, public.itinerary_items, public.trip_places, public.trips");
@@ -527,6 +537,140 @@ async function seedFiveDayTrip(title: string) {
   `, [title]));
   return `/trips/${trip.id}`;
 }
+
+async function seedCompanionReviewTrip() {
+  const trip = await seedFiveDayTrip("검수용 가상 동행 수첩");
+  const id = trip.split("/").at(-1)!;
+  const key = randomBytes(32);
+  const issued = issueShareToken(id, key);
+  await asUser(database, ownerA, async (tx) => {
+    await tx.query("insert into public.itinerary_items (trip_id,title,local_date,private_note) values " +
+      "($1,'첫날 가상 산책','2027-02-17','FIXTURE_PRIVATE_COMPANION_NOTE'),($1,'둘째 날 가상 산책','2027-02-18',null)", [id]);
+    await tx.query("select public.write_share_settings($1,0,'issue',null,true,false,$2,$3)", [id, issued.hash, issued.encryptedToken]);
+  });
+  await seedFiveDayTrip("FIXTURE_OTHER_COMPANION_TRIP");
+  const token = readShareToken(issued.encryptedToken, id, key)!;
+  return { trip, id, token };
+}
+
+test("review skip link moves focus and preserves the companion URL and selected day", async ({ page }) => {
+  const { trip, token } = await seedCompanionReviewTrip();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const skip = page.getByText("본문으로 건너뛰기", { exact: true });
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  await page.goto(trip);
+  await expect(page.getByRole("heading", { name: "검수용 가상 동행 수첩" })).toBeVisible();
+  await page.keyboard.press("Tab");
+  await expect(skip).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#main-content")).toBeFocused();
+
+  for (const query of ["", "?date=2027-02-18"]) {
+    await page.goto(`/s${query}#${token}`);
+    const heading = page.getByRole("heading", { name: query ? "둘째 날 가상 산책" : "검수용 가상 동행 수첩" });
+    await expect(heading).toBeVisible();
+    const before = sharedReads;
+    await page.keyboard.press("Tab");
+    await expect(skip).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page.locator("#main-content")).toBeFocused();
+    expect(new URL(page.url()).hash === `#${token}`).toBe(true);
+    expect(new URL(page.url()).search).toBe(query);
+    await expect(heading).toBeVisible();
+    if (query) await expect(page.getByRole("navigation", { name: "공유 일정 날짜" }).getByRole("link", { name: /Day 2/ }))
+      .toHaveAttribute("aria-current", "date");
+    expect(sharedReads).toBe(before);
+    expect(await page.locator("#main-content").evaluate((main) => Math.abs(main.getBoundingClientRect().top))).toBeLessThan(2);
+  }
+});
+
+test("review shared server distinguishes RPC and connection outages from revoked links", async ({ page, request }) => {
+  const { id, token } = await seedCompanionReviewTrip();
+  const invalid = randomBytes(32).toString("base64url");
+  const fragmentRead = (value: string) => request.post("/api/shared", { data: value });
+  const pathRead = () => request.get(`/api/shared/${token}`);
+  for (const response of [await fragmentRead(token), await pathRead()]) {
+    expect(response.status()).toBe(200);
+    expect(await response.text()).not.toMatch(/FIXTURE_PRIVATE|FIXTURE_OTHER/);
+    expect(response.headers()["cache-control"]).toContain("no-store");
+    expect(response.headers()["referrer-policy"]).toBe("no-referrer");
+  }
+  const invalidResponse = await fragmentRead(invalid);
+  expect(invalidResponse.status()).toBe(404);
+  const invalidBody = await invalidResponse.json();
+  const before = sharedReads;
+  expect((await fragmentRead("invalid")).status()).toBe(404);
+  expect(sharedReads).toBe(before);
+  for (const mode of ["rpc", "connection"] as const) {
+    sharedReadFailure = mode;
+    for (const response of [await fragmentRead(token), await pathRead()]) {
+      expect(response.status()).toBe(503);
+      expect(await response.json()).toEqual({ error: "공유 여행을 불러오지 못했어요" });
+      expect(response.headers()["cache-control"]).toContain("no-store");
+      expect(response.headers()["referrer-policy"]).toBe("no-referrer");
+    }
+  }
+  await page.goto(`/s/${token}/day/2027-02-18`);
+  await expect(page.getByRole("heading", { name: "공유 여행을 불러오지 못했어요" })).toBeVisible();
+  sharedReadFailure = undefined;
+  await page.getByRole("button", { name: "다시 불러오기" }).click();
+  await expect(page.getByRole("heading", { name: "둘째 날 가상 산책" })).toBeVisible();
+
+  const url = `/s?date=2027-02-18#${token}`;
+  const unavailable = page.getByRole("heading", { name: "공유 여행을 불러오지 못했어요" });
+  sharedReadFailure = "rpc";
+  await page.goto(url);
+  await expect(unavailable).toBeVisible();
+  sharedReadFailure = undefined;
+  await page.getByRole("button", { name: "다시 불러오기" }).click();
+  await expect(page.getByRole("heading", { name: "둘째 날 가상 산책" })).toBeVisible();
+  sharedReadFailure = "connection";
+  await page.reload();
+  await expect(unavailable).toBeVisible();
+  await expect(page.getByRole("heading", { name: "둘째 날 가상 산책" })).toHaveCount(0);
+  await asUser(database, ownerA, (tx) => tx.query("select public.write_share_settings($1,1,'stop',null,true,false,null,null)", [id]));
+  sharedReadFailure = undefined;
+  await page.getByRole("button", { name: "다시 불러오기" }).click();
+  await expect(page.getByRole("heading", { name: "공유 링크를 열 수 없어요" })).toBeVisible();
+  for (const response of [await fragmentRead(token), await pathRead()]) {
+    expect(response.status()).toBe(404);
+    expect(await response.json()).toEqual(invalidBody);
+  }
+});
+
+test("companion history revalidates a revoked guide on back and forward navigation", async () => {
+  const { id, token } = await seedCompanionReviewTrip();
+  const browser = await chromium.launch({
+    channel: process.env.PLAYWRIGHT_CHANNEL,
+    ignoreDefaultArgs: ["--disable-back-forward-cache"],
+  });
+  try {
+    const page = await browser.newPage();
+    await page.addInitScript(() => {
+      window.addEventListener("pageshow", (event) => {
+        if (!event.persisted || location.pathname !== "/s") return;
+        const main = document.getElementById("main-content");
+        sessionStorage.setItem("fixture-companion-restored", main?.hidden ? "hidden" : "visible");
+      });
+    });
+    await page.goto(`${appUrl}/s?date=2027-02-18#${token}`);
+    const entry = page.getByRole("heading", { name: "둘째 날 가상 산책" });
+    await expect(entry).toBeVisible();
+    await page.goto(`${appUrl}/login`);
+    const before = sharedReads;
+    await asUser(database, ownerA, (tx) => tx.query("select public.write_share_settings($1,1,'stop',null,true,false,null,null)", [id]));
+    await page.goBack({ waitUntil: "commit" });
+    await expect(page.getByRole("heading", { name: "공유 링크를 열 수 없어요" })).toBeVisible();
+    await expect(entry).toHaveCount(0);
+    expect(sharedReads).toBeGreaterThan(before);
+    const restored = await page.evaluate(() => sessionStorage.getItem("fixture-companion-restored"));
+    console.log(`Companion BFCache observation: ${restored ?? "fresh navigation"}`);
+    await page.goForward({ waitUntil: "commit" });
+    await expect(page).toHaveURL(/\/login$/);
+  } finally {
+    await browser.close();
+  }
+});
 
 test("travel-day home opens the next timed place and the selected day's map on mobile", async ({ page }) => {
   const today = japanDate();

@@ -1,4 +1,5 @@
 import { loadSharedTrip } from "@/lib/trip-share-data";
+import { sharedTripResponse } from "./response";
 
 export const dynamic = "force-dynamic";
 
@@ -27,9 +28,5 @@ async function readToken(request: Request) {
 
 export async function POST(request: Request) {
   const token = await readToken(request);
-  const trip = token ? await loadSharedTrip(token) : null;
-  return Response.json(trip ?? { error: "공유 링크를 열 수 없어요." }, {
-    status: trip ? 200 : 404,
-    headers: { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex, nofollow" },
-  });
+  return sharedTripResponse(await loadSharedTrip(token));
 }

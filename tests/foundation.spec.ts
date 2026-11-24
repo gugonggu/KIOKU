@@ -36,6 +36,16 @@ test("an unknown route offers a working return link", async ({ page }) => {
   await expect(page).toHaveURL(/\/login$/);
 });
 
+test("review skip link moves keyboard focus to the login main landmark", async ({ page }) => {
+  await page.goto("/login");
+  await expect(page.getByRole("heading", { name: "로그인", level: 1 })).toBeVisible();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("link", { name: "본문으로 건너뛰기" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#main-content")).toBeFocused();
+  await expect(page).toHaveURL(/\/login#main-content$/);
+});
+
 for (const width of [320, 390, 1440]) {
   test(`login fits ${width}px and provides a touch-sized focusable form`, async ({ page }) => {
     await page.setViewportSize({ width, height: 850 });
