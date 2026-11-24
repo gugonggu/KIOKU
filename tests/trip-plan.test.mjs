@@ -69,7 +69,7 @@ test("travel home counts Tokyo days and refreshes at the next change", () => {
   });
   assert.equal(tripHomeDay(trip, new Date("2027-02-20T15:00:00Z")).offset, 5);
   assert.equal(tripHomeDay(trip, new Date("2027-02-21T15:00:00Z")).status, "past");
-  assert.equal(tripHomeDay(trip, new Date("2027-02-21T15:00:00Z")).date, "2027-02-21");
+  assert.equal(tripHomeDay(trip, new Date("2027-02-21T15:00:00Z")).date, "2027-02-17");
   assert.equal(tripHomeDay({ start_date: null, end_date: null }, new Date("2027-02-16T15:00:00Z")).date, null);
   assert.equal(nextHomeRefresh("2027-02-17", "09:00:00"), Date.parse("2027-02-17T00:00:01Z"));
   assert.equal(nextHomeRefresh("2027-02-17"), Date.parse("2027-02-17T15:00:00Z"));

@@ -93,7 +93,7 @@ export function nextFixedSchedule<Item extends GroupFields & Pick<ScheduleRow, "
 export function tripHomeDay(trip: DateRange, now: Date) {
   const today = japanDate(now);
   const status = tripStatus(trip, today);
-  const date = status === "past" ? trip.end_date : planDay(trip, undefined, today);
+  const date = planDay(trip, undefined, today);
   const start = trip.start_date;
   const daysSinceStart = start ? (Date.parse(today) - Date.parse(start)) / 86_400_000 : 0;
   const offset = status === "upcoming" ? -daysSinceStart : status === "active" ? daysSinceStart + 1 : null;
