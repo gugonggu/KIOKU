@@ -40,14 +40,20 @@ export function expenseTotals(expenses: SettlementInput[]) {
 }
 
 export function settleExpenses(personCount: number, expenses: SettlementInput[]) {
-  const people = Array.from({ length: personCount }, (_, index) => ({ id: index + 1, paid: BigInt(0), due: BigInt(0) }));
+  const people = Array.from({ length: personCount }, (_, index) => ({
+    id: index + 1, paid: BigInt(0), due: BigInt(0), yenPaid: BigInt(0), yenDue: BigInt(0),
+  }));
   for (const expense of expenses) {
     const won = expenseWon(expense);
+    const yen = expense.currency === "JPY" ? BigInt(expense.amount - expense.refund) : BigInt(0);
     people[expense.payer - 1].paid += won;
+    people[expense.payer - 1].yenPaid += yen;
     const shares = [...expense.shares].sort((a, b) => a - b);
     const count = BigInt(shares.length);
     shares.forEach((id, index) => {
-      people[id - 1].due += won / count + BigInt(index < Number(won % count) ? 1 : 0);
+      const order = BigInt(index);
+      people[id - 1].due += won / count + BigInt(order < won % count ? 1 : 0);
+      people[id - 1].yenDue += yen / count + BigInt(order < yen % count ? 1 : 0);
     });
   }
   const balances = people.map(({ id, paid, due }) => ({ id, balance: paid - due }));

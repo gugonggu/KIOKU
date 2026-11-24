@@ -95,7 +95,7 @@ export default async function Page({ params, searchParams }: PageProps<"/trips/[
             : <p role="alert">연결할 예약 목록을 불러오지 못했어요.</p>}
         </section>
         <section className="editorial-paper suite-stack"><h2>지출 기록</h2>
-          <form method="get" className="budget-grid" action={href + "/budget"}>
+          <form method="get" className="suite-form budget-grid" action={href + "/budget"}>
             <label>날짜로 찾기<input type="date" name="date" defaultValue={date} /></label>
             <label>카테고리로 찾기<select name="category" defaultValue={category}><option value="">전체</option>{categoryOptions}</select></label>
             <label>결제자로 찾기<select name="payer" defaultValue={payer}><option value="">전체</option>{budget.people.map((name, i) => <option key={i} value={i + 1}>{name}</option>)}</select></label>
@@ -110,9 +110,12 @@ export default async function Page({ params, searchParams }: PageProps<"/trips/[
           </details>) : <p>표시할 지출이 없어요.</p>}
         </section>
         {settlement && <section className="editorial-paper suite-stack"><h2>인원별 정산</h2>
-          <p>환불을 반영한 지출을 원화로 반올림한 뒤 균등 분할해요. 남는 1원씩은 별칭 목록 앞쪽부터 배정해요.</p>
-          <ul>{settlement.people.map(({ id, paid, due }) => <li key={id}>
+          <p>송금액은 환불을 반영한 원화 환산액을 균등 분할해 계산해요. 원화와 엔화 내역에서 남는 1원과 1엔은 별칭 목록 앞쪽부터 배정해요.</p>
+          <ul>{settlement.people.map(({ id, paid, due, yenPaid, yenDue }) => <li key={id}>
             <strong>{budget.people[id - 1]}</strong> · 지불 {wonLabel(paid)} · 부담 {wonLabel(due)} · {paid >= due ? "받을 금액 " + wonLabel(paid - due) : "보낼 금액 " + wonLabel(due - paid)}
+            {(yenPaid > BigInt(0) || yenDue > BigInt(0)) && <p className="plan-meta">
+              엔화 내역 · 지불 {yenPaid.toLocaleString("ko-KR")}엔 · 부담 {yenDue.toLocaleString("ko-KR")}엔
+            </p>}
           </li>)}</ul>
           <h3>송금 정리</h3>
           {settlement.transfers.length ? <ul>{settlement.transfers.map(({ from, to, amount }) =>

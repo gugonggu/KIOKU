@@ -21,7 +21,7 @@ export function TripMenu() {
       finishOfflineSignout();
     }
   }, { failed: false });
-  const inPlanner = /^\/trips\/[^/]+(?:\/(?:itinerary|map|bookings|share))?$/.test(path) && path !== "/trips/new";
+  const inPlanner = /^\/trips\/[^/]+(?:\/(?:itinerary|map|bookings|share|more|preparation|offline|budget|guide))?$/.test(path) && path !== "/trips/new";
   const newTrip = <Link href="/trips/new" aria-current={path === "/trips/new" ? "page" : undefined}>
     <Plus size={18} aria-hidden="true" />새 여행
   </Link>;

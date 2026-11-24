@@ -7,7 +7,7 @@ export function BudgetForm({ action, children, label, confirmDelete = false }: {
   children?: ReactNode; label: string; confirmDelete?: boolean;
 }) {
   const [message, submit, pending] = useActionState(action, "");
-  return <form className="suite-stack" action={submit} onSubmit={(event) => {
+  return <form className="suite-form" action={submit} onSubmit={(event) => {
     if (confirmDelete && !window.confirm("이 지출을 삭제할까요?")) event.preventDefault();
   }}>
     {children}

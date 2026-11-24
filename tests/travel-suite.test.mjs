@@ -3,6 +3,30 @@ import test from "node:test";
 import { preparationProgress, preparationTemplate } from "../src/lib/trip-preparation.ts";
 import { travelSnapshot } from "../src/lib/travel-snapshot.ts";
 import { expenseTotals, parseRate, settleExpenses } from "../src/lib/trip-budget.ts";
+import { guideDays, guideOptions, guideScope } from "../src/lib/travel-guide.ts";
+
+test("guide output includes privacy-safe defaults and filters by the selected date", () => {
+  const defaults = guideOptions({});
+  assert.deepEqual(defaults, { date: "", places: true, bookings: true, preparation: true, budget: false });
+  const options = guideOptions({ options: "1", date: "2027-02-19", bookings: "1", budget: ["1", "0"] });
+  const place = { name: "小樽運河" };
+  const result = guideScope({
+    schedule: [{ date: "2027-02-18", place }, { date: "2027-02-19", place }],
+    places: [place],
+    bookings: [
+      { kind: "STAY", detail: { checkInDate: "2027-02-17", checkOutDate: "2027-02-21" } },
+      { kind: "TOUR", detail: { date: "2027-02-20" } },
+      { kind: "FLIGHT", detail: [{ departureDate: "2027-02-19" }, { departureDate: "2027-02-21" }] },
+    ],
+  }, options);
+  assert.equal(result.schedule.length, 1);
+  assert.equal(result.places.length, 0);
+  assert.equal(result.bookings.length, 2);
+  assert.equal(result.bookings[1].detail.length, 1);
+  assert.equal(options.budget, false);
+  assert.deepEqual(guideDays({ schedule: [], startDate: "2027-02-17", endDate: "2027-02-21" }, ""),
+    ["2027-02-17", "2027-02-18", "2027-02-19", "2027-02-20", "2027-02-21"]);
+});
 
 test("fixed point conversion and settlement conserve won after refunds and remainder splits", () => {
   assert.equal(parseRate("9.1234"), 91234);
@@ -16,6 +40,7 @@ test("fixed point conversion and settlement conserve won after refunds and remai
   assert.equal(totals.jpy, BigInt(100));
   const settlement = settleExpenses(3, expenses);
   assert.deepEqual(settlement.people.map(({ due }) => due), [100304, 100304, 100304].map(BigInt));
+  assert.deepEqual(settlement.people.map(({ yenDue }) => yenDue), [34, 33, 33].map(BigInt));
   assert.deepEqual(settlement.transfers.map(({ from, to, amount }) => [from, to, Number(amount)]), [[2, 1, 99392], [3, 1, 100304]]);
   const remainder = settleExpenses(3, [{ ...expenses[0], amount: 2, shares: [3, 2, 1] }]);
   assert.deepEqual(remainder.people.map(({ due }) => Number(due)), [1, 1, 0]);

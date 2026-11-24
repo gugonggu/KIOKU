@@ -78,7 +78,7 @@ export async function saveExpense(trip: string, id: string, revision: number | n
   return refresh(trip);
 }
 
-export async function removeExpense(trip: string, id: string, revision: number, _state: string) {
+export async function removeExpense(trip: string, id: string, revision: number) {
   const { client } = await requireTripClient();
   if (!isTripId(id) || !(await getTrip(trip)).data) return "여행과 지출을 확인해 주세요.";
   const { data, error } = await client.from("trip_expenses").delete().eq("trip_id", trip).eq("id", id).eq("revision", revision).select("id");

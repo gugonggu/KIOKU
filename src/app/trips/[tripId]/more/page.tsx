@@ -14,6 +14,7 @@ export default async function Page({ params }: PageProps<"/trips/[tripId]/more">
       <Link className="quiet-link" href={href + "/preparation"}>여행 준비</Link>
       <Link className="quiet-link" href={href + "/offline"}>오프라인 수첩</Link>
       <Link className="quiet-link" href={href + "/budget"}>예산과 경비</Link>
+      <Link className="quiet-link" href={href + "/guide"}>여행 가이드 내보내기</Link>
       <Link className="quiet-link" href={href + "/edit"}>여행 정보</Link>
       <Link className="quiet-link" href={href + "/share"}>동행자 공유</Link>
     </nav>

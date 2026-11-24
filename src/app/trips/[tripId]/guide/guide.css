@@ -1,0 +1,31 @@
+.guide-paper { overflow-wrap: anywhere; font-family: system-ui, "Malgun Gothic", "Yu Gothic", "Noto Sans CJK KR", "Noto Sans CJK JP", sans-serif; }
+.guide-cover { display: grid; gap: .5rem; padding-block: 1.5rem 2.5rem; }
+.guide-cover h2 { font-size: clamp(1.7rem, 6vw, 2.75rem); font-weight: 700; line-height: 1.25; }
+.guide-blossom { color: var(--color-primary); width: 32px; height: 32px; }
+.guide-block, .guide-day { padding-block: 1rem; border-top: 1px solid var(--color-line); }
+.guide-day ul { list-style: none; padding: 0; margin: 0; }
+.guide-entry { margin-block-start: .65rem; }
+.guide-entry h4 { font-weight: 700; }
+.guide-entry span { color: var(--color-muted-ink); font-weight: 400; }
+.guide-paper a { color: var(--color-primary); text-decoration: underline; }
+
+@media print {
+  @page { size: A4; margin: 14mm; }
+  html:has(.travel-guide), body:has(.travel-guide) { background: white; color: #171d18; }
+  body:has(.travel-guide) .skip-link,
+  body:has(.travel-guide) .trips-header,
+  body:has(.travel-guide) .trips-sidebar,
+  .travel-guide .editorial-tabs, .travel-guide .guide-controls { display: none !important; }
+  body:has(.travel-guide) .trips-shell,
+  body:has(.travel-guide) .trips-content,
+  .travel-guide, .travel-guide .guide-paper {
+    display: block; width: 100%; max-width: none; min-height: 0; margin: 0; padding: 0;
+    background: white; border: 0; border-radius: 0; box-shadow: none; overflow: visible;
+  }
+  .guide-paper { font-size: 10.5pt; line-height: 1.65; }
+  .guide-cover { min-height: 0; padding-block: 7mm 11mm; }
+  .guide-cover h2 { font-size: 24pt; }
+  .guide-cover, .guide-block, .guide-entry { break-inside: avoid; }
+  .guide-paper h3 { break-after: avoid; }
+  .guide-paper p { orphans: 2; widows: 2; }
+}

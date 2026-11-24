@@ -123,6 +123,7 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
       <Link className="quiet-link" href={href + "/budget" + (active && budget?.budget ? "#new-expense" : "")}>
         {active && budget?.budget ? "빠른 지출 등록" : status === "past" ? "지출과 정산 보기" : "예산 열기"}
       </Link>
+      <Link className="quiet-link" href={href + (active ? "/offline" : "/guide")}>{active ? "오프라인 수첩" : "여행 가이드 내보내기"}</Link>
     </section>
     <div className="editorial-overview-bottom">
       <section className="editorial-paper editorial-preview" aria-labelledby="trip-preview-heading">
