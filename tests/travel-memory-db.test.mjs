@@ -50,3 +50,18 @@ test("memory is owner-only and rejects cross-trip links and unprocessed uploads"
   assert.deepEqual(bucket, {public:false,file_size_limit:524288,allowed_mime_types:["image/jpeg"]});
   await assert.rejects(asUser(db,ownerA,(tx)=>tx.query("insert into public.trip_memory_photos(id,trip_id,day,title) select gen_random_uuid(),$1,'2027-02-19','Quota' from generate_series(1,23)", [a])), {code:"23514"});
 });
+
+test("itinerary import is atomic, skips duplicates and requires the current owner's trip version", async () => {
+  const trip = randomUUID();
+  const park = { title:"Park", local_date:"2027-02-19", time_mode:"FIXED", fixed_local_time:"14:00", period:null };
+  const rpc = (owner, rows, revision = 1) => asUser(db, owner, (tx) =>
+    tx.query("select public.import_trip_schedule($1,$2,$3) as result", [trip,revision,JSON.stringify(rows)]));
+  await asUser(db,ownerA,(tx)=>tx.query("insert into public.trips(id,title,destination_label,start_date,end_date) values ($1,'Fixture','Japan','2027-02-17','2027-02-21')", [trip]));
+  assert.equal((await rpc(ownerB,[park])).rows[0].result,null);
+  assert.equal((await rpc(ownerA,[park],2)).rows[0].result,null);
+  await assert.rejects(rpc(ownerA,[park,{...park,title:"Outside",local_date:"2027-02-22"}]),{code:"22023"});
+  await assert.rejects(rpc(ownerA,[{...park,booking_id:randomUUID()}]),{code:"22023"});
+  assert.deepEqual((await rpc(ownerA,[park,{...park,title:"park"}])).rows[0].result,{inserted:1,skipped:1});
+  assert.deepEqual((await rpc(ownerA,[park])).rows[0].result,{inserted:0,skipped:1});
+  assert.equal((await asUser(db,ownerA,(tx)=>tx.query("select count(*)::int as count from public.itinerary_items where trip_id=$1",[trip]))).rows[0].count,1);
+});

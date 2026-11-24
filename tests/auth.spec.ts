@@ -196,6 +196,7 @@ test.beforeAll(async () => {
       "/rest/v1/trip_preparation", "/rest/v1/rpc/apply_preparation_template", "/rest/v1/rpc/move_preparation",
       "/rest/v1/trip_budgets", "/rest/v1/trip_expenses", "/rest/v1/rpc/save_trip_budget",
       "/rest/v1/trip_memory_entries", "/rest/v1/trip_memory_photos", "/rest/v1/trip_visit_marks", "/rest/v1/rpc/set_trip_visit",
+      "/rest/v1/rpc/import_trip_schedule",
       "/rest/v1/rpc/save_booking", "/rest/v1/rpc/delete_booking", "/rest/v1/rpc/save_trip_place", "/rest/v1/rpc/delete_trip_place",
       "/rest/v1/rpc/authorize_place_search", "/rest/v1/rpc/save_itinerary_item", "/rest/v1/rpc/update_trip_period",
       "/rest/v1/rpc/swap_itinerary_items", "/rest/v1/rpc/place_itinerary_item"].includes(url.pathname)) {
@@ -438,6 +439,44 @@ test("memory archive saves a standalone private diary and manual visit status", 
   expect(guest.status()).toBe(401);
   const snapshot = await page.request.get("/api/offline/" + tripId);
   expect(await snapshot.text()).not.toContain("소유자만 보는 가상 일기");
+});
+
+test("product polish groups travel tools and adds, copies and continues imported schedules", async ({ page }) => {
+  const trip = await seedFiveDayTrip("가상 삿포로 일정 가져오기");
+  await page.setViewportSize({ width: 360, height: 844 });
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  await page.goto(trip + "/more");
+  const tools = page.getByRole("navigation", { name: "여행 도구" });
+  await expect(tools.getByRole("region", { name: "여행 준비" }).getByRole("link", { name: /준비 목록/ })).toBeVisible();
+  await expect(tools.getByRole("region", { name: "여행 기록" }).getByRole("link", { name: /여행 기억/ })).toBeVisible();
+  await tools.getByRole("link", { name: /여행 일정/ }).click();
+  await page.getByRole("link", { name: "JSON 일정 가져오기" }).click();
+  const data = [
+    { title: "가상 오타루 산책", date: "2027-02-19", time: "14:00" },
+    { title: "가상 오타루 산책", date: "2027-02-19", time: "14:00" },
+    { title: "날짜 미정 가상 후보" },
+  ];
+  await page.getByLabel("일정 JSON").fill(JSON.stringify(data));
+  await page.getByRole("button", { name: "가져오기 미리보기" }).click();
+  await expect(page.getByRole("region", { name: "가져오기 결과 미리보기" })).toContainText("중복 · 건너뜀");
+  await page.getByRole("button", { name: "확인하고 일정 추가" }).click();
+  await expect(page.getByRole("status")).toContainText("2개 추가 · 중복 1개 건너뜀");
+  await page.goto(trip + "/itinerary?date=2027-02-19");
+  await expect(page.getByRole("heading", { name: "가상 오타루 산책" })).toHaveCount(1);
+  await page.getByLabel("가상 오타루 산책 일정 메뉴").click();
+  await page.getByRole("link", { name: "가상 오타루 산책 일정 복사" }).click();
+  const copy = page.getByRole("dialog", { name: "일정 복사" });
+  await expect(copy.getByLabel("일정 이름")).toHaveValue("가상 오타루 산책");
+  await copy.getByLabel("일정 이름").fill("가상 오타루 산책 복사본");
+  await copy.getByLabel("일정 날짜").fill("2027-02-20");
+  await copy.getByRole("button", { name: "저장하고 계속 추가" }).click();
+  const next = page.getByRole("dialog", { name: "일정 추가" });
+  await expect(next.getByLabel("일정 이름")).toHaveValue("");
+  await next.getByLabel("일정 이름").fill("유동적인 가상 Day 4");
+  await next.getByRole("button", { name: "일정 저장", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "유동적인 가상 Day 4" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "가상 오타루 산책 복사본" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
 test("Google PKCE keeps the existing owner session after refresh and browser restart", async ({}, testInfo) => {

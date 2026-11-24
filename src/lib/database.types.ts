@@ -184,6 +184,7 @@ export type Database = {
       save_trip_budget: { Args: { p_trip: string; p_amount: number; p_rate: number; p_people: string[] }; Returns: undefined };
       set_trip_visit: { Args: { p_trip: string; p_schedule: string; p_status: import("./trip-memory").VisitStatus }; Returns: undefined };
       organize_memory_photo: { Args: { p_trip: string; p_id: string; p_command: "earlier" | "later" | "cover" }; Returns: boolean };
+      import_trip_schedule: { Args: { p_trip: string; p_version: number; p_rows: import("./trip-import").TripImportRow[] }; Returns: { inserted: number; skipped: number } | null };
       read_share_settings: { Args: { p_trip: string; p_preview: boolean }; Returns: ShareSettings | SharedTrip | null };
       write_share_settings: {
         Args: { p_trip: string; p_revision: number; p_mode: "issue" | "settings" | "stop"; p_expiry: string | null;

@@ -76,6 +76,10 @@ export async function handlePlanRequest({ database, userId, method, url, readJso
     let query: string;
     let args: unknown[];
     switch (url.pathname) {
+      case "/rest/v1/rpc/import_trip_schedule":
+        query = "select public.import_trip_schedule($1,$2,$3) as result";
+        args = [body.p_trip,body.p_version,JSON.stringify(body.p_rows)];
+        break;
       case "/rest/v1/rpc/set_trip_visit":
         query = "select public.set_trip_visit($1,$2,$3) as result";
         args = [body.p_trip,body.p_schedule,body.p_status];

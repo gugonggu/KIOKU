@@ -59,7 +59,7 @@ export function ScheduleList({ items, tripId, date, places, bookings, candidate 
         const booking = item.booking_id ? bookingById.get(item.booking_id) : undefined;
         const Icon = item.kind === "MOVE" ? Footprints : item.kind === "PLACE" || place ? MapPin : NotebookPen;
         const placement = { ...versionOf(item), archivedDate: item.archived_date, candidate };
-        const href = (mode: "edit" | "move" | "restore" | "delete") => itineraryHref(tripId, date, mode, item.id, candidate);
+        const href = (mode: "edit" | "copy" | "move" | "restore" | "delete") => itineraryHref(tripId, date, mode, item.id, candidate);
         return <li key={item.id} id={`schedule-${item.id}`} className="editorial-entry plan-entry" data-schedule-id={item.id}
           onDragOver={(event) => {
             const source = rows.find((row) => row.id === dragId);
@@ -104,6 +104,7 @@ export function ScheduleList({ items, tripId, date, places, bookings, candidate 
                 <summary className="editorial-icon-button" aria-label={`${item.title} 일정 메뉴`}><EllipsisVertical size={18} aria-hidden /></summary>
                 <div className="editorial-menu-content">
                   <Link className="quiet-link editorial-menu-edit" href={href("edit")} aria-label={`${item.title} 일정 수정`}>수정</Link>
+                  <Link className="quiet-link" href={href("copy")} aria-label={`${item.title} 일정 복사`}>복사</Link>
                   <Link className="quiet-link" href={href("move")} aria-label={`${item.title} 날짜 이동`}>날짜 이동</Link>
                   {candidate ? item.archived_date && <Link className="quiet-link" href={href("restore")}>복원</Link> :
                     <ArchiveButton action={changePlacement.bind(null, tripId, placement, "archive", date)} />}

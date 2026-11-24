@@ -26,11 +26,12 @@ function checkOutside(trip: Trip, date: string | null, form: FormData): Itinerar
   return form.get("outside_confirmation") === key ? null : { outside: { key, date } };
 }
 
-function finish(tripId: string, date: string | null, candidates = false): never {
+function finish(tripId: string, date: string | null, candidates = false, next?: string): never {
   revalidatePath("/trips/" + tripId + "/bookings");
   revalidatePath(`/trips/${tripId}/itinerary`);
   revalidatePath(`/trips/${tripId}`);
-  return redirect(itineraryHref(tripId, date, undefined, undefined, candidates));
+  const href = itineraryHref(tripId, date, next ? "add" : undefined, undefined, candidates);
+  return redirect(next ? href + "&next=" + next : href);
 }
 
 export async function saveItinerary(
@@ -71,7 +72,8 @@ export async function saveItinerary(
   if (error) return saveError;
   if (data === "existing") return { error: "이 일정은 이미 저장됐어요. 목록에서 확인해 주세요.", refresh: true };
   if (data !== "saved") return conflict;
-  return finish(tripId, outsideTrip(trip, fields.local_date) ? currentDate : fields.local_date ?? currentDate, !fields.local_date);
+  return finish(tripId, outsideTrip(trip, fields.local_date) ? currentDate : fields.local_date ?? currentDate,
+    !fields.local_date, revision === null && form.get("save_another") === "1" ? id : undefined);
 }
 
 export async function changePlacement(

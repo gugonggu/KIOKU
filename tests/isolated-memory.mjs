@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { once } from "node:events";
 import { chromium, expect } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
@@ -39,7 +39,8 @@ async function enter(page, email) {
 
 const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "--hostname", "127.0.0.1", "--port", String(port)], {
   env: { ...process.env, APP_URL: app, SUPABASE_URL: hosted.origin, SUPABASE_PUBLISHABLE_KEY: fixture.PUBLISHABLE_KEY,
-    SUPABASE_STORAGE_SECRET_KEY: fixture.SECRET_KEY, GEOAPIFY_API_KEY: "" },
+    SUPABASE_STORAGE_SECRET_KEY: fixture.SECRET_KEY, GEOAPIFY_API_KEY: "",
+    KIOKU_SHARE_ENCRYPTION_KEY: randomBytes(32).toString("base64url") },
   stdio: "ignore",
   windowsHide: true,
 });
@@ -56,12 +57,54 @@ try {
   const tripId = randomUUID();
   must(await owner.client.from("trips").insert({ id: tripId, title: "가상 삿포로 기억 수첩", destination_label: "札幌",
     traveler_count: 3, start_date: "2027-02-17", end_date: "2027-02-21" }), "five-day fixture");
+  const dates = ["삿포로 시내", "비에이 가상 전망대", "오타루 운하", "유동적인 Day 4", "귀국"];
+  const planned = dates.map((title, index) => ({ title, local_date: "2027-02-" + (17 + index),
+    time_mode: "UNSCHEDULED", fixed_local_time: null, period: null }));
+  const imported = must(await owner.client.rpc("import_trip_schedule", { p_trip: tripId, p_version: 1, p_rows: planned }), "five-day import");
+  assert.deepEqual(imported, { inserted: 5, skipped: 0 });
+  const placeId = randomUUID();
+  must(await owner.client.from("trip_places").insert({ id: placeId, trip_id: tripId, display_name: "가상 운하 위치",
+    address_ja: "北海道小樽市", latitude: 43.1, longitude: 141.0, provider: "MANUAL" }), "saved place");
+  const visit = must(await owner.client.from("itinerary_items").select("id,revision").eq("trip_id", tripId)
+    .eq("title", dates[2]).single(), "saved itinerary");
+  assert.equal(must(await owner.client.rpc("save_itinerary_item", { p_trip: tripId, p_item: visit.id,
+    p_revision: visit.revision, p_trip_version: 1,
+    p_fields: { ...planned[2], kind: "PLACE", place_id: placeId, private_note: null, shared_note: null },
+  }), "link place"), "saved");
+  const bookings = [
+    { kind: "STAY", title: "가상 Sapporo Hotel by Granbell", status: "CONFIRMED", detail: {
+      check_in_local_date: "2027-02-17", check_out_local_date: "2027-02-21",
+    }, private: { amount: 11000, currency: "JPY" } },
+    { kind: "FLIGHT", title: "가상 귀국 일정", status: "NEEDS_BOOKING", detail: [
+      { departure_airport: "CTS", departure_local_date: "2027-02-21" },
+    ] },
+    { kind: "TOUR", title: "가상 비에이 투어", status: "PENDING", detail: { event_local_date: "2027-02-18" } },
+  ];
+  for (const booking of bookings) {
+    must(await owner.client.rpc("save_booking", { p_trip: tripId, p_id: randomUUID(), p_version: null, p_fields: booking }), "sample bookings");
+  }
   const path = "/trips/" + tripId;
   const date = "2027-02-20";
   browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHANNEL });
   const context = await browser.newContext({ baseURL: app, viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
   await enter(page, owner.email);
+  await page.goto(path + "/preparation");
+  await page.getByText("여행 준비 템플릿", { exact: true }).click();
+  await page.getByRole("button", { name: "겨울 여행 템플릿" }).click();
+  await page.getByRole("button", { name: "방한복 완료", exact: true }).click();
+  await page.goto(path + "/budget");
+  await page.getByLabel("총예산 (원)").fill("500000");
+  await page.getByLabel("기본 환율 (1엔당 원)").fill("9.1234");
+  await page.getByLabel("정산 별칭 (한 줄에 한 명)").fill("가\n나\n다");
+  await page.getByRole("button", { name: "예산 저장" }).click();
+  const expense = page.locator("#new-expense");
+  await expense.getByLabel("지출명").fill("가상 사전 결제 내역");
+  await expense.getByLabel("결제 시점").selectOption("prepaid");
+  await expense.getByLabel("연결 예약").selectOption({ label: "가상 Sapporo Hotel by Granbell · 예약 완료" });
+  await expense.getByLabel("선택한 예약의 금액과 통화로 기록").check();
+  await expense.getByRole("button", { name: "지출 등록" }).click();
+  await expect(page.getByText("나 → 가 · 33,452원")).toBeVisible();
   await page.goto(path + "/memory?date=" + date + "&write=1");
   await page.getByLabel("일기 제목").fill("시험용 겨울 일기");
   await page.getByLabel("일기 본문").fill("오프라인과 가이드에서 숨길 가상 내용");
@@ -106,12 +149,28 @@ try {
   await gallery.getByText("사진 관리", { exact: true }).click();
   await gallery.getByRole("button", { name: "대표 사진으로" }).click();
   await expect(gallery.getByText("· 대표 사진", { exact: true })).toBeVisible();
+  await page.goto(path);
+  await expect(page.getByRole("img", { name: "가상 사진 한 장" })).toBeVisible();
+  await page.goto(path + "/offline");
+  await page.getByRole("button", { name: "오프라인 수첩 저장" }).click();
+  await expect(page.getByText("이 기기에 수첩을 저장했어요.")).toBeVisible();
+  await context.setOffline(true);
+  await page.goto("/offline.html?trip=" + tripId);
+  await expect(page.getByText(/오타루 운하/)).toBeVisible();
+  await expect(page.getByText(/가상 운하 위치/).first()).toBeVisible();
+  await expect(page.getByText(privateMemo)).toHaveCount(0);
+  await context.setOffline(false);
+  await page.goto(path + "/guide");
+  await expect(page.getByText(/가상 Sapporo Hotel by Granbell/)).toBeVisible();
+  assert.equal((await page.pdf({ preferCSSPageSize: true })).subarray(0, 5).toString(), "%PDF-");
+  await page.goto(path + "/memory?date=" + date);
+  await gallery.getByText("사진 관리", { exact: true }).click();
   page.once("dialog", (dialog) => { void dialog.accept(); });
   await gallery.getByRole("button", { name: "사진 삭제" }).click();
   await expect(gallery).toHaveCount(0);
   assert.equal((await page.request.get(imagePath)).status(), 404);
   assert.ok((await admin.storage.from("trip-memory").download(filename)).error);
-  console.log("Isolated Supabase + Next + Chrome passed: diary, image decode, EXIF, owner checks, cover, deletion and export privacy.");
+  console.log("Isolated Supabase + Chrome passed: five days, prep, bookings, settlement, offline, A4 PDF and private memory photo.");
 } finally {
   await browser?.close();
   if (child.exitCode === null) child.kill();
