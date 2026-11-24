@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { SkipLink } from "@/components/skip-link";
 import "./globals.css";
 import "./editorial.css";
 
@@ -14,7 +15,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ko">
       <body>
-        <a className="skip-link" href="#main-content" tabIndex={0}>본문으로 건너뛰기</a>
+        <SkipLink />
         {children}
       </body>
     </html>
