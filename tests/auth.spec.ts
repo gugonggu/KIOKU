@@ -1330,7 +1330,7 @@ test("M5 shares only the permitted itinerary, map and bookings and rechecks each
   const otherTrip = await seedFiveDayTrip("공유되지 않은 별도 여행");
   await asUser(database, ownerA, async (tx) => {
     const { rows: [place] } = await tx.query<{ id: string }>("insert into public.trip_places (trip_id,display_name,address_text,latitude,longitude,notes) values ($1,'오도리 공원','北海道札幌市中央区大通西',43.0606,141.3488,'PRIVATE_PLACE_MARKER') returning id", [tripId]);
-    await tx.query("insert into public.itinerary_items (trip_id,title,local_date,place_id,shared_note,private_note) values ($1,'공원 산책','2027-02-17',$2,'공유 약속 메모','PRIVATE_SCHEDULE_MARKER'),($1,'아침 산책','2027-02-18',null,null,null)", [tripId, place.id]);
+    await tx.query("insert into public.itinerary_items (trip_id,title,local_date,place_id,shared_note,private_note) values ($1,'공원 산책','2027-02-17',$2,'공유 약속 메모','PRIVATE_SCHEDULE_MARKER'),($1,'아침 산책','2027-02-18',null,null,null),($1,'자유 일정','2027-02-20',null,null,null)", [tripId, place.id]);
     await tx.query("select public.save_booking($1,$2,null,$3)", [tripId, randomUUID(), {
       kind: "STAY", title: "가상 삿포로 호텔", status: "CONFIRMED", detail: {
         address_text: "札幌市中央区", check_in_local_date: "2027-02-17", check_in_local_time: "15:00",
@@ -1404,7 +1404,7 @@ test("M5 shares only the permitted itinerary, map and bookings and rechecks each
     expect(await api.text()).not.toMatch(/PRIVATE_|98654321|공유되지 않은 별도 여행|encryptedToken|token_hash|owner_id/);
     expect(await guest.content()).not.toMatch(/PRIVATE_|98654321|공유되지 않은 별도 여행/);
     expect((await guest.request.post(apiFor(link), { data: {} })).status()).toBe(405);
-    const fragment = await browser.newPage();
+    const fragment = await browser.newPage({ viewport: { width: 320, height: 844 }, hasTouch: true });
     const token = new URL(link).pathname.split("/").at(-1)!;
     const fragmentOrigin = appUrl + "/s";
     const fragmentResponse = fragment.waitForResponse((reply) =>
@@ -1412,9 +1412,20 @@ test("M5 shares only the permitted itinerary, map and bookings and rechecks each
     await fragment.goto(fragmentOrigin + "#" + token);
     expect((await fragmentResponse).status()).toBe(200);
     await expect(fragment.getByRole("heading", { name: "공원 산책" })).toBeVisible();
-    await fragment.getByRole("navigation", { name: "공유 여행 바로가기" }).getByRole("link", { name: "장소" }).click();
+    const placesShortcut = fragment.getByRole("navigation", { name: "공유 여행 바로가기" }).getByRole("button", { name: "장소" });
+    await placesShortcut.focus();
+    await placesShortcut.press("Enter");
+    await expect(fragment.getByRole("heading", { name: "장소와 지도" })).toBeFocused();
     expect(new URL(fragment.url()).hash === "#" + token).toBe(true);
-    await fragment.getByRole("navigation", { name: "공유 일정 날짜" }).getByRole("link", { name: /2027\. 2\. 18\./ }).click();
+    const fragmentDays = fragment.getByRole("navigation", { name: "공유 일정 날짜" });
+    await expect(fragmentDays.getByRole("link")).toHaveCount(5);
+    await fragmentDays.getByRole("link", { name: /Day 4/ }).tap();
+    const flexibleEntry = fragment.getByRole("listitem").filter({ has: fragment.getByRole("heading", { name: "자유 일정" }) });
+    await expect(flexibleEntry.getByText("시간 미정")).toBeVisible();
+    expect(await fragment.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+    await fragmentDays.getByRole("link", { name: /Day 5/ }).tap();
+    await expect(fragment.getByText("이 날짜에 공유된 일정이 없어요.")).toBeVisible();
+    await fragmentDays.getByRole("link", { name: /Day 2/ }).tap();
     await expect(fragment.getByRole("heading", { name: "아침 산책" })).toBeVisible();
     expect((await guest.request.get(appUrl + otherTrip, { maxRedirects: 0 })).status()).toBe(307);
     for (const width of [1440, 390, 320]) {
@@ -1446,7 +1457,15 @@ test("M5 shares only the permitted itinerary, map and bookings and rechecks each
     const rotated = await openLink();
     expect(rotated !== link).toBe(true);
     expect((await guest.request.get(apiFor(link))).status()).toBe(404);
-    await fragment.reload();
+    // Replacing only the fragment leaves the current document mounted in Chrome.
+    const rotatedToken = new URL(rotated).pathname.split("/").at(-1)!;
+    const rotatedResponse = fragment.waitForResponse((reply) =>
+      reply.url() === appUrl + "/api/shared" && reply.request().method() === "POST");
+    await fragment.evaluate((value) => { location.hash = value; }, rotatedToken);
+    expect((await rotatedResponse).status()).toBe(200);
+    await expect(fragment.getByRole("heading", { name: "아침 산책" })).toBeVisible();
+    await expect(fragment.getByRole("heading", { name: "예약 일정" })).toHaveCount(0);
+    await fragment.goBack();
     await expect(fragment.getByRole("heading", { name: "공유 링크를 열 수 없어요" })).toBeVisible();
     await fragment.close();
     await guest.reload();

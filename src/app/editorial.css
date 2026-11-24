@@ -547,7 +547,7 @@ body:has(.editorial-dialog[open]) { overflow: hidden; }
 .shared-guide .editorial-day { flex-basis: 106px; }
 .shared-guide .editorial-entry-copy > .quiet-link, .shared-place .quiet-link { justify-self: start; gap: 6px; }
 .shared-sections { display: flex; gap: 8px; flex-wrap: wrap; }
-.shared-sections a { gap: 6px; border: 1px solid var(--ed-line); background: var(--ed-paper); }
+.shared-sections .quiet-link { gap: 6px; border: 1px solid var(--ed-line); background: var(--ed-paper); }
 .shared-places, .shared-bookings { display: grid; gap: 12px; min-width: 0; }
 .shared-place, .shared-map { display: grid; gap: 4px; min-width: 0; }
 .shared-place { padding: 12px; overflow-wrap: anywhere; }

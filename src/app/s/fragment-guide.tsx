@@ -10,18 +10,43 @@ type State = { trip: SharedTrip; token: string; date?: string } | "loading" | "i
 export function FragmentGuide() {
   const [state, setState] = useState<State>("loading");
   useEffect(() => {
-    const controller = new AbortController();
-    const token = location.hash.slice(1);
-    const day = new URLSearchParams(location.search).get("date");
-    if (!/^[A-Za-z0-9_-]{43}$/.test(token)) {
-      void Promise.resolve().then(() => setState("invalid"));
-      return;
+    let request: AbortController | undefined;
+
+    async function loadGuide() {
+      request?.abort();
+      request = new AbortController();
+      const { signal } = request;
+      const token = location.hash.slice(1);
+      const day = new URLSearchParams(location.search).get("date");
+
+      try {
+        if (!/^[A-Za-z0-9_-]{43}$/.test(token)) {
+          await Promise.resolve();
+          if (!signal.aborted) setState("invalid");
+          return;
+        }
+
+        const response = await fetch("/api/shared", {
+          method: "POST", body: token, signal, cache: "no-store", credentials: "omit",
+        });
+        const trip: SharedTrip | null = response.ok ? await response.json() : null;
+        if (!signal.aborted) setState(trip ? { trip, token, date: day && isCalendarDate(day) ? day : undefined } : "invalid");
+      } catch {
+        if (!signal.aborted) setState("invalid");
+      }
     }
-    void fetch("/api/shared", { method: "POST", body: token, signal: controller.signal, cache: "no-store", credentials: "omit" })
-      .then(async (response) => response.ok ? setState({ trip: await response.json(), token,
-        date: day && isCalendarDate(day) ? day : undefined }) : setState("invalid"))
-      .catch(() => { if (!controller.signal.aborted) setState("invalid"); });
-    return () => controller.abort();
+
+    function onHashChange() {
+      setState("loading");
+      void loadGuide();
+    }
+
+    window.addEventListener("hashchange", onHashChange);
+    void loadGuide();
+    return () => {
+      window.removeEventListener("hashchange", onHashChange);
+      request?.abort();
+    };
   }, []);
 
   if (state === "loading") return <p className="loading-message" role="status">여행을 불러오는 중이에요.</p>;

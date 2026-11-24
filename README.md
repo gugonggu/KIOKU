@@ -69,9 +69,17 @@ Windows에서 `listen EACCES`로 개발 서버가 시작되지 않으면 `netsh 
 
 - Vercel `APP_URL`을 Production 전용으로 분리해 대표 도메인 `https://kioku-trip.vercel.app`과 일치시켰습니다. 기본 Preview와 `feature/m5-trip-sharing` 전용 Preview 설정을 보존했습니다.
 - Supabase Site URL을 대표 도메인과 맞추고 운영 이메일·Google 콜백을 추가했습니다. Google `KIOKU Web`에 대표 도메인의 JavaScript Origin을 추가했습니다. 기존 로컬 콜백, Google의 Supabase 리디렉션 URI와 공유 암호화 키는 유지했습니다.
-- 현재 Production은 `main@61b9dee23efc67a793ffa11b20d1a45ae316c98b` 재배포이며 상태는 Ready입니다. Deployment ID는 `dpl_HByoDnz8QMfCBUx1mKebkH2U5eMN`, 고유 URL은 `https://kioku-2ax5u4vhx-gugonggus-projects.vercel.app`입니다. 2차 Google 로그인 배포의 롤백 지점으로 사용합니다. [Vercel 배포 상세](https://vercel.com/gugonggus-projects/kioku/HByoDnz8QMfCBUx1mKebkH2U5eMN)
+- 1차 복구 배포는 `main@61b9dee23efc67a793ffa11b20d1a45ae316c98b` 재배포이며 상태는 Ready입니다. Deployment ID는 `dpl_HByoDnz8QMfCBUx1mKebkH2U5eMN`, 고유 URL은 `https://kioku-2ax5u4vhx-gugonggus-projects.vercel.app`입니다. 2차 Google 로그인 배포의 롤백 지점으로 사용합니다. [Vercel 배포 상세](https://vercel.com/gugonggus-projects/kioku/HByoDnz8QMfCBUx1mKebkH2U5eMN)
 - 공개 `/login`은 HTTP 200이었고, 비로그인 `/trips`는 대표 도메인의 `/login`으로 HTTP 307을 반환했습니다. 실제 이메일 매직 링크 요청·수신, 인증 콜백 303, 보호 페이지 접근, 로그아웃과 재접근 차단을 확인했습니다. 확인한 최근 30분 로그에서 런타임 오류와 HTTP 5xx는 0건이었습니다. 여행·예약 데이터에는 쓰기 작업을 실행하지 않았습니다.
 - Google 버튼을 포함하는 코드와 로컬 Node 24.x 엔진 변경은 2차 배포 범위입니다. GitHub 반영·병합·배포와 운영 가상 여행 E2E는 별도 승인 후 진행합니다.
+
+### 2026-11-24 운영 재점검 및 여행 준비
+
+- `origin/main`과 Production 대표 도메인은 PR #1 병합 커밋 `2a85bf1`로 일치합니다. Vercel 배포는 Ready입니다. 변경 작업은 해당 커밋에서 분기한 `fix/travel-readiness`에서 진행했습니다. [GitHub PR #1](https://github.com/gugonggu/KIOKU/pull/1) · [Vercel 배포 상세](https://vercel.com/gugonggus-projects/kioku/Jw3FishZyL3BH9vjQLheAPUPNzyd)
+- 운영 `/login`은 200, 비로그인 `/trips`와 `/trips/new`는 `/login`으로 307, 미인증 장소 검색은 401을 반환했습니다. `/s`는 200과 `no-store`·`no-referrer`·`noindex` 헤더를 반환했습니다. Chrome 320·390·1440px에서 로그인 버튼과 가로 너비를 확인했습니다. Supabase Auth 공개 설정은 Google·이메일 활성화와 신규 가입 차단을 표시합니다. 운영 계정 로그인과 여행 데이터 변경은 별도 검증 항목입니다. [Supabase 검증 기록](supabase/README.md)
+- Vercel 방식으로 받은 공유 주소에서 같은 탭의 링크를 바꾸면 이전 여행 화면이 남는 문제를 수정했습니다. 링크를 바꾸거나 뒤로 가면 대상 링크를 다시 확인합니다. 일정·장소·예약 바로가기는 링크 주소를 유지하며 해당 섹션 제목으로 키보드 초점을 이동합니다.
+- 4박 5일 격리 픽스처로 여행 날짜 탐색, 일정의 시각과 순서 조정, 지도 장소 연결, 예약 연결 및 공유 흐름을 점검했습니다. 320px 동행자 화면은 날짜 터치 조작, 시간 미정 일정, 빈 날짜를 확인했습니다. 실제 일정 입력 전에는 운영에서 기존 여행과 겹치는지 확인하고 확인된 장소·예약 정보만 입력합니다. Geoapify 실검색과 iPhone·Android 실기기 확인은 별도로 진행합니다.
+- Node.js `24.11.1`에서 `npm run lint`, `npm run typecheck`, `npm run build`, 단위 13건, PGlite DB 15건, PowerShell 설정 복원 테스트, Chrome E2E 35건을 통과했습니다. `PLAYWRIGHT_BASE_PORT=4300`과 `PLAYWRIGHT_CHANNEL=chrome`으로 E2E를 실행했습니다. 별도 실제 OpenFreeMap 테스트 1건도 통과했습니다.
 
 ## Supabase 이메일 로그인 설정
 
