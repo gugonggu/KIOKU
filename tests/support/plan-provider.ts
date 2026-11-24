@@ -19,6 +19,19 @@ export async function handlePlanRequest({ database, userId, method, url, readJso
     return send(200, rows[0].result);
   }
   if (!userId) return send(401, { message: "fixture session required" });
+  if (url.pathname === "/rest/v1/trip_memory_entries" && method !== "GET") {
+    const trip = url.searchParams.get("trip_id")?.slice(3);
+    const id = url.searchParams.get("id")?.slice(3);
+    const { rows } = await asUser(database, userId, async (tx) => {
+      if (method === "DELETE") return tx.query("delete from public.trip_memory_entries where trip_id=$1 and id=$2 returning id", [trip,id]);
+      const body = await readJson();
+      const values = [body.day,body.title,body.body,body.place_id,body.schedule_id];
+      if (method === "POST") return tx.query("insert into public.trip_memory_entries(id,trip_id,day,title,body,place_id,schedule_id) values ($1,$2,$3,$4,$5,$6,$7) returning id",
+        [body.id,body.trip_id,...values]);
+      return tx.query("update public.trip_memory_entries set day=$3,title=$4,body=$5,place_id=$6,schedule_id=$7 where trip_id=$1 and id=$2 returning id",[trip,id,...values]);
+    });
+    return send(method === "POST" ? 201 : 200, rows[0] as Json ?? null);
+  }
   if (url.pathname === "/rest/v1/trip_expenses" && method !== "GET") {
     const trip = url.searchParams.get("trip_id")?.slice(3);
     const id = url.searchParams.get("id")?.slice(3);
@@ -63,6 +76,10 @@ export async function handlePlanRequest({ database, userId, method, url, readJso
     let query: string;
     let args: unknown[];
     switch (url.pathname) {
+      case "/rest/v1/rpc/set_trip_visit":
+        query = "select public.set_trip_visit($1,$2,$3) as result";
+        args = [body.p_trip,body.p_schedule,body.p_status];
+        break;
       case "/rest/v1/rpc/save_trip_budget":
         query = "select public.save_trip_budget($1,$2,$3,$4) as result";
         args = [body.p_trip, body.p_amount, body.p_rate, body.p_people];
@@ -140,6 +157,15 @@ export async function handlePlanRequest({ database, userId, method, url, readJso
   const booking = url.searchParams.get("booking_id")?.match(/^eq\.(.+)$/)?.[1] ?? null;
   let query: string;
   switch (url.pathname) {
+    case "/rest/v1/trip_memory_entries":
+      query = "select id,trip_id,day::text,title,body,place_id,schedule_id,created_at from public.trip_memory_entries where trip_id=$1 order by day,created_at,id";
+      break;
+    case "/rest/v1/trip_memory_photos":
+      query = "select * from public.trip_memory_photos where trip_id=$1 order by day,sort_order,id";
+      break;
+    case "/rest/v1/trip_visit_marks":
+      query = "select trip_id,schedule_id,status from public.trip_visit_marks where trip_id=$1 order by schedule_id";
+      break;
     case "/rest/v1/trip_budgets":
       query = "select trip_id,budget_krw,rate,people from public.trip_budgets where trip_id=$1";
       break;

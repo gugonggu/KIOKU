@@ -11,7 +11,14 @@ export async function createTripsDatabase(options = {}) {
     await database.exec(`
       create role anon;
       create role authenticated;
+      create role service_role bypassrls;
       create schema auth;
+      create schema storage;
+      create table storage.buckets (id text primary key, name text not null, public boolean not null, file_size_limit integer, allowed_mime_types text[]);
+      create table storage.objects (bucket_id text not null references storage.buckets(id), name text not null);
+      alter table storage.objects enable row level security;
+      grant usage on schema storage to authenticated;
+      grant select on storage.objects to authenticated;
       create table auth.users (id uuid primary key);
       create function auth.jwt() returns jsonb language sql stable
         as $$ select nullif(current_setting('request.jwt.claims', true), '')::jsonb $$;

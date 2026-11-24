@@ -5,6 +5,7 @@ const config: NextConfig = {
   poweredByHeader: false,
   devIndicators: false,
   agentRules: false,
+  experimental: { serverActions: { bodySizeLimit: "4mb" } },
   logging: { incomingRequests: { ignore: [/^\/auth\/confirm(?:\?|$)/, /^\/api\/places\/search(?:\?|$)/,
     /^\/(?:s|api\/shared)(?:\/|\?|$)/] } },
   outputFileTracingIncludes: { "/map-assets/**": ["./node_modules/maplibre-gl/dist/maplibre-gl-{worker,shared}.mjs"] },
@@ -15,7 +16,7 @@ const config: NextConfig = {
     }, ...["/trips/:path*", "/login", "/auth/:path*"].map((source) => ({
       source,
       headers: [{ key: "Cache-Control", value: "private, no-store" }],
-    })), ...["/s/:path*", "/api/shared/:path*", "/api/offline/:path*"].map((source) => ({
+    })), ...["/s/:path*", "/api/shared/:path*", "/api/offline/:path*", "/api/memory/:path*"].map((source) => ({
       source,
       headers: [
         { key: "Cache-Control", value: "private, no-store" },

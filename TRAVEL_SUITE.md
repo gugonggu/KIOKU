@@ -24,3 +24,17 @@ Node.js 24 환경에서 `npm ci` 후 `npm run lint`, `npm run typecheck`, `npm r
 빌드 후 `npm test -- --grep 'suite '`로 네 기능의 시나리오를 재현할 수 있습니다. 삿포로 가상 여행에서 준비 항목을 체크하고 숙소 예약액을 가져와 세 명으로 나눕니다. 저장한 수첩을 연결 없이 열고 A4 PDF를 생성합니다. Chromium의 PDF는 해당 테스트의 `test-results` 아래 `kioku-guide-a4.pdf`에 남습니다. WebKit은 오프라인 열람과 인쇄 미리보기를 확인합니다.
 
 실기기 수용 테스트에서는 Android Chrome의 앱 설치와 iPhone Safari의 홈 화면 추가, 앱을 닫고 비행기 모드로 다시 열기, 네이티브 인쇄 메뉴의 A4/PDF 저장을 확인합니다. Preview에서 쓰기 검증을 할 때는 Preview가 격리 DB를 사용하는지 먼저 확인합니다.
+
+## M7~M10 운영 반영
+
+2026-11-24 로컬 Supabase에서 기존 마이그레이션과 신규 두 건을 적용했습니다. 실제 PostgREST에서 두 계정의 여행·준비·경비 격리, 익명 접근 차단, 예약 삭제 시 지출 보존, 교차 여행 참조·중복·환불 제약과 공유 DTO를 검증했습니다.
+
+운영 역할·스키마·데이터·이력 덤프 5개를 Windows DPAPI로 암호화하고 복호화 SHA-256을 비교했습니다. 주요 테이블 8개의 COPY 행 건수를 운영 집계와 대조했습니다. 적용 전후 운영 행 건수와 RLS를 확인했습니다. [운영 PR #5](https://github.com/gugonggu/KIOKU/pull/5)
+
+대표 도메인은 `3b06de366dea32d59f75bba4556e1b87eb231791`를 제공하며 배포 ID는 `dpl_3Mm1VpwkPtoaPQCNWso3FFJRZAKo`입니다. 로그인, 비로그인 보호 경로, 오프라인 화면·매니페스트, 공유 오류 응답을 읽기 전용으로 확인했습니다. 직전 앱 롤백 배포는 `dpl_3awQZHbi1SZjS4gbEzjuRcrVhta4`입니다. [Vercel Production](https://vercel.com/gugonggus-projects/kioku/3Mm1VpwkPtoaPQCNWso3FFJRZAKo)
+
+## 여행 기억
+
+**더보기 → 여행 기억**에서 일본 현지 날짜별 일기, 사진, 방문 상태를 관리합니다. 일기와 사진은 소유자만 열람합니다. 사진은 여행당 24장, 계정당 120장입니다. 3.8MB 이하의 JPEG·PNG·WebP를 받아 최대 1440px, 512KiB 이하 JPEG로 변환하고 EXIF를 제거합니다. 여행을 지우기 전에 사진 정리를 완료해야 합니다. 공유 링크, 오프라인 수첩이나 PDF에 기억을 포함하지 않습니다.
+
+Node.js 24에서 `npm run build` 후, 모든 마이그레이션을 적용한 로컬 Supabase의 `supabase status -o json` 값을 테스트 환경변수 `KIOKU_LOCAL_SUPABASE`에 넣어 `node tests/isolated-memory.mjs`로 실제 Storage와 Chrome 검증을 실행합니다. 스크립트는 루프백만 사용합니다. 생성한 사진의 EXIF 제거, 보호 API와 Storage의 교차 계정 접근 거부, 대표 사진 선택, 삭제를 검증합니다. 실기기 카메라 입력은 별도로 검증합니다.

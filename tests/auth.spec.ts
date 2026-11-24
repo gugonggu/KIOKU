@@ -195,6 +195,7 @@ test.beforeAll(async () => {
       "/rest/v1/rpc/read_shared_trip", "/rest/v1/rpc/read_share_settings", "/rest/v1/rpc/write_share_settings",
       "/rest/v1/trip_preparation", "/rest/v1/rpc/apply_preparation_template", "/rest/v1/rpc/move_preparation",
       "/rest/v1/trip_budgets", "/rest/v1/trip_expenses", "/rest/v1/rpc/save_trip_budget",
+      "/rest/v1/trip_memory_entries", "/rest/v1/trip_memory_photos", "/rest/v1/trip_visit_marks", "/rest/v1/rpc/set_trip_visit",
       "/rest/v1/rpc/save_booking", "/rest/v1/rpc/delete_booking", "/rest/v1/rpc/save_trip_place", "/rest/v1/rpc/delete_trip_place",
       "/rest/v1/rpc/authorize_place_search", "/rest/v1/rpc/save_itinerary_item", "/rest/v1/rpc/update_trip_period",
       "/rest/v1/rpc/swap_itinerary_items", "/rest/v1/rpc/place_itinerary_item"].includes(url.pathname)) {
@@ -220,6 +221,7 @@ test.beforeEach(async () => {
   pkceChallenge = undefined;
   await database.exec("truncate table public.booking_private_details, public.flight_segments, public.stay_details, public.tour_details, " +
     "kioku_private.trip_share_links, public.trip_expenses, public.trip_budgets, public.trip_preparation, " +
+    "public.trip_memory_entries, public.trip_memory_photos, public.trip_visit_marks, " +
     "public.bookings, public.itinerary_items, public.trip_places, public.trips");
 });
 
@@ -413,6 +415,29 @@ test("suite guide prints a private-field-free A4 Sapporo notebook and applies ou
   await expect(preview.getByText(/小樽運河/)).toHaveCount(0);
   await expect(preview.getByText("오타루 산책", { exact: false })).toBeVisible();
   await expect(preview.getByText(/500,000원/)).toBeVisible();
+});
+
+test("memory archive saves a standalone private diary and manual visit status", async ({ page, request }) => {
+  const trip = await seedFiveDayTrip("겨울 기록 테스트");
+  const tripId = trip.split("/").at(-1)!;
+  await asUser(database, ownerA, (tx) => tx.query("insert into public.itinerary_items(trip_id,title,local_date) values ($1,'오타루 가상 방문','2027-02-19')", [tripId]));
+  await page.setViewportSize({ width: 320, height: 844 });
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  await page.goto(trip + "/memory?date=2027-02-19&write=1");
+  await page.getByLabel("일기 제목").fill("첫 가상 기억");
+  await page.getByLabel("일기 본문").fill("소유자만 보는 가상 일기");
+  await page.getByRole("button", { name: "일기 저장", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "첫 가상 기억" })).toBeVisible();
+  await expect(page.getByLabel("방문 상태", { exact: false })).toHaveValue("planned");
+  await page.getByLabel("방문 상태", { exact: false }).selectOption("visited");
+  await page.getByRole("button", { name: "방문 상태 저장" }).click();
+  await page.reload();
+  await expect(page.getByLabel("방문 상태", { exact: false })).toHaveValue("visited");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const guest = await request.get("/api/memory/" + tripId + "/" + randomUUID());
+  expect(guest.status()).toBe(401);
+  const snapshot = await page.request.get("/api/offline/" + tripId);
+  expect(await snapshot.text()).not.toContain("소유자만 보는 가상 일기");
 });
 
 test("Google PKCE keeps the existing owner session after refresh and browser restart", async ({}, testInfo) => {
