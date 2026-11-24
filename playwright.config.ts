@@ -6,8 +6,8 @@ export default defineConfig({
   testDir: "./tests",
   forbidOnly: Boolean(process.env.CI),
   use: {
-    ...devices["Desktop Chrome"],
-    channel: process.env.PLAYWRIGHT_CHANNEL,
+    ...(process.env.PLAYWRIGHT_BROWSER === "webkit" ? devices["Desktop Safari"] : devices["Desktop Chrome"]),
+    channel: process.env.PLAYWRIGHT_BROWSER === "webkit" ? undefined : process.env.PLAYWRIGHT_CHANNEL,
   },
   projects: [
     { name: "without-config", testMatch: "foundation.spec.ts", use: { baseURL: e2eUrls.unconfigured } },

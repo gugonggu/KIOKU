@@ -14,7 +14,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ko">
       <body>
-        <a className="skip-link" href="#main-content">본문으로 건너뛰기</a>
+        <a className="skip-link" href="#main-content" tabIndex={0}>본문으로 건너뛰기</a>
         {children}
       </body>
     </html>

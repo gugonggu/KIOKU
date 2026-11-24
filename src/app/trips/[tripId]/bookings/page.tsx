@@ -11,7 +11,7 @@ import { planDay } from "@/lib/trip-plan";
 import { getTrip } from "@/lib/trips";
 import { TripLoadError } from "../../trip-load-error";
 import { timeLabel, TripTabs } from "../editorial";
-import { itineraryHref } from "../itinerary/links";
+import { itineraryEntryHref, itineraryHref } from "../itinerary/links";
 import { deleteBooking, saveBooking } from "./actions";
 import { BookingBadge, BookingCard, BookingFacts, BookingKindLabel, BookingPrivate } from "./booking-card";
 import { BookingDelete, BookingEditor } from "./booking-editor";
@@ -39,7 +39,7 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
     loadBookingLinks(trip.id, item.id),
   ]) : [null, null];
   const linkDetails = links?.length ? <ul className="booking-impact-list">{links.map((entry) =>
-    <li key={entry.id}><span>{entry.title}</span><span className="plan-meta">
+    <li key={entry.id}><Link className="quiet-link" href={itineraryEntryHref(trip.id, entry, date)}>{entry.title}</Link><span className="plan-meta">
       {entry.local_date ? dateLabel(entry.local_date) : "날짜 미정"} · {timeLabel(entry)}
     </span></li>)}</ul> : null;
   const linkWarning = !links && <p className="notice notice-error" role="alert">연결된 일정을 불러오지 못했어요. 새로고침 후 다시 시도해 주세요.</p>;
@@ -89,7 +89,7 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
         {item.shared_note && <div><h3>공유용 메모</h3><p className="plan-notes">{item.shared_note}</p></div>}
         {privateResult?.data && <BookingPrivate data={privateResult.data} />}
         {privateResult?.error && <p className="notice notice-error" role="alert">비공개 정보를 불러오지 못했어요.</p>}
-        {linkDetails && <div><h3>연결된 일정</h3>{linkDetails}</div>}
+        {linkDetails ? <div><h3>연결된 일정</h3>{linkDetails}</div> : linkWarning}
         <Link className="primary-button booking-schedule-add"
           href={itineraryHref(trip.id, date, "add", undefined, !date) + "&booking=" + item.id}>
           <CalendarPlus size={17} aria-hidden />일정에 추가

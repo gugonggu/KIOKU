@@ -4,9 +4,11 @@ import { CalendarPlus, Copy, List, Map as MapIcon, MapPinOff, Navigation, Search
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 import { Blossom } from "@/components/brand";
-import { directionsUrl, filterPlaces, type PlaceFilter, type PlaceLink } from "@/lib/trip-places";
-import type { PlanPlace } from "@/lib/trip-plan-data";
-import { itineraryHref } from "../itinerary/links";
+import { dateLabel } from "@/lib/trip-details";
+import { directionsUrl, filterPlaces, type PlaceFilter } from "@/lib/trip-places";
+import type { PlaceVisit, PlanPlace } from "@/lib/trip-plan-data";
+import { timeLabel } from "../editorial";
+import { itineraryEntryHref, itineraryHref } from "../itinerary/links";
 import { mapHref } from "./links";
 import { MapCanvas, mapLatitudeLimit, type MapPin } from "./map-canvas";
 
@@ -17,7 +19,7 @@ function hasCoordinates({ latitude, longitude }: PlanPlace) {
 }
 
 export function PlacesView({ places, links, tripId, date, filter, initialPlace, itineraryDate, dayPicker }: {
-  places: PlanPlace[]; links: PlaceLink[]; tripId: string; date: string; filter: PlaceFilter; initialPlace?: string;
+  places: PlanPlace[]; links: PlaceVisit[]; tripId: string; date: string; filter: PlaceFilter; initialPlace?: string;
   itineraryDate: string | null; dayPicker?: ReactNode;
 }) {
   const [selected, setSelected] = useState(initialPlace);
@@ -46,6 +48,7 @@ export function PlacesView({ places, links, tripId, date, filter, initialPlace, 
   const directions = item ? directionsUrl(item) : null;
   const names = item ? [...new Set([item.name_ko, item.name_ja, item.name_en].filter((name) => name && name !== item.display_name))] : [];
   const linked = item ? visits.get(item.id) ?? 0 : 0;
+  const linkedItems = item ? links.filter((entry) => entry.place_id === item.id) : [];
   const scheduleHref = item && `${itineraryHref(tripId, filter === "date" ? date : itineraryDate, "add", undefined,
     !itineraryDate && filter !== "date")}&place=${item.id}`;
 
@@ -128,6 +131,12 @@ export function PlacesView({ places, links, tripId, date, filter, initialPlace, 
           {hasCoordinates(item) && !number && <p className="plan-meta">이 좌표는 지도 표시 범위 밖이에요.</p>}
           {item.notes && <p className="plan-notes">{item.notes}</p>}
           <p className="plan-meta">{linked ? `연결된 일정 ${linked}개` : "아직 연결된 일정이 없어요."}</p>
+          {linkedItems.length > 0 && <ul className="booking-impact-list">
+            {linkedItems.map((entry) => <li key={entry.id}>
+              <Link className="quiet-link" href={itineraryEntryHref(tripId, entry, itineraryDate)}>{entry.title}</Link>
+              <span className="plan-meta">{entry.local_date ? dateLabel(entry.local_date) : "후보함"} · {timeLabel(entry)}</span>
+            </li>)}
+          </ul>}
         </div>
         <div className="place-detail-actions">
           <Link className="primary-button" href={scheduleHref!}><CalendarPlus size={17} aria-hidden />일정에 추가</Link>

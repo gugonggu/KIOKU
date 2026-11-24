@@ -1,5 +1,5 @@
 import type { ScheduleFields, SchedulePeriod, ScheduleRow } from "./database.types";
-import { isCalendarDate, japanDate, type Trip } from "./trip-details.ts";
+import { isCalendarDate, japanDate, tripStatus, type Trip } from "./trip-details.ts";
 
 export const planLimits = { title: 100, notes: 1500 } as const;
 export const planCalendar = { type: "date", min: "0001-01-01", max: "9999-12-31" };
@@ -74,8 +74,12 @@ export function sortSchedule<Item extends GroupFields & Pick<ScheduleRow, "id" |
 }
 
 const japanClock = new Intl.DateTimeFormat("en-GB", {
-  timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
 });
+
+function clockSeconds(time: string) {
+  return time.length === 5 ? `${time}:00` : time.slice(0, 8);
+}
 
 export function nextFixedSchedule<Item extends GroupFields & Pick<ScheduleRow, "id" | "sort_order" | "local_date">>(
   items: Item[], now: Date,
@@ -83,5 +87,21 @@ export function nextFixedSchedule<Item extends GroupFields & Pick<ScheduleRow, "
   const date = japanDate(now);
   const time = japanClock.format(now);
   return sortSchedule(items.filter((item) => item.local_date === date && item.time_mode === "FIXED"
-    && item.fixed_local_time && item.fixed_local_time.slice(0, 5) >= time))[0];
+    && item.fixed_local_time && clockSeconds(item.fixed_local_time) >= time))[0];
+}
+
+export function tripHomeDay(trip: DateRange, now: Date) {
+  const today = japanDate(now);
+  const status = tripStatus(trip, today);
+  const date = status === "past" ? trip.end_date : planDay(trip, undefined, today);
+  const start = trip.start_date;
+  const daysSinceStart = start ? (Date.parse(today) - Date.parse(start)) / 86_400_000 : 0;
+  const offset = status === "upcoming" ? -daysSinceStart : status === "active" ? daysSinceStart + 1 : null;
+  return { today, date, status, offset };
+}
+
+export function nextHomeRefresh(today: string, fixedTime?: string | null) {
+  if (fixedTime) return Date.parse(`${today}T${clockSeconds(fixedTime)}+09:00`) + 1000;
+  const tomorrow = shiftDay(today, 1);
+  return tomorrow ? Date.parse(`${tomorrow}T00:00:00+09:00`) : null;
 }

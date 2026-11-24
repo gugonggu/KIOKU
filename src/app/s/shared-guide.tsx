@@ -56,14 +56,18 @@ function datesFor(trip: SharedTrip, requested?: string) {
   const inRange = planDay(range, date, today);
   const nearby = inRange ? tripDays(range, inRange) : [];
   const edges = [date, trip.startDate, trip.endDate].filter((value): value is string => Boolean(value));
-  return { date, dates: [...new Set([...nearby, ...scheduled, ...edges])].sort() };
+  return { date, today, dates: [...new Set([...nearby, ...scheduled, ...edges, ...(planDay(range, undefined, today) === today ? [today] : [])])].sort() };
 }
 
 export function SharedGuide({ trip, requested, href, preserveFragment = false }: {
   trip: SharedTrip; requested?: string; href: (day: string) => string; preserveFragment?: boolean;
 }) {
-  const { date, dates } = datesFor(trip, requested);
+  const { date, today, dates } = datesFor(trip, requested);
   const entries = trip.schedule.filter((item) => item.date === date);
+  const dayPlaces = new Map<string, SharedPlace>();
+  for (const { place } of entries) {
+    if (place) dayPlaces.set(JSON.stringify([place.name, place.address, place.latitude, place.longitude]), place);
+  }
   const winter = /삿포로|홋카이도|札幌|北海道|sapporo|hokkaido/i.test(trip.destination);
   return <div className="editorial-page shared-guide">
     <article className="editorial-hero" id="guide-home">
@@ -85,7 +89,7 @@ export function SharedGuide({ trip, requested, href, preserveFragment = false }:
       {dates.length > 0 && <nav className="editorial-days" aria-label="공유 일정 날짜">
         {dates.map((day) => <a className="editorial-day" href={href(day)} key={day} aria-current={date === day ? "date" : undefined}>
           {trip.startDate && trip.endDate && day >= trip.startDate && day <= trip.endDate && <strong>Day {dayNumber(trip.startDate, day)}</strong>}
-          <time dateTime={day}>{dateLabel(day)}</time>
+          <time dateTime={day}>{dateLabel(day)}</time>{day === today && <span>오늘</span>}
         </a>)}
       </nav>}
       {entries.length ? <ol className="editorial-timeline">{entries.map((entry, index) => <li className="editorial-entry plan-entry" key={index}>
@@ -103,6 +107,14 @@ export function SharedGuide({ trip, requested, href, preserveFragment = false }:
     </section>
     <section id="guide-places" className="editorial-section">
       <h2 tabIndex={preserveFragment ? -1 : undefined}>장소와 지도</h2>
+      {date && <section aria-labelledby="shared-day-places" className="editorial-section">
+        <h3 id="shared-day-places">이날 방문 장소</h3>
+        {dayPlaces.size ? <ul className="places-cards">{[...dayPlaces].map(([key, place]) =>
+          <li key={key} className="editorial-paper shared-place">
+            <strong>{place.name}</strong>{place.address && <p className="plan-meta">{place.address}</p>}
+            <Directions place={place} />
+          </li>)}</ul> : <p className="plan-empty">이 날짜에 일정과 연결된 장소가 없어요.</p>}
+      </section>}
       {trip.places.length ? <div className="shared-places">
         <SharedMap places={trip.places} />
         <ol className="places-cards">{trip.places.map((place, index) => <li key={index} className="editorial-paper shared-place">

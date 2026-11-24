@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { nextFixedSchedule, parseSchedule, sortSchedule, outsideTrip, planDay, shiftDay } from "../src/lib/trip-plan.ts";
+import { nextFixedSchedule, nextHomeRefresh, parseSchedule, sortSchedule, outsideTrip, planDay, shiftDay, tripHomeDay } from "../src/lib/trip-plan.ts";
 
 function form(fields) {
   const data = new FormData();
@@ -55,6 +55,22 @@ test("next schedule uses the Japan date and clock and keeps explicit same-time o
     row("another day", "2027-02-18", "00:00:00", 0),
   ];
   assert.equal(nextFixedSchedule(input, new Date("2027-02-16T15:00:00Z"))?.id, "passed");
-  assert.equal(nextFixedSchedule(input, new Date("2027-02-17T00:00:25Z"))?.id, "same time first");
-  assert.equal(nextFixedSchedule(input, new Date("2027-02-17T00:01:00Z")), undefined);
+  assert.equal(nextFixedSchedule(input, new Date("2027-02-17T00:00:00Z"))?.id, "same time first");
+  assert.equal(nextFixedSchedule(input, new Date("2027-02-17T00:00:01Z")), undefined);
+});
+
+test("travel home counts Tokyo days and refreshes at the next change", () => {
+  const trip = { start_date: "2027-02-17", end_date: "2027-02-21" };
+  assert.deepEqual(tripHomeDay(trip, new Date("2027-02-16T14:59:59Z")), {
+    today: "2027-02-16", date: "2027-02-17", status: "upcoming", offset: 1,
+  });
+  assert.deepEqual(tripHomeDay(trip, new Date("2027-02-16T15:00:00Z")), {
+    today: "2027-02-17", date: "2027-02-17", status: "active", offset: 1,
+  });
+  assert.equal(tripHomeDay(trip, new Date("2027-02-20T15:00:00Z")).offset, 5);
+  assert.equal(tripHomeDay(trip, new Date("2027-02-21T15:00:00Z")).status, "past");
+  assert.equal(tripHomeDay(trip, new Date("2027-02-21T15:00:00Z")).date, "2027-02-21");
+  assert.equal(tripHomeDay({ start_date: null, end_date: null }, new Date("2027-02-16T15:00:00Z")).date, null);
+  assert.equal(nextHomeRefresh("2027-02-17", "09:00:00"), Date.parse("2027-02-17T00:00:01Z"));
+  assert.equal(nextHomeRefresh("2027-02-17"), Date.parse("2027-02-17T15:00:00Z"));
 });

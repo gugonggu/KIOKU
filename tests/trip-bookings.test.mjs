@@ -1,8 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseBooking } from "../src/lib/trip-bookings.ts";
+import { bookingOccursOn, parseBooking } from "../src/lib/trip-bookings.ts";
 import { parseSchedule } from "../src/lib/trip-plan.ts";
 
+test("dated bookings include both lodging endpoints and arrival dates while cancelled bookings stay out of today's list", () => {
+  const stay = { kind: "STAY", status: "CONFIRMED", stay: { check_in_local_date: "2027-02-17", check_out_local_date: "2027-02-21" } };
+  for (const date of ["2027-02-17", "2027-02-20", "2027-02-21"]) assert.equal(bookingOccursOn(stay, date), true);
+  assert.equal(bookingOccursOn(stay, "2027-02-22"), false);
+  assert.equal(bookingOccursOn({ ...stay, status: "CANCELLED" }, "2027-02-20", true), false);
+  assert.equal(bookingOccursOn({ kind: "FLIGHT", status: "CONFIRMED", segments: [{ arrival_local_date: "2027-02-21" }] }, "2027-02-21"), true);
+  assert.equal(bookingOccursOn({ kind: "TOUR", status: "PENDING" }, "2027-02-20", true), true);
+});
 function form(fields) {
   const data = new FormData();
   for (const [name, value] of Object.entries(fields)) data.set(name, value);
