@@ -81,6 +81,13 @@ Windows에서 `listen EACCES`로 개발 서버가 시작되지 않으면 `netsh 
 - 4박 5일 격리 픽스처로 여행 날짜 탐색, 일정의 시각과 순서 조정, 지도 장소 연결, 예약 연결 및 공유 흐름을 점검했습니다. 320px 동행자 화면은 날짜 터치 조작, 시간 미정 일정, 빈 날짜를 확인했습니다. 실제 일정 입력 전에는 운영에서 기존 여행과 겹치는지 확인하고 확인된 장소·예약 정보만 입력합니다. Geoapify 실검색과 iPhone·Android 실기기 확인은 별도로 진행합니다.
 - Node.js `24.11.1`에서 `npm run lint`, `npm run typecheck`, `npm run build`, 단위 13건, PGlite DB 15건, PowerShell 설정 복원 테스트, Chrome E2E 35건을 통과했습니다. `PLAYWRIGHT_BASE_PORT=4300`과 `PLAYWRIGHT_CHANNEL=chrome`으로 E2E를 실행했습니다. 별도 실제 OpenFreeMap 테스트 1건도 통과했습니다.
 
+### 2026-11-24 여행 중 모바일 사용성
+
+- 동행자 링크 전환 수정은 `fix/travel-readiness`의 `b312670`으로 PR #2를 열었습니다. 로컬 빌드와 Chrome 인증·소유자 격리·공유 회귀 7건을 다시 실행했습니다. [GitHub PR #2](https://github.com/gugonggu/KIOKU/pull/2)
+- `feature/trip-day-usability`는 PR #2 커밋에서 분기했습니다. 여행 기간 중 홈에서 일본 현지 오늘 일정과 다음 정시 일정으로 바로 이동하고, 연결 장소가 있으면 해당 날짜 지도의 장소 상세를 엽니다. 시간대·시간 미정 항목은 기존 날짜별 일정에 표시합니다. 일정 하단의 장소 탭은 내용에 따라 해당 날짜 또는 후보 장소를 엽니다. 일정에 연결된 예약은 일정 시각과 별도로 기존 예약 상태를 표시합니다.
+- 4박 5일, 3인 가상 여행에서 320px·1440px의 홈과 날짜별 지도 이동을 확인했습니다. 린트, 타입 검사, 프로덕션 빌드, 단위 14건, PGlite DB 15건, Chrome E2E 36건과 실제 OpenFreeMap 1건을 통과했습니다. Chrome은 `PLAYWRIGHT_BASE_PORT=4600`, `PLAYWRIGHT_CHANNEL=chrome`으로 실행했습니다.
+- 다음 검증은 iPhone과 Android의 홈 → 일정 → 장소 상세 및 실제 계정의 공유 흐름입니다. 운영 가상 여행 쓰기는 별도 승인 뒤 실행합니다.
+
 ## Supabase 이메일 로그인 설정
 
 1. `Copy-Item .env.example .env.local`로 로컬 설정 파일을 만들고 아래 값을 입력합니다.

@@ -1,6 +1,7 @@
 import { createHash, generateKeyPairSync, randomUUID, sign } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { chromium, expect, test } from "@playwright/test";
+import { japanDate } from "../src/lib/trip-details";
 import { e2eHost, e2ePorts, e2eUrls } from "./support/e2e-ports";
 import { handlePlanRequest } from "./support/plan-provider";
 import { asUser, createTripsDatabase, ownerA, ownerB } from "./support/trips-db.mjs";
@@ -525,6 +526,50 @@ async function seedFiveDayTrip(title: string) {
   `, [title]));
   return `/trips/${trip.id}`;
 }
+
+test("travel-day home opens the next timed place and the selected day's map on mobile", async ({ page }) => {
+  const today = japanDate();
+  const trip = await asUser(database, ownerA, async (tx) => {
+    const { rows: [trip] } = await tx.query<{ id: string }>(`insert into public.trips
+      (title,destination_label,start_date,end_date,traveler_count)
+      values ('가상 겨울 수첩','홋카이도',$1::date-2,$1::date+2,3) returning id`, [today]);
+    const { rows: [place] } = await tx.query<{ id: string }>(`insert into public.trip_places
+      (trip_id,display_name) values ($1,'가상 시내 짐 보관소') returning id`, [trip.id]);
+    await tx.query(`insert into public.trip_places (trip_id,display_name) values ($1,'다른 날 후보 장소')`, [trip.id]);
+    await tx.query(`insert into public.itinerary_items (trip_id,title,local_date,time_mode,fixed_local_time,place_id)
+      values ($1,'짐 찾기',$2::date,'FIXED','23:59',$3),
+             ($1,'짐 찾기',$2::date+1,'FIXED','23:59',$3),
+             ($1,'유동 일정',$2::date,'UNSCHEDULED',null,null)`, [trip.id, today, place.id]);
+    return trip.id;
+  });
+  await page.setViewportSize({ width: 320, height: 844 });
+  await page.route(mapStyle, (route) => route.fulfill({ json: testStyle, headers: { "access-control-allow-origin": "*" } }));
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  await page.goto(`/trips/${trip}`);
+  const next = page.getByRole("region", { name: "다음 정시 일정" });
+  await expect(next).toBeInViewport();
+  await expect(next.getByText("23:59")).toBeVisible();
+  const nextPlace = next.getByRole("link", { name: "가상 시내 짐 보관소" });
+  await nextPlace.click();
+  await expect(page).toHaveURL(/filter=date&place=/);
+  await expect(page.getByRole("article", { name: "선택한 장소" }).getByRole("heading", { name: "가상 시내 짐 보관소" })).toBeVisible();
+  await page.goBack();
+  const todayLink = page.getByRole("link", { name: "오늘 일정 바로가기" });
+  await expect(todayLink).toHaveAttribute("href", /\/itinerary\?date=\d{4}-\d{2}-\d{2}$/);
+  await todayLink.click();
+  await expect(page).toHaveURL(/\/itinerary\?date=\d{4}-\d{2}-\d{2}$/);
+  const day = new URL(page.url()).searchParams.get("date");
+  await expect(page.getByRole("heading", { name: "짐 찾기" })).toBeVisible();
+  await page.getByRole("navigation", { name: "여행 바로가기" }).getByRole("link", { name: "장소", exact: true }).click();
+  await expect(page).toHaveURL(`/trips/${trip}/map?date=${day}&filter=date`);
+  await expect(page.getByText("가상 시내 짐 보관소", { exact: true })).toBeVisible();
+  await expect(page.getByText("다른 날 후보 장소", { exact: true })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`/trips/${trip}`);
+  await expect(next.getByRole("link", { name: /짐 찾기/ })).toHaveAttribute("href", /#schedule-[0-9a-f-]+$/);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(1440);
+});
 
 test("M2 sorts five Japan travel days with three time modes on mobile and desktop", async ({ page }) => {
   const trip = await seedFiveDayTrip("겨울 여행");
@@ -1299,6 +1344,8 @@ test("M4 links and detaches schedules without overwriting the itinerary or delet
   await dialog.getByRole("button", { name: "일정 저장" }).click();
   const entry = page.locator("[data-schedule-id]").filter({ hasText: "투어 전 만남" });
   await expect(entry.getByRole("link", { name: "예약 · 가상 투어" })).toBeVisible();
+  await expect(entry.getByText("예약 필요", { exact: true })).toBeVisible();
+  await expect(entry.getByText("08:30", { exact: true })).toBeVisible();
   await entry.getByRole("link", { name: "투어 전 만남 일정 수정" }).click();
   await page.getByLabel("연결할 예약").selectOption("");
   await page.getByRole("button", { name: "일정 저장" }).click();

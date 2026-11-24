@@ -9,6 +9,7 @@ import { scheduleGroup, sortSchedule } from "@/lib/trip-plan";
 import type { PlanSchedule } from "@/lib/trip-plan-data";
 import type { BookingSummary } from "@/lib/trip-booking-data";
 import { timeLabel } from "../editorial";
+import { BookingBadge } from "../bookings/booking-card";
 import { mapHref } from "../map/links";
 import { bookingsHref } from "../bookings/links";
 import { changePlacement, reorderItinerary } from "./actions";
@@ -88,9 +89,12 @@ export function ScheduleList({ items, tripId, date, places, bookings, candidate 
                   {place.address && <span className="editorial-entry-address" title={place.address}>{place.address}</span>}
                 </span>
               </Link>}
-              {booking && <Link className="editorial-place-link" href={bookingsHref(tripId, date, "view", booking.id)}>
-                <Ticket size={14} aria-hidden /><span><strong>예약 · {booking.title}</strong></span>
-              </Link>}
+              {booking && <div className="editorial-entry-booking">
+                <Link className="editorial-place-link" href={bookingsHref(tripId, date, "view", booking.id)}>
+                  <Ticket size={14} aria-hidden /><span><strong>예약 · {booking.title}</strong></span>
+                </Link>
+                <BookingBadge status={booking.status} />
+              </div>}
               {item.private_note && <p className="plan-notes">개인 메모 · {item.private_note}</p>}
               {item.shared_note && <p className="plan-notes">공유용 메모 · {item.shared_note}</p>}
             </div>

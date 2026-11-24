@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseSchedule, sortSchedule, outsideTrip, planDay, shiftDay } from "../src/lib/trip-plan.ts";
+import { nextFixedSchedule, parseSchedule, sortSchedule, outsideTrip, planDay, shiftDay } from "../src/lib/trip-plan.ts";
 
 function form(fields) {
   const data = new FormData();
@@ -39,4 +39,22 @@ test("Japan calendar navigation and period boundaries ignore undated candidates"
   assert.equal(outsideTrip(trip, null), false);
   assert.equal(outsideTrip(trip, "2027-02-16"), true);
   assert.equal(outsideTrip(trip, "2027-02-21"), false);
+});
+
+test("next schedule uses the Japan date and clock and keeps explicit same-time ordering", () => {
+  const row = (id, local_date, fixed_local_time, sort_order, time_mode = "FIXED") => ({
+    id, local_date, fixed_local_time, sort_order, time_mode, period: time_mode === "PERIOD" ? "MORNING" : null,
+  });
+  const input = [
+    row("previous day", "2027-02-16", "23:59:00", 0),
+    row("passed", "2027-02-17", "08:59:00", 0),
+    row("same time second", "2027-02-17", "09:00:00", 2),
+    row("same time first", "2027-02-17", "09:00:00", 1),
+    row("period", "2027-02-17", null, 0, "PERIOD"),
+    row("flexible", "2027-02-17", null, 0, "UNSCHEDULED"),
+    row("another day", "2027-02-18", "00:00:00", 0),
+  ];
+  assert.equal(nextFixedSchedule(input, new Date("2027-02-16T15:00:00Z"))?.id, "passed");
+  assert.equal(nextFixedSchedule(input, new Date("2027-02-17T00:00:25Z"))?.id, "same time first");
+  assert.equal(nextFixedSchedule(input, new Date("2027-02-17T00:01:00Z")), undefined);
 });

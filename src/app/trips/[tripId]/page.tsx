@@ -5,13 +5,14 @@ import { Cover } from "@/components/cover";
 import { loadBookingSummaries } from "@/lib/trip-booking-data";
 import { bookingKinds } from "@/lib/trip-bookings";
 import { dateLabel, japanDate } from "@/lib/trip-details";
-import { planDay, sortSchedule } from "@/lib/trip-plan";
+import { nextFixedSchedule, planDay, sortSchedule } from "@/lib/trip-plan";
 import { loadTripPlan } from "@/lib/trip-plan-data";
 import { getTrip } from "@/lib/trips";
 import { TripLoadError } from "../trip-load-error";
 import { TripSummary } from "../trip-summary";
 import { DayCards, timeLabel, TripTabs } from "./editorial";
 import { itineraryHref } from "./itinerary/links";
+import { mapHref } from "./map/links";
 import { BookingBadge, BookingKindLabel } from "./bookings/booking-card";
 import { bookingsHref } from "./bookings/links";
 
@@ -21,7 +22,8 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
   const { tripId } = await params;
   const { data: trip, error } = await getTrip(tripId);
   if (error || !trip) return <TripLoadError />;
-  const today = japanDate();
+  const now = new Date();
+  const today = japanDate(now);
   const date = planDay(trip, undefined, today);
   const [plan, bookings] = await Promise.all([loadTripPlan(trip.id), loadBookingSummaries(trip.id)]);
   const href = `/trips/${trip.id}`;
@@ -31,6 +33,8 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
     if (item.local_date && !groups.has(item.local_date)) groups.set(item.local_date, item.title);
   }
   const dayItems = date ? sortSchedule(plan?.schedule.filter((item) => item.local_date === date) ?? []) : [];
+  const nextItem = date === today ? nextFixedSchedule(dayItems, now) : undefined;
+  const nextPlace = nextItem?.place_id ? plan?.places.find((place) => place.id === nextItem.place_id) : undefined;
   const candidateCount = plan?.schedule.filter((item) => !item.local_date).length;
   const winterCover = /삿포로|홋카이도|札幌|北海道|sapporo|hokkaido/i.test(trip.destination_label);
 
@@ -52,9 +56,21 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
         <h1>{trip.title}</h1>
         <TripSummary trip={trip} showTravelers={!plan} />
         {!date && <Link href={`${href}/edit#trip-dates`} className="quiet-link">날짜 정하기</Link>}
-        {date && <Link href={scheduleHref} className="quiet-link editorial-hero-shortcut">이날 일정 바로가기<ChevronRight size={15} aria-hidden /></Link>}
+        {date && <Link href={scheduleHref} className="quiet-link editorial-hero-shortcut">
+          {date === today ? "오늘 일정 바로가기" : "이날 일정 바로가기"}<ChevronRight size={15} aria-hidden />
+        </Link>}
       </div>
     </article>
+    {nextItem && <section className="editorial-paper editorial-up-next" aria-labelledby="trip-next-heading">
+      <h2 id="trip-next-heading">다음 정시 일정</h2>
+      <Link className="quiet-link" href={`${scheduleHref}#schedule-${nextItem.id}`}>
+        <span className="editorial-time">{timeLabel(nextItem)}</span><strong>{nextItem.title}</strong>
+        <ChevronRight size={16} aria-hidden />
+      </Link>
+      {nextPlace && <Link className="quiet-link" href={mapHref(trip.id, { date, filter: "date", place: nextPlace.id })}>
+        <MapPin size={16} aria-hidden /><strong>{nextPlace.name}</strong>
+      </Link>}
+    </section>}
     {plan ? <dl className="editorial-stats" aria-label="여행 요약">
       <div><CalendarDays aria-hidden /><dt>일정</dt><dd>{plan.schedule.length}개</dd></div>
       <div><MapPin aria-hidden /><dt>저장한 장소</dt><dd>{plan.places.length}개</dd></div>

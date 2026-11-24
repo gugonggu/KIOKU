@@ -1,5 +1,5 @@
 import type { ScheduleFields, SchedulePeriod, ScheduleRow } from "./database.types";
-import { isCalendarDate, type Trip } from "./trip-details.ts";
+import { isCalendarDate, japanDate, type Trip } from "./trip-details.ts";
 
 export const planLimits = { title: 100, notes: 1500 } as const;
 export const planCalendar = { type: "date", min: "0001-01-01", max: "9999-12-31" };
@@ -71,4 +71,17 @@ export function scheduleGroup(item: GroupFields) {
 export function sortSchedule<Item extends GroupFields & Pick<ScheduleRow, "id" | "sort_order">>(items: Item[]) {
   return [...items].sort((first, second) => scheduleGroup(first).localeCompare(scheduleGroup(second))
     || first.sort_order - second.sort_order || first.id.localeCompare(second.id));
+}
+
+const japanClock = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+});
+
+export function nextFixedSchedule<Item extends GroupFields & Pick<ScheduleRow, "id" | "sort_order" | "local_date">>(
+  items: Item[], now: Date,
+) {
+  const date = japanDate(now);
+  const time = japanClock.format(now);
+  return sortSchedule(items.filter((item) => item.local_date === date && item.time_mode === "FIXED"
+    && item.fixed_local_time && item.fixed_local_time.slice(0, 5) >= time))[0];
 }
