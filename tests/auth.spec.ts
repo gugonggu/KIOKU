@@ -564,12 +564,19 @@ test("review skip link moves focus and preserves the companion URL and selected 
   await expect(skip).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.locator("#main-content")).toBeFocused();
+  await page.context().clearCookies();
+
+  let requests = 0;
+  page.on("request", (request) => {
+    if (request.method() === "POST" && new URL(request.url()).pathname === "/api/shared") requests++;
+  });
 
   for (const query of ["", "?date=2027-02-18"]) {
     await page.goto(`/s${query}#${token}`);
     const heading = page.getByRole("heading", { name: query ? "둘째 날 가상 산책" : "검수용 가상 동행 수첩" });
     await expect(heading).toBeVisible();
     const before = sharedReads;
+    const beforeRequests = requests;
     await page.keyboard.press("Tab");
     await expect(skip).toBeFocused();
     await page.keyboard.press("Enter");
@@ -580,6 +587,7 @@ test("review skip link moves focus and preserves the companion URL and selected 
     if (query) await expect(page.getByRole("navigation", { name: "공유 일정 날짜" }).getByRole("link", { name: /Day 2/ }))
       .toHaveAttribute("aria-current", "date");
     expect(sharedReads).toBe(before);
+    expect(requests).toBe(beforeRequests);
     expect(await page.locator("#main-content").evaluate((main) => Math.abs(main.getBoundingClientRect().top))).toBeLessThan(2);
   }
 });

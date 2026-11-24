@@ -102,6 +102,32 @@ Windows에서 `listen EACCES`로 개발 서버가 시작되지 않으면 `netsh 
 - 실기기 확인 순서는 iPhone Safari와 Android Chrome에서 로그인 → 홈 → 오늘 일정 → 장소 상세 → 외부 지도 → 예약·공유입니다. 키보드를 연 상태에서 편집·저장, 하단 탭과 안전 영역, 지도 제스처, 느린 네트워크와 뒤로 가기를 확인합니다.
 - 승인 후 PR #2를 먼저 병합하고, PR #3의 기준을 `main`으로 바꾼 뒤 변경 범위와 CI를 다시 확인합니다. `main`은 Vercel Production 추적 브랜치입니다. 장애 시 배포 직전의 Ready 배포로 Vercel에서 롤백하고, 원인 수정과 Git 되돌리기는 별도 PR로 검토합니다. [Vercel Git 연동](https://vercel.com/docs/git#production-branch)
 
+### 2026-11-24 M6 독립 검수
+
+- **본문 건너뛰기.** 격리 Chrome에서 `/s`의 건너뛰기 링크가 URL 프래그먼트를 바꾸는 문제를 재현했습니다. 프래그먼트 공유 화면에서는 버튼이 `main-content`로 초점과 스크롤만 옮깁니다. 일반 화면은 기존 링크 동작을 사용합니다. PR #2가 해시 변경을 재검증하기 때문에 단독 운영 반영 전에 이 수정 커밋을 PR #2에 넣었고, PR #3은 그 커밋을 조상으로 포함합니다.
+- **공유 조회 장애.** 로컬 앱이 격리 Supabase RPC의 오류를 `404`로 처리하는 문제를 재현했습니다. JSON API 두 경로에서 정상 조회는 `200`, 무효·철회 링크는 공통 `404`, RPC·연결 장애는 상세 정보 없는 `503`을 응답합니다. 프래그먼트와 경로 기반 화면 모두 장애에서 재시도할 수 있습니다. 이 변경은 PR #3에 있습니다. RLS·공유 DTO·DB 스키마와 마이그레이션은 기존과 동일합니다.
+- **브라우저 이력.** 기존 `ShareRefresh`의 합성 `pageshow.persisted` 테스트와 철회 후 실제 브라우저 뒤로·앞으로 이동을 검증합니다. BFCache 비활성화 실행 옵션을 뺀 로컬 Chrome에서도 새 탐색이 관찰되었습니다. 실제 BFCache 복원과 복원 직후 프레임에 대한 검증은 남아 있습니다.
+- **최종 로컬 검증.** 린트·타입 검사·빌드, 단위 16건, PGlite DB 15건, 전체 Chrome 43건, Windows WebKit 선별 10건, 실제 OpenFreeMap 1건을 통과했습니다. `PLAYWRIGHT_BROWSER=webkit`에서 `review skip link`, `review shared server`를 포함해 실행했습니다. 건너뛰기 테스트는 브라우저의 POST 요청과 서버의 공유 RPC 호출이 둘 다 늘지 않는지 확인합니다.
+
+#### 실기기 점검
+
+| 흐름 | iPhone Safari와 Android Chrome에서 확인할 항목 |
+| --- | --- |
+| 인증과 홈 | Google 로그인, 여행 홈, 날짜별 이동, 오늘 일정, 다음 일정에서 장소 상세 열기 |
+| 지도 | 확대·이동 제스처, 외부 지도 앱 열기 |
+| 편집 | 일정 입력 중 키보드, 하단 Safe Area, 모달과 편집 화면의 저장·닫기 |
+| 동행자 | 비로그인 링크 열기, 날짜 변경, 키보드 본문 이동, 뒤로·앞으로 이동 |
+| 장애 | 느린 네트워크, 공유 링크 오류와 재시도, 철회된 링크의 이전 화면 잔존 여부 |
+
+PC에서는 `npm run build` 후 `npm test -- --grep 'review skip link\|review shared server\|companion history' --headed`로 가상 5일 여행과 격리 DB를 확인합니다. 실기기의 로그인·수정·철회는 별도로 승인된 테스트 전용 Auth·DB와 HTTPS 주소에서 진행합니다. Git 연동 Preview는 Vercel 인증이 필요하고, DB 분리가 확인되기 전에는 데이터 변경 테스트를 보류합니다.
+
+#### 장소 검색과 릴리스
+
+- Geoapify 실검색은 개발 키가 없어 미실행입니다. 승인된 개발 환경의 서버 전용 `GEOAPIFY_API_KEY`가 준비되면 격리 여행에서 한국어·일본어 검색어를 한 번씩 붙여넣고 각 결과의 이름·주소·좌표를 확인합니다. `429`이면 중단합니다. 키 누락·빈 결과·오류 시 수동 등록과 기존 지도·길찾기를 사용할 수 있어 실검색만을 병합 차단 조건으로 두지 않습니다. 무료 인프라 정책은 유지합니다.
+- 승인 후 PR #2를 일반 Merge Commit으로 `main`에 병합하고 Production `Ready`를 확인합니다. PR #3의 기준을 `main`으로 바꾸고 `git merge-base --is-ancestor <PR2 HEAD> origin/main`과 `git diff origin/main...HEAD`로 조상 관계와 리뷰 범위를 확인합니다. 최신 `main`으로 CI와 통합 검증을 실행한 뒤 Draft를 해제하고 검수합니다. PR #3 병합 뒤 Production 자동 배포와 읽기 전용 스모크를 확인합니다. Squash 또는 Rebase가 필요한 경우 최신 `main`의 별도 브랜치에 PR #3 전용 커밋만 순서대로 적용하고 diff·CI를 검증한 뒤 대체 PR을 승인받습니다.
+- 첫 운영 변경 전 롤백 지점은 `2a85bf1`의 Ready 배포입니다. PR #2 배포 후에는 PR #3 직전 Ready 운영 배포도 기록합니다. 장애 시 승인 후 Vercel에서 직전 배포로 롤백하고 읽기 전용 스모크를 다시 실행합니다. [Vercel Git 연동](https://vercel.com/docs/git#production-branch) · [Instant Rollback](https://vercel.com/docs/instant-rollback)
+- 실사용 안정화 후 후보는 여행 준비 체크리스트, PWA·오프라인 열람, 여행 예산·경비, PDF 여행 가이드, 여행 사진·추억 기록입니다.
+
 ## Supabase 이메일 로그인 설정
 
 1. `Copy-Item .env.example .env.local`로 로컬 설정 파일을 만들고 아래 값을 입력합니다.
