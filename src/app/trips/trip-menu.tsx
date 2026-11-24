@@ -4,11 +4,23 @@ import { BookOpen, Ellipsis, LogOut, Plus } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useActionState } from "react";
+import { finishOfflineSignout, forgetOfflineOwner } from "../../../public/offline-store.js";
 import { signOut } from "./actions";
 
 export function TripMenu() {
   const path = usePathname();
-  const [state, action, pending] = useActionState(signOut, { failed: false });
+  const [state, action, pending] = useActionState(async () => {
+    try {
+      try {
+        await forgetOfflineOwner();
+      } catch {
+        return { failed: true };
+      }
+      return await signOut();
+    } finally {
+      finishOfflineSignout();
+    }
+  }, { failed: false });
   const inPlanner = /^\/trips\/[^/]+(?:\/(?:itinerary|map|bookings|share))?$/.test(path) && path !== "/trips/new";
   const newTrip = <Link href="/trips/new" aria-current={path === "/trips/new" ? "page" : undefined}>
     <Plus size={18} aria-hidden="true" />새 여행

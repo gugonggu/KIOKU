@@ -255,6 +255,40 @@ test("suite preparation applies templates once and updates the travel home", asy
   await expect(page.getByText("14개 중 1개 완료 · 7%")).toBeVisible();
 });
 
+test("suite offline saves an owner snapshot, reloads disconnected and clears on sign out", async ({ page, context, request }) => {
+  const trip = await seedFiveDayTrip("가상 오프라인 삿포로");
+  const tripId = trip.split("/").at(-1)!;
+  const endpoint = "/api/offline/" + tripId;
+  expect((await request.get(endpoint)).status()).toBe(401);
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  await page.goto(trip + "/offline");
+  const response = await page.request.get(endpoint);
+  expect(response.headers()["cache-control"]).toContain("no-store");
+  expect(Object.keys(await response.json()).sort()).toEqual(["owner", "savedAt", "snapshot", "tripId"]);
+  await page.getByRole("button", { name: "오프라인 수첩 저장" }).click();
+  await expect(page.getByText("이 기기에 수첩을 저장했어요.")).toBeVisible();
+  const cached = await page.evaluate(async () => {
+    const names = await caches.keys();
+    const resources = await Promise.all(names.map(async (name) => (await (await caches.open(name)).keys()).map(({ url }) => new URL(url).pathname)));
+    return resources.flat();
+  });
+  expect(cached).toContain("/offline.html");
+  expect(cached.every((path) => !path.startsWith("/api/") && !path.startsWith("/trips/"))).toBe(true);
+
+  await context.setOffline(true);
+  const offline = await context.newPage();
+  await offline.goto("/offline.html?trip=" + tripId);
+  await expect(offline.getByRole("heading", { name: "가상 오프라인 삿포로" })).toBeVisible();
+  await offline.reload();
+  await expect(offline.getByText("인터넷 연결 없이 보고 있습니다.")).toBeVisible();
+  await expect(offline.getByRole("heading", { name: "가상 오프라인 삿포로" })).toBeVisible();
+  await context.setOffline(false);
+  await page.goto("/trips");
+  await page.getByRole("button", { name: "로그아웃" }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(offline.getByText("이 기기에 저장된 수첩이 없습니다.")).toBeVisible();
+});
+
 test("Google PKCE keeps the existing owner session after refresh and browser restart", async ({}, testInfo) => {
   const tripId = randomUUID();
   const title = "Google 연결 전부터 있던 여행";
