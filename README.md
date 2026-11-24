@@ -119,12 +119,12 @@ Windows에서 `listen EACCES`로 개발 서버가 시작되지 않으면 `netsh 
 | 동행자 | 비로그인 링크 열기, 날짜 변경, 키보드 본문 이동, 뒤로·앞으로 이동 |
 | 장애 | 느린 네트워크, 공유 링크 오류와 재시도, 철회된 링크의 이전 화면 잔존 여부 |
 
-PC에서는 `npm run build` 후 `npm test -- --grep 'review skip link\|review shared server\|companion history' --headed`로 가상 5일 여행과 격리 DB를 확인합니다. 실기기의 로그인·수정·철회는 별도로 승인된 테스트 전용 Auth·DB와 HTTPS 주소에서 진행합니다. Git 연동 Preview는 Vercel 인증이 필요하고, DB 분리가 확인되기 전에는 데이터 변경 테스트를 보류합니다.
+PC에서는 `npm run build` 후 `npm test -- --grep 'review skip link|review shared server|companion history' --headed`로 가상 5일 여행과 격리 DB를 확인합니다. 실기기의 로그인·수정·철회는 별도로 승인된 테스트 전용 Auth·DB와 HTTPS 주소에서 진행합니다. Git 연동 Preview는 Vercel 인증이 필요하고, DB 분리가 확인되기 전에는 데이터 변경 테스트를 보류합니다.
 
 #### 장소 검색과 릴리스
 
 - Geoapify 실검색은 개발 키가 없어 미실행입니다. 승인된 개발 환경의 서버 전용 `GEOAPIFY_API_KEY`가 준비되면 격리 여행에서 한국어·일본어 검색어를 한 번씩 붙여넣고 각 결과의 이름·주소·좌표를 확인합니다. `429`이면 중단합니다. 키 누락·빈 결과·오류 시 수동 등록과 기존 지도·길찾기를 사용할 수 있어 실검색만을 병합 차단 조건으로 두지 않습니다. 무료 인프라 정책은 유지합니다.
-- 승인 후 PR #2를 일반 Merge Commit으로 `main`에 병합하고 Production `Ready`를 확인합니다. PR #3의 기준을 `main`으로 바꾸고 `git merge-base --is-ancestor <PR2 HEAD> origin/main`과 `git diff origin/main...HEAD`로 조상 관계와 리뷰 범위를 확인합니다. 최신 `main`으로 CI와 통합 검증을 실행한 뒤 Draft를 해제하고 검수합니다. PR #3 병합 뒤 Production 자동 배포와 읽기 전용 스모크를 확인합니다. Squash 또는 Rebase가 필요한 경우 최신 `main`의 별도 브랜치에 PR #3 전용 커밋만 순서대로 적용하고 diff·CI를 검증한 뒤 대체 PR을 승인받습니다.
+- 승인 후 PR #2를 일반 Merge Commit으로 `main`에 병합하고 Production `Ready`를 확인합니다. PR #3의 기준을 `main`으로 바꾸고 `git merge-base --is-ancestor <PR2 HEAD> origin/main`과 `git diff origin/main...HEAD`로 조상 관계와 리뷰 범위를 확인합니다. 최신 `main`으로 CI와 통합 검증을 실행한 뒤 Draft를 해제하고 검수합니다. PR #3 병합 뒤 Production 자동 배포와 읽기 전용 스모크를 확인합니다. Squash 또는 Rebase가 필요한 경우 병합 전 `git log --reverse --no-merges <PR2 HEAD>..origin/feature/trip-day-usability`로 PR #3 전용 커밋을 기록합니다. 최신 `main`의 별도 브랜치에 이 커밋만 순서대로 적용해 diff·CI를 검증하고 대체 PR을 승인받습니다.
 - 첫 운영 변경 전 롤백 지점은 `2a85bf1`의 Ready 배포입니다. PR #2 배포 후에는 PR #3 직전 Ready 운영 배포도 기록합니다. 장애 시 승인 후 Vercel에서 직전 배포로 롤백하고 읽기 전용 스모크를 다시 실행합니다. [Vercel Git 연동](https://vercel.com/docs/git#production-branch) · [Instant Rollback](https://vercel.com/docs/instant-rollback)
 - 실사용 안정화 후 후보는 여행 준비 체크리스트, PWA·오프라인 열람, 여행 예산·경비, PDF 여행 가이드, 여행 사진·추억 기록입니다.
 
