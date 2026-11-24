@@ -81,7 +81,7 @@ export function SharedGuide({ trip, requested, href, preserveFragment = false }:
       {trip.bookings && <SharedSectionLink section="guide-bookings" preserveFragment={preserveFragment}><Ticket size={17} aria-hidden />예약</SharedSectionLink>}
     </nav>
     <section id="guide-itinerary" className="editorial-section">
-      <h2>날짜별 일정</h2>
+      <h2 tabIndex={preserveFragment ? -1 : undefined}>날짜별 일정</h2>
       {dates.length > 0 && <nav className="editorial-days" aria-label="공유 일정 날짜">
         {dates.map((day) => <a className="editorial-day" href={href(day)} key={day} aria-current={date === day ? "date" : undefined}>
           {trip.startDate && trip.endDate && day >= trip.startDate && day <= trip.endDate && <strong>Day {dayNumber(trip.startDate, day)}</strong>}
@@ -102,7 +102,7 @@ export function SharedGuide({ trip, requested, href, preserveFragment = false }:
       </li>)}</ol> : <p className="plan-empty">{date ? "이 날짜에 공유된 일정이 없어요." : "날짜가 정해진 일정이 없어요."}</p>}
     </section>
     <section id="guide-places" className="editorial-section">
-      <h2>장소와 지도</h2>
+      <h2 tabIndex={preserveFragment ? -1 : undefined}>장소와 지도</h2>
       {trip.places.length ? <div className="shared-places">
         <SharedMap places={trip.places} />
         <ol className="places-cards">{trip.places.map((place, index) => <li key={index} className="editorial-paper shared-place">
@@ -113,7 +113,7 @@ export function SharedGuide({ trip, requested, href, preserveFragment = false }:
       </div> : <p className="plan-empty">저장된 장소가 없어요.</p>}
     </section>
     {trip.bookings && <section id="guide-bookings" className="editorial-section">
-      <h2>예약 일정</h2>
+      <h2 tabIndex={preserveFragment ? -1 : undefined}>예약 일정</h2>
       {trip.bookings.length ? <div className="shared-bookings">{trip.bookings.map((booking, index) => <BookingSummary key={index} booking={booking} />)}</div> :
         <p className="plan-empty">등록된 예약이 없어요.</p>}
     </section>}
