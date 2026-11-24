@@ -139,10 +139,18 @@ export type Database = {
       stay_details: BookingTable<StayFields & BookingChild & { property_name: string }>;
       tour_details: BookingTable<TourFields & BookingChild>;
       booking_private_details: BookingTable<PrivateBookingFields & BookingChild>;
+      trip_preparation: {
+        Row: import("./trip-preparation").PreparationRow;
+        Insert: Pick<import("./trip-preparation").PreparationRow, "trip_id" | "title" | "category" | "due_date" | "note">;
+        Update: Partial<Pick<import("./trip-preparation").PreparationRow, "title" | "category" | "due_date" | "note" | "done">>;
+        Relationships: [];
+      };
     };
     Views: Record<never, never>;
     Functions: {
       read_shared_trip: { Args: { p_proof: string }; Returns: SharedTrip | null };
+      apply_preparation_template: { Args: { p_trip: string; p_items: { title: string; category: string; source: string }[] }; Returns: undefined };
+      move_preparation: { Args: { p_trip: string; p_id: string; p_direction: number }; Returns: undefined };
       read_share_settings: { Args: { p_trip: string; p_preview: boolean }; Returns: ShareSettings | SharedTrip | null };
       write_share_settings: {
         Args: { p_trip: string; p_revision: number; p_mode: "issue" | "settings" | "stop"; p_expiry: string | null;

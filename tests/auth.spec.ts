@@ -193,6 +193,7 @@ test.beforeAll(async () => {
     if (["/rest/v1/itinerary_items", "/rest/v1/trip_places", "/rest/v1/bookings", "/rest/v1/flight_segments",
       "/rest/v1/stay_details", "/rest/v1/tour_details", "/rest/v1/booking_private_details",
       "/rest/v1/rpc/read_shared_trip", "/rest/v1/rpc/read_share_settings", "/rest/v1/rpc/write_share_settings",
+      "/rest/v1/trip_preparation", "/rest/v1/rpc/apply_preparation_template", "/rest/v1/rpc/move_preparation",
       "/rest/v1/rpc/save_booking", "/rest/v1/rpc/delete_booking", "/rest/v1/rpc/save_trip_place", "/rest/v1/rpc/delete_trip_place",
       "/rest/v1/rpc/authorize_place_search", "/rest/v1/rpc/save_itinerary_item", "/rest/v1/rpc/update_trip_period",
       "/rest/v1/rpc/swap_itinerary_items", "/rest/v1/rpc/place_itinerary_item"].includes(url.pathname)) {
@@ -217,7 +218,7 @@ test.beforeEach(async () => {
   sharedReads = 0;
   pkceChallenge = undefined;
   await database.exec("truncate table public.booking_private_details, public.flight_segments, public.stay_details, public.tour_details, " +
-    "kioku_private.trip_share_links, public.bookings, public.itinerary_items, public.trip_places, public.trips");
+    "kioku_private.trip_share_links, public.trip_preparation, public.bookings, public.itinerary_items, public.trip_places, public.trips");
 });
 
 test.afterAll(async () => {
@@ -234,6 +235,24 @@ test("a visitor is denied a configured protected route without a verified sessio
   const response = await request.get("/trips/new", { maxRedirects: 0 });
   expect(response.status()).toBe(307);
   expect(response.headers().location).toBe("/login");
+});
+
+test("suite preparation applies templates once and updates the travel home", async ({ page }) => {
+  const trip = await seedFiveDayTrip("가상 준비 여행");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  await page.goto(trip);
+  await page.getByRole("link", { name: "준비 목록 열기" }).click();
+  await page.getByText("여행 준비 템플릿", { exact: true }).click();
+  await page.getByRole("button", { name: "일본 기본 템플릿" }).click();
+  const item = page.getByRole("button", { name: "여권 유효기간 확인 완료", exact: true });
+  await expect(item).toBeVisible();
+  await page.getByRole("button", { name: "일본 기본 템플릿" }).click();
+  await expect(item).toHaveCount(1);
+  await item.click();
+  await expect(page.getByRole("button", { name: "여권 유효기간 확인 미완료로 변경" })).toBeVisible();
+  await page.goto(trip);
+  await expect(page.getByText("14개 중 1개 완료 · 7%")).toBeVisible();
 });
 
 test("Google PKCE keeps the existing owner session after refresh and browser restart", async ({}, testInfo) => {

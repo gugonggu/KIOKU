@@ -8,6 +8,8 @@ import { dateLabel } from "@/lib/trip-details";
 import { nextFixedSchedule, nextHomeRefresh, sortSchedule, tripHomeDay } from "@/lib/trip-plan";
 import { loadTripPlan } from "@/lib/trip-plan-data";
 import { getTrip } from "@/lib/trips";
+import { loadPreparation } from "@/lib/trip-preparation-data";
+import { preparationProgress } from "@/lib/trip-preparation";
 import { TripLoadError } from "../trip-load-error";
 import { TripSummary } from "../trip-summary";
 import { DayCards, timeLabel, TripTabs } from "./editorial";
@@ -26,9 +28,10 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
   const now = new Date();
   const { today, date, status, offset } = tripHomeDay(trip, now);
   const active = status === "active";
-  const [plan, dailyBookings, bookingSummaries] = await Promise.all([
-    loadTripPlan(trip.id), active ? loadBookings(trip.id) : null, active ? null : loadBookingSummaries(trip.id),
+  const [plan, dailyBookings, bookingSummaries, preparation] = await Promise.all([
+    loadTripPlan(trip.id), active ? loadBookings(trip.id) : null, active ? null : loadBookingSummaries(trip.id), loadPreparation(trip.id),
   ]);
+  const readiness = preparation && preparationProgress(preparation);
   const bookings = active ? dailyBookings : bookingSummaries;
   const href = `/trips/${trip.id}`;
   const scheduleHref = itineraryHref(trip.id, date);
@@ -105,6 +108,11 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
       {date ? <DayCards trip={trip} date={date} summaries={plan ? groups : undefined} /> :
         <p className="plan-empty">여행 날짜가 정해지면 날짜별 계획을 여기에서 볼 수 있어요.</p>}
     </section>
+    {status !== "past" && readiness && <section className="editorial-paper editorial-preview">
+      <h2>여행 준비</h2>
+      <p>{readiness.total}개 중 {readiness.done}개 완료 · {readiness.percent}%</p>
+      <Link className="quiet-link" href={href + "/preparation"}>준비 목록 열기</Link>
+    </section>}
     <div className="editorial-overview-bottom">
       <section className="editorial-paper editorial-preview" aria-labelledby="trip-preview-heading">
         <Blossom className="editorial-sprig" />

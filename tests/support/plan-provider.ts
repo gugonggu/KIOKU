@@ -19,11 +19,40 @@ export async function handlePlanRequest({ database, userId, method, url, readJso
     return send(200, rows[0].result);
   }
   if (!userId) return send(401, { message: "fixture session required" });
+  if (url.pathname === "/rest/v1/trip_preparation" && method !== "GET") {
+    const trip = url.searchParams.get("trip_id")?.slice(3);
+    const id = url.searchParams.get("id")?.slice(3);
+    await asUser(database, userId, async (tx) => {
+      if (method === "DELETE") {
+        await tx.query("delete from public.trip_preparation where trip_id=$1 and id=$2", [trip, id]);
+        return;
+      }
+      const body = await readJson();
+      if (method === "POST") {
+        await tx.query("insert into public.trip_preparation (trip_id,title,category,due_date,note) values ($1,$2,$3,$4,$5)",
+          [body.trip_id, body.title, body.category, body.due_date, body.note]);
+      } else if (method === "PATCH" && "done" in body) {
+        await tx.query("update public.trip_preparation set done=$3 where trip_id=$1 and id=$2", [trip,id,body.done]);
+      } else if (method === "PATCH") {
+        await tx.query("update public.trip_preparation set title=$3,category=$4,due_date=$5,note=$6 where trip_id=$1 and id=$2",
+          [trip,id,body.title,body.category,body.due_date,body.note]);
+      }
+    });
+    return send(method === "POST" ? 201 : 204, null);
+  }
   if (url.pathname.startsWith("/rest/v1/rpc/") && method === "POST") {
     const body = await readJson();
     let query: string;
     let args: unknown[];
     switch (url.pathname) {
+      case "/rest/v1/rpc/apply_preparation_template":
+        query = "select public.apply_preparation_template($1,$2) as result";
+        args = [body.p_trip, JSON.stringify(body.p_items)];
+        break;
+      case "/rest/v1/rpc/move_preparation":
+        query = "select public.move_preparation($1,$2,$3) as result";
+        args = [body.p_trip, body.p_id, body.p_direction];
+        break;
       case "/rest/v1/rpc/read_share_settings":
         query = "select public.read_share_settings($1,$2) as result";
         args = [body.p_trip, body.p_preview];
@@ -89,6 +118,9 @@ export async function handlePlanRequest({ database, userId, method, url, readJso
   const booking = url.searchParams.get("booking_id")?.match(/^eq\.(.+)$/)?.[1] ?? null;
   let query: string;
   switch (url.pathname) {
+    case "/rest/v1/trip_preparation":
+      query = "select id,trip_id,title,category,done,due_date::text,note,sort_order::float8,source from public.trip_preparation where trip_id=$1 order by sort_order,id";
+      break;
     case "/rest/v1/bookings":
       query = columns === "id,kind,title,status" ?
         "select id,kind,title,status from public.bookings where trip_id=$1 order by title,id" :
