@@ -1,5 +1,7 @@
 import type { BookingKind, BookingStatus, SchedulePeriod } from "./database.types";
 
+export const sharedUnavailableMessage = "공유 여행을 불러오지 못했어요";
+
 export type ShareSettings = {
   enabled: boolean;
   encryptedToken: string | null;

@@ -9,3 +9,7 @@ export function itineraryHref(tripId: string, date: string | null, mode?: Itiner
   const search = query.toString();
   return `/trips/${tripId}/itinerary${search ? `?${search}` : ""}`;
 }
+
+export function itineraryEntryHref(tripId: string, entry: { id: string; local_date: string | null }, selectedDate: string | null) {
+  return `${itineraryHref(tripId, entry.local_date ?? selectedDate, undefined, undefined, !entry.local_date)}#schedule-${entry.id}`;
+}

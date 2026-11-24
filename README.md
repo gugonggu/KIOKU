@@ -81,6 +81,53 @@ Windows에서 `listen EACCES`로 개발 서버가 시작되지 않으면 `netsh 
 - 4박 5일 격리 픽스처로 여행 날짜 탐색, 일정의 시각과 순서 조정, 지도 장소 연결, 예약 연결 및 공유 흐름을 점검했습니다. 320px 동행자 화면은 날짜 터치 조작, 시간 미정 일정, 빈 날짜를 확인했습니다. 실제 일정 입력 전에는 운영에서 기존 여행과 겹치는지 확인하고 확인된 장소·예약 정보만 입력합니다. Geoapify 실검색과 iPhone·Android 실기기 확인은 별도로 진행합니다.
 - Node.js `24.11.1`에서 `npm run lint`, `npm run typecheck`, `npm run build`, 단위 13건, PGlite DB 15건, PowerShell 설정 복원 테스트, Chrome E2E 35건을 통과했습니다. `PLAYWRIGHT_BASE_PORT=4300`과 `PLAYWRIGHT_CHANNEL=chrome`으로 E2E를 실행했습니다. 별도 실제 OpenFreeMap 테스트 1건도 통과했습니다.
 
+### 2026-11-24 여행 중 모바일 사용성
+
+- 동행자 링크 전환 수정은 `fix/travel-readiness`의 `b312670`으로 PR #2를 열었습니다. 로컬 빌드와 Chrome 인증·소유자 격리·공유 회귀 7건을 다시 실행했습니다. [GitHub PR #2](https://github.com/gugonggu/KIOKU/pull/2)
+- `feature/trip-day-usability`는 PR #2 커밋에서 분기했습니다. 여행 기간 중 홈에서 일본 현지 오늘 일정과 다음 정시 일정으로 바로 이동하고, 연결 장소가 있으면 해당 날짜 지도의 장소 상세를 엽니다. 시간대·시간 미정 항목은 기존 날짜별 일정에 표시합니다. 일정 하단의 장소 탭은 내용에 따라 해당 날짜 또는 후보 장소를 엽니다. 일정에 연결된 예약은 일정 시각과 별도로 기존 예약 상태를 표시합니다.
+- 4박 5일, 3인 가상 여행에서 320px·1440px의 홈과 날짜별 지도 이동을 확인했습니다. 린트, 타입 검사, 프로덕션 빌드, 단위 14건, PGlite DB 15건, Chrome E2E 36건과 실제 OpenFreeMap 1건을 통과했습니다. Chrome은 `PLAYWRIGHT_BASE_PORT=4600`, `PLAYWRIGHT_CHANNEL=chrome`으로 실행했습니다.
+- 다음 검증은 iPhone과 Android의 홈 → 일정 → 장소 상세 및 실제 계정의 공유 흐름입니다. 운영 가상 여행 쓰기는 별도 승인 뒤 실행합니다.
+
+### 2026-11-24 실사용 릴리스 후보
+
+| 흐름 | 이어서 완성한 내용 | 검증 범위 |
+| --- | --- | --- |
+| 여행 전·중·후 홈 | 일본 현지 D-Day, Day 번호, 여행 종료 상태와 오늘 확인할 예약을 표시합니다. 다음 일정은 시각이 지정된 오늘 일정 중 현재 시각 이후 항목입니다. 빈 날과 시간이 지난 날을 구별하고, 다음 일정 시각이 지나거나 일본 자정을 넘으면 보이는 홈을 다시 조회합니다. | 고정 시각 단위 테스트로 일본 자정 전후와 일정 시각 경계를 확인합니다. 가상 여행 홈으로 날짜별 상태를 확인합니다. |
+| 일정·장소·예약 | 기존 추가·이동·순서·삭제 흐름을 사용합니다. 장소 및 예약 상세에는 연결 일정의 날짜·시각과 원래 일정으로 돌아가는 링크가 있습니다. 숙소의 체크인부터 체크아웃까지 오늘 예약에 표시하며 취소된 예약은 예약 기록에서 확인합니다. | 가상 3인 5일 여행에서 Day 4 후보 장소를 재사용하고 날짜별 지도와 연결 일정을 왕복합니다. 기존 DB 테스트로 연결 해제·다른 여행 참조 제한을 확인합니다. |
+| 동행자 | 기존 공유 데이터로 오늘 날짜와 선택 날짜의 방문 장소를 표시합니다. 전체 지도, 길찾기 및 공유 범위 내 예약도 열 수 있습니다. 연결 장애에는 재시도 버튼을 표시합니다. | 지연된 이전 응답, 철회 후 뒤로 가기, 날짜 변경과 `pageshow.persisted` 재검증 핸들러를 확인합니다. 실제 모바일 브라우저의 BFCache 사용 여부는 실기기 검증 항목입니다. |
+
+- 스키마·마이그레이션·RLS·공유 DTO 변경은 없습니다. 장소 상세는 소유자 권한으로 기존 일정의 식별자·제목·날짜·시각을 추가 조회합니다. 기존 MapLibre, OpenFreeMap, 무료 Geoapify 구성과 외부 지도 링크를 사용합니다. 개발 Geoapify 키가 없어 실검색은 미실행이며 검색 응답·실패 폴백은 격리 환경에서 검증합니다.
+- 린트·타입 검사·프로덕션 빌드, 단위 16건, PGlite 15건, 전체 Chrome 39건, Windows WebKit 선별 7건, 실제 OpenFreeMap 1건을 통과했습니다. 가상 여행 홈은 320·360·375·390·430·768·1440px에서 가로 넘침을 검사했습니다. WebKit에서 본문 이동 링크가 기본 Tab 탐색에 포함되도록 탭 순서를 명시했습니다.
+- 로컬 확인은 `npm ci`, `npm run build` 후 `npm test`를 사용합니다. Chrome은 `PLAYWRIGHT_CHANNEL=chrome`, WebKit은 `npx playwright install webkit` 후 `PLAYWRIGHT_BROWSER=webkit`을 지정합니다. `KIOKU_UI_SCREENSHOTS=test-results/kioku-rc`로 가상 화면을 저장합니다. Git 연동 Preview는 Vercel 인증이 필요하며 데이터 변경 테스트는 로컬 격리 DB에서 실행합니다. [후속 PR #3](https://github.com/gugonggu/KIOKU/pull/3)
+- 실기기 확인 순서는 iPhone Safari와 Android Chrome에서 로그인 → 홈 → 오늘 일정 → 장소 상세 → 외부 지도 → 예약·공유입니다. 키보드를 연 상태에서 편집·저장, 하단 탭과 안전 영역, 지도 제스처, 느린 네트워크와 뒤로 가기를 확인합니다.
+- 승인 후 PR #2를 먼저 병합하고, PR #3의 기준을 `main`으로 바꾼 뒤 변경 범위와 CI를 다시 확인합니다. `main`은 Vercel Production 추적 브랜치입니다. 장애 시 배포 직전의 Ready 배포로 Vercel에서 롤백하고, 원인 수정과 Git 되돌리기는 별도 PR로 검토합니다. [Vercel Git 연동](https://vercel.com/docs/git#production-branch)
+
+### 2026-11-24 M6 독립 검수
+
+- **본문 건너뛰기.** 격리 Chrome에서 `/s`의 건너뛰기 링크가 URL 프래그먼트를 바꾸는 문제를 재현했습니다. 프래그먼트 공유 화면에서는 버튼이 `main-content`로 초점과 스크롤만 옮깁니다. 일반 화면은 기존 링크 동작을 사용합니다. PR #2가 해시 변경을 재검증하기 때문에 단독 운영 반영 전에 이 수정 커밋을 PR #2에 넣었고, PR #3은 그 커밋을 조상으로 포함합니다.
+- **공유 조회 장애.** 로컬 앱이 격리 Supabase RPC의 오류를 `404`로 처리하는 문제를 재현했습니다. JSON API 두 경로에서 정상 조회는 `200`, 무효·철회 링크는 공통 `404`, RPC·연결 장애는 상세 정보 없는 `503`을 응답합니다. 프래그먼트와 경로 기반 화면 모두 장애에서 재시도할 수 있습니다. 이 변경은 PR #3에 있습니다. RLS·공유 DTO·DB 스키마와 마이그레이션은 기존과 동일합니다.
+- **브라우저 이력.** 기존 `ShareRefresh`의 합성 `pageshow.persisted` 테스트와 철회 후 실제 브라우저 뒤로·앞으로 이동을 검증합니다. BFCache 비활성화 실행 옵션을 뺀 로컬 Chrome에서도 새 탐색이 관찰되었습니다. 실제 BFCache 복원과 복원 직후 프레임에 대한 검증은 남아 있습니다.
+- **최종 로컬 검증.** 린트·타입 검사·빌드, 단위 16건, PGlite DB 15건, 전체 Chrome 43건, Windows WebKit 선별 10건, 실제 OpenFreeMap 1건을 통과했습니다. `PLAYWRIGHT_BROWSER=webkit`에서 `review skip link`, `review shared server`를 포함해 실행했습니다. 건너뛰기 테스트는 브라우저의 POST 요청과 서버의 공유 RPC 호출이 둘 다 늘지 않는지 확인합니다.
+
+#### 실기기 점검
+
+| 흐름 | iPhone Safari와 Android Chrome에서 확인할 항목 |
+| --- | --- |
+| 인증과 홈 | Google 로그인, 여행 홈, 날짜별 이동, 오늘 일정, 다음 일정에서 장소 상세 열기 |
+| 지도 | 확대·이동 제스처, 외부 지도 앱 열기 |
+| 편집 | 일정 입력 중 키보드, 하단 Safe Area, 모달과 편집 화면의 저장·닫기 |
+| 동행자 | 비로그인 링크 열기, 날짜 변경, 키보드 본문 이동, 뒤로·앞으로 이동 |
+| 장애 | 느린 네트워크, 공유 링크 오류와 재시도, 철회된 링크의 이전 화면 잔존 여부 |
+
+PC에서는 `npm run build` 후 `npm test -- --grep 'review skip link|review shared server|companion history' --headed`로 가상 5일 여행과 격리 DB를 확인합니다. 실기기의 로그인·수정·철회는 별도로 승인된 테스트 전용 Auth·DB와 HTTPS 주소에서 진행합니다. Git 연동 Preview는 Vercel 인증이 필요하고, DB 분리가 확인되기 전에는 데이터 변경 테스트를 보류합니다.
+
+#### 장소 검색과 릴리스
+
+- Geoapify 실검색은 개발 키가 없어 미실행입니다. 승인된 개발 환경의 서버 전용 `GEOAPIFY_API_KEY`가 준비되면 격리 여행에서 한국어·일본어 검색어를 한 번씩 붙여넣고 각 결과의 이름·주소·좌표를 확인합니다. `429`이면 중단합니다. 키 누락·빈 결과·오류 시 수동 등록과 기존 지도·길찾기를 사용할 수 있어 실검색만을 병합 차단 조건으로 두지 않습니다. 무료 인프라 정책은 유지합니다.
+- 승인 후 PR #2를 일반 Merge Commit으로 `main`에 병합하고 Production `Ready`를 확인합니다. PR #3의 기준을 `main`으로 바꾸고 `git merge-base --is-ancestor <PR2 HEAD> origin/main`과 `git diff origin/main...HEAD`로 조상 관계와 리뷰 범위를 확인합니다. 최신 `main`으로 CI와 통합 검증을 실행한 뒤 Draft를 해제하고 검수합니다. PR #3 병합 뒤 Production 자동 배포와 읽기 전용 스모크를 확인합니다. Squash 또는 Rebase가 필요한 경우 병합 전 `git log --reverse --no-merges <PR2 HEAD>..origin/feature/trip-day-usability`로 PR #3 전용 커밋을 기록합니다. 최신 `main`의 별도 브랜치에 이 커밋만 순서대로 적용해 diff·CI를 검증하고 대체 PR을 승인받습니다.
+- 첫 운영 변경 전 롤백 지점은 `2a85bf1`의 Ready 배포입니다. PR #2 배포 후에는 PR #3 직전 Ready 운영 배포도 기록합니다. 장애 시 승인 후 Vercel에서 직전 배포로 롤백하고 읽기 전용 스모크를 다시 실행합니다. [Vercel Git 연동](https://vercel.com/docs/git#production-branch) · [Instant Rollback](https://vercel.com/docs/instant-rollback)
+- 실사용 안정화 후 후보는 여행 준비 체크리스트, PWA·오프라인 열람, 여행 예산·경비, PDF 여행 가이드, 여행 사진·추억 기록입니다.
+
 ## Supabase 이메일 로그인 설정
 
 1. `Copy-Item .env.example .env.local`로 로컬 설정 파일을 만들고 아래 값을 입력합니다.

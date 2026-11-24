@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { isCalendarDate } from "@/lib/trip-details";
 import type { SharedTrip } from "@/lib/trip-share-types";
 import { SharedGuide } from "./shared-guide";
+import { SharedUnavailable } from "./shared-unavailable";
 
-type State = { trip: SharedTrip; token: string; date?: string } | "loading" | "invalid";
+type State = { trip: SharedTrip; token: string; date?: string } | "loading" | "invalid" | "unavailable";
 
 export function FragmentGuide() {
   const [state, setState] = useState<State>("loading");
@@ -18,21 +19,27 @@ export function FragmentGuide() {
       const { signal } = request;
       const token = location.hash.slice(1);
       const day = new URLSearchParams(location.search).get("date");
+      const url = location.href;
+      const isCurrent = () => !signal.aborted && location.href === url;
 
       try {
         if (!/^[A-Za-z0-9_-]{43}$/.test(token)) {
           await Promise.resolve();
-          if (!signal.aborted) setState("invalid");
+          if (isCurrent()) setState("invalid");
           return;
         }
 
         const response = await fetch("/api/shared", {
           method: "POST", body: token, signal, cache: "no-store", credentials: "omit",
         });
+        if (!response.ok && response.status !== 404) {
+          if (isCurrent()) setState("unavailable");
+          return;
+        }
         const trip: SharedTrip | null = response.ok ? await response.json() : null;
-        if (!signal.aborted) setState(trip ? { trip, token, date: day && isCalendarDate(day) ? day : undefined } : "invalid");
+        if (isCurrent()) setState(trip ? { trip, token, date: day && isCalendarDate(day) ? day : undefined } : "invalid");
       } catch {
-        if (!signal.aborted) setState("invalid");
+        if (isCurrent()) setState("unavailable");
       }
     }
 
@@ -53,5 +60,6 @@ export function FragmentGuide() {
   if (state === "invalid") return <section className="route-state safe-page">
     <h1>공유 링크를 열 수 없어요</h1><p>여행 소유자에게 현재 공유 링크를 확인해 주세요.</p>
   </section>;
+  if (state === "unavailable") return <SharedUnavailable />;
   return <SharedGuide trip={state.trip} requested={state.date} href={(day) => "/s?date=" + day + "#" + state.token} preserveFragment />;
 }

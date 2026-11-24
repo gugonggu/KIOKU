@@ -48,9 +48,12 @@ export default async function PlacesPage({ params, searchParams }: PageProps<"/t
         data-itinerary-add><Plus size={18} aria-hidden />장소 추가</Link>}
     </div>
   </header>;
-  const tabs = <TripTabs href={homeHref} active="map" date={itineraryDate} />;
+  const tabs = <TripTabs href={homeHref} active="map" date={itineraryDate} mapLink={back} />;
   if (!data) return <div className="editorial-page places-page">{header}<div className="notice notice-error" role="alert">
-    <p>저장된 장소를 불러오지 못했어요.</p><form method="get" action={mapHref(tripId)}><button className="quiet-link">다시 불러오기</button></form>
+    <p>저장된 장소를 불러오지 못했어요.</p><form method="get" action={mapHref(tripId)}>
+      <input type="hidden" name="date" value={date} /><input type="hidden" name="filter" value={filter} />
+      <button className="quiet-link">다시 불러오기</button>
+    </form>
   </div>{tabs}</div>;
 
   const { mode } = query;

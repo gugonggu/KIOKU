@@ -2,12 +2,24 @@ import type {
   BookingInput, FlightFields, PrivateBookingFields, StayFields, TourFields,
 } from "./database.types";
 import { isCalendarDate } from "./trip-details.ts";
+import type { Booking } from "./trip-booking-data";
 
 export const bookingKinds = { FLIGHT: "항공", STAY: "숙소", TOUR: "투어" } as const;
 export const bookingStatuses = {
   NEEDS_BOOKING: "예약 필요", PENDING: "예약 진행 중", CONFIRMED: "예약 완료", CANCELLED: "취소됨",
 } as const;
 export const maxFlightSegments = 20;
+
+export function bookingOccursOn(booking: Booking, date: string, linked = false) {
+  if (booking.status === "CANCELLED") return false;
+  if (linked) return true;
+  if (booking.kind === "FLIGHT") return booking.segments.some((segment) =>
+    segment.departure_local_date === date || segment.arrival_local_date === date);
+  if (booking.kind === "TOUR") return booking.tour?.event_local_date === date;
+  const start = booking.stay?.check_in_local_date;
+  const end = booking.stay?.check_out_local_date;
+  return start && end ? date >= start && date <= end : date === start || date === end;
+}
 
 type Rule = readonly [label: string, format: "date" | "time" | "zone" | "airport" | "count" | "amount" | "currency" | "latitude" | "longitude" | number];
 

@@ -84,6 +84,10 @@
   border-radius: 16px; padding: clamp(14px, 2.4vw, 25px); min-width: 0;
 }
 .editorial-preview, .editorial-home-places { display: grid; gap: 8px; align-content: start; }
+.editorial-up-next { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.editorial-up-next .quiet-link { justify-self: start; justify-content: start; gap: 7px; text-align: left; }
+.editorial-up-next .quiet-link svg { flex: none; }
+.editorial-up-next .quiet-link strong { overflow-wrap: anywhere; min-width: 0; }
 .editorial-preview ul { display: grid; gap: 8px; margin-top: 4px; }
 .editorial-preview li { display: flex; gap: 9px; align-items: center; }
 .editorial-preview strong { overflow-wrap: anywhere; }
@@ -216,6 +220,7 @@ body:has(.editorial-dialog[open]) { overflow: hidden; }
 .editorial-entry-copy h3 { word-break: keep-all; overflow-wrap: anywhere; }
 .editorial-place-link { gap: 5px; max-width: 100%; text-decoration: none; line-height: 1.35; }
 .editorial-place-link svg { flex: none; }
+.editorial-entry-booking { display: flex; flex-wrap: wrap; align-items: center; column-gap: 6px; min-width: 0; }
 .editorial-place-link > span { display: grid; min-width: 0; }
 .editorial-place-link strong { font-weight: 650; text-decoration: underline; text-underline-offset: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .editorial-entry-address { color: var(--color-muted-ink); font-size: .74rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
