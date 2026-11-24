@@ -10,6 +10,8 @@ import { loadTripPlan } from "@/lib/trip-plan-data";
 import { getTrip } from "@/lib/trips";
 import { loadPreparation } from "@/lib/trip-preparation-data";
 import { preparationProgress } from "@/lib/trip-preparation";
+import { expenseTotals, wonLabel } from "@/lib/trip-budget";
+import { loadBudget } from "@/lib/trip-budget-data";
 import { TripLoadError } from "../trip-load-error";
 import { TripSummary } from "../trip-summary";
 import { DayCards, timeLabel, TripTabs } from "./editorial";
@@ -28,8 +30,8 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
   const now = new Date();
   const { today, date, status, offset } = tripHomeDay(trip, now);
   const active = status === "active";
-  const [plan, dailyBookings, bookingSummaries, preparation] = await Promise.all([
-    loadTripPlan(trip.id), active ? loadBookings(trip.id) : null, active ? null : loadBookingSummaries(trip.id), loadPreparation(trip.id),
+  const [plan, dailyBookings, bookingSummaries, preparation, budget] = await Promise.all([
+    loadTripPlan(trip.id), active ? loadBookings(trip.id) : null, active ? null : loadBookingSummaries(trip.id), loadPreparation(trip.id), loadBudget(trip.id),
   ]);
   const readiness = preparation && preparationProgress(preparation);
   const bookings = active ? dailyBookings : bookingSummaries;
@@ -113,6 +115,15 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
       <p>{readiness.total}개 중 {readiness.done}개 완료 · {readiness.percent}%</p>
       <Link className="quiet-link" href={href + "/preparation"}>준비 목록 열기</Link>
     </section>}
+    <section className="editorial-paper editorial-preview">
+      <h2>예산과 경비</h2>
+      {budget?.budget && <p>{status === "upcoming"
+        ? "사전 결제 " + wonLabel(expenseTotals(budget.expenses).prepaid)
+        : "총지출 " + wonLabel(expenseTotals(budget.expenses).total)}</p>}
+      <Link className="quiet-link" href={href + "/budget" + (active && budget?.budget ? "#new-expense" : "")}>
+        {active && budget?.budget ? "빠른 지출 등록" : status === "past" ? "지출과 정산 보기" : "예산 열기"}
+      </Link>
+    </section>
     <div className="editorial-overview-bottom">
       <section className="editorial-paper editorial-preview" aria-labelledby="trip-preview-heading">
         <Blossom className="editorial-sprig" />

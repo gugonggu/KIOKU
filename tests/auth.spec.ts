@@ -194,6 +194,7 @@ test.beforeAll(async () => {
       "/rest/v1/stay_details", "/rest/v1/tour_details", "/rest/v1/booking_private_details",
       "/rest/v1/rpc/read_shared_trip", "/rest/v1/rpc/read_share_settings", "/rest/v1/rpc/write_share_settings",
       "/rest/v1/trip_preparation", "/rest/v1/rpc/apply_preparation_template", "/rest/v1/rpc/move_preparation",
+      "/rest/v1/trip_budgets", "/rest/v1/trip_expenses", "/rest/v1/rpc/save_trip_budget",
       "/rest/v1/rpc/save_booking", "/rest/v1/rpc/delete_booking", "/rest/v1/rpc/save_trip_place", "/rest/v1/rpc/delete_trip_place",
       "/rest/v1/rpc/authorize_place_search", "/rest/v1/rpc/save_itinerary_item", "/rest/v1/rpc/update_trip_period",
       "/rest/v1/rpc/swap_itinerary_items", "/rest/v1/rpc/place_itinerary_item"].includes(url.pathname)) {
@@ -218,7 +219,8 @@ test.beforeEach(async () => {
   sharedReads = 0;
   pkceChallenge = undefined;
   await database.exec("truncate table public.booking_private_details, public.flight_segments, public.stay_details, public.tour_details, " +
-    "kioku_private.trip_share_links, public.trip_preparation, public.bookings, public.itinerary_items, public.trip_places, public.trips");
+    "kioku_private.trip_share_links, public.trip_expenses, public.trip_budgets, public.trip_preparation, " +
+    "public.bookings, public.itinerary_items, public.trip_places, public.trips");
 });
 
 test.afterAll(async () => {
@@ -287,6 +289,47 @@ test("suite offline saves an owner snapshot, reloads disconnected and clears on 
   await page.getByRole("button", { name: "로그아웃" }).click();
   await expect(page).toHaveURL(/\/login$/);
   await expect(offline.getByText("이 기기에 저장된 수첩이 없습니다.")).toBeVisible();
+});
+
+test("suite budget settles a three-person trip with prepayment and a local yen refund", async ({ page, browser }) => {
+  const trip = await seedFiveDayTrip("가상 홋카이도 3인 경비");
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  await page.goto(trip + "/budget");
+  await page.getByLabel("총예산 (원)").fill("500000");
+  await page.getByLabel("기본 환율 (1엔당 원)").fill("9.1234");
+  await page.getByLabel("정산 별칭 (한 줄에 한 명)").fill("가\n나\n다");
+  await page.getByRole("button", { name: "예산 저장" }).click();
+  await expect(page.getByRole("heading", { name: "예산 현황" })).toBeVisible();
+  const form = page.locator("#new-expense");
+  await form.getByLabel("지출명").fill("가상 숙소비");
+  await form.getByLabel("원래 결제액").fill("300000");
+  await form.locator('select[name="currency"]').selectOption("KRW");
+  await form.getByLabel("결제 시점").selectOption("prepaid");
+  await form.getByLabel("카테고리").selectOption("stay");
+  await form.getByRole("button", { name: "지출 등록" }).click();
+  await expect(page.getByText("나 → 가 · 100,000원", { exact: true })).toBeVisible();
+  await form.getByLabel("지출명").fill("가상 현지 교통");
+  await form.getByLabel("원래 결제액").fill("105");
+  await form.getByLabel("누적 환불액 (같은 통화)").fill("5");
+  await form.locator('select[name="currency"]').selectOption("JPY");
+  await form.getByLabel("결제 시점").selectOption("local");
+  await form.getByLabel("결제자").selectOption("2");
+  await form.getByRole("button", { name: "지출 등록" }).click();
+  await expect(page.getByText("나 → 가 · 99,392원", { exact: true })).toBeVisible();
+  await expect(page.getByText("다 → 가 · 100,304원", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth === innerWidth)).toBe(true);
+  const visitor = await browser.newContext({ baseURL: appUrl });
+  try {
+    const other = await visitor.newPage();
+    await other.goto("/auth/confirm?type=email&token_hash=local-fixture-second");
+    await expect(other).toHaveURL(/\/trips$/);
+    await other.goto(trip + "/budget");
+    await expect(other.getByRole("heading", { name: "여행을 찾을 수 없어요" })).toBeVisible();
+    await expect(other.getByText("가상 숙소비")).toHaveCount(0);
+  } finally {
+    await visitor.close();
+  }
 });
 
 test("Google PKCE keeps the existing owner session after refresh and browser restart", async ({}, testInfo) => {

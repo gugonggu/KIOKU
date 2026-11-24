@@ -145,12 +145,25 @@ export type Database = {
         Update: Partial<Pick<import("./trip-preparation").PreparationRow, "title" | "category" | "due_date" | "note" | "done">>;
         Relationships: [];
       };
+      trip_budgets: {
+        Row: import("./trip-budget").Budget;
+        Insert: import("./trip-budget").Budget;
+        Update: Partial<Omit<import("./trip-budget").Budget, "trip_id">>;
+        Relationships: [];
+      };
+      trip_expenses: {
+        Row: import("./trip-budget").Expense;
+        Insert: Omit<import("./trip-budget").Expense, "revision">;
+        Update: Partial<import("./trip-budget").ExpenseFields>;
+        Relationships: [];
+      };
     };
     Views: Record<never, never>;
     Functions: {
       read_shared_trip: { Args: { p_proof: string }; Returns: SharedTrip | null };
       apply_preparation_template: { Args: { p_trip: string; p_items: { title: string; category: string; source: string }[] }; Returns: undefined };
       move_preparation: { Args: { p_trip: string; p_id: string; p_direction: number }; Returns: undefined };
+      save_trip_budget: { Args: { p_trip: string; p_amount: number; p_rate: number; p_people: string[] }; Returns: undefined };
       read_share_settings: { Args: { p_trip: string; p_preview: boolean }; Returns: ShareSettings | SharedTrip | null };
       write_share_settings: {
         Args: { p_trip: string; p_revision: number; p_mode: "issue" | "settings" | "stop"; p_expiry: string | null;

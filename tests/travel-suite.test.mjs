@@ -2,6 +2,24 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { preparationProgress, preparationTemplate } from "../src/lib/trip-preparation.ts";
 import { travelSnapshot } from "../src/lib/travel-snapshot.ts";
+import { expenseTotals, parseRate, settleExpenses } from "../src/lib/trip-budget.ts";
+
+test("fixed point conversion and settlement conserve won after refunds and remainder splits", () => {
+  assert.equal(parseRate("9.1234"), 91234);
+  assert.equal(parseRate("9.12345"), null);
+  const expenses = [
+    { amount: 300000, refund: 0, currency: "KRW", rate: 10000, payer: 1, shares: [1, 2, 3], prepaid: true, category: "stay" },
+    { amount: 105, refund: 5, currency: "JPY", rate: 91234, payer: 2, shares: [3, 2, 1], prepaid: false, category: "food" },
+  ];
+  const totals = expenseTotals(expenses);
+  assert.equal(totals.total, BigInt(300912));
+  assert.equal(totals.jpy, BigInt(100));
+  const settlement = settleExpenses(3, expenses);
+  assert.deepEqual(settlement.people.map(({ due }) => due), [100304, 100304, 100304].map(BigInt));
+  assert.deepEqual(settlement.transfers.map(({ from, to, amount }) => [from, to, Number(amount)]), [[2, 1, 99392], [3, 1, 100304]]);
+  const remainder = settleExpenses(3, [{ ...expenses[0], amount: 2, shares: [3, 2, 1] }]);
+  assert.deepEqual(remainder.people.map(({ due }) => Number(due)), [1, 1, 0]);
+});
 
 test("preparation templates are opt-in and each item has a stable source key", () => {
   const basic = preparationTemplate("japan");

@@ -397,3 +397,12 @@ h2 { font-weight: 700; line-height: 1.35; letter-spacing: -.035em; }
   .trip-menu button { width: 100%; }
   .trips-content { padding-block-start: 42px; }
 }
+
+.budget-grid { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); }
+.budget-totals dt { color: var(--color-muted-ink); }
+.budget-totals dd { font-weight: 600; }
+.budget-shares { display: flex; gap: .5rem 1rem; flex-wrap: wrap; min-width: 0; }
+.suite-page .budget-shares label, .suite-page .budget-check { display: flex; flex-direction: row; align-items: center; gap: .5rem; min-height: 44px; }
+.suite-page .budget-shares input, .suite-page .budget-check input { min-height: 0; width: 1.15rem; height: 1.15rem; }
+.suite-expense { padding-block: .5rem; border-top: 1px solid var(--color-line); }
+.suite-expense form { margin-block: 1rem; }

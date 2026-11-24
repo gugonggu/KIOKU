@@ -25,3 +25,34 @@ test("checklists support idempotent templates and isolate both reads and mutatio
   });
   await assert.rejects(asUser(db, null, (tx) => tx.query("select id from public.trip_preparation")), { code: "42501" });
 });
+
+test("budgets isolate owners, guard amount and participants, and prevent cross-trip or duplicate bookings", async () => {
+  const trip = randomUUID();
+  const other = randomUUID();
+  const booking = randomUUID();
+  const otherBooking = randomUUID();
+  const expense = randomUUID();
+  await asUser(db, ownerA, async (tx) => {
+    await tx.query("insert into public.trips(id,title,destination_label) values ($1,'Fixture','Japan'),($2,'Second','Japan')", [trip, other]);
+    await tx.query("select public.save_trip_budget($1,500000,91234,array['A','B','C'])", [trip]);
+  });
+  await db.query("insert into public.bookings(id,trip_id,title,kind,status) values ($1,$2,'Stay','STAY','CONFIRMED'),($3,$4,'Other','STAY','CONFIRMED')", [booking, trip, otherBooking, other]);
+  const insert = (id, reference, refund = 0, shares = [1, 2, 3]) => asUser(db, ownerA, (tx) =>
+    tx.query("insert into public.trip_expenses(id,trip_id,title,amount,refund,currency,rate,spent_on,category,payer,shares,prepaid,booking_id)" +
+      " values ($1,$2,'Expense',300000,$3,'KRW',10000,'2027-02-17','stay',1,$4,true,$5)", [id, trip, refund, shares, reference]));
+  await assert.rejects(insert(randomUUID(), otherBooking), { code: "23503" });
+  await assert.rejects(insert(randomUUID(), booking, 300001), { code: "23514" });
+  await assert.rejects(insert(randomUUID(), booking, 0, [1, 1]), { code: "23514" });
+  await assert.rejects(insert(randomUUID(), booking, 0, [4]), { code: "23514" });
+  await insert(expense, booking);
+  await assert.rejects(insert(randomUUID(), booking), { code: "23505" });
+  await assert.rejects(asUser(db, ownerA, (tx) => tx.query("select public.save_trip_budget($1,500000,90000,array['A','B'])", [trip])), { code: "23514" });
+  await asUser(db, ownerB, async (tx) => {
+    assert.equal((await tx.query("select * from public.trip_budgets where trip_id=$1", [trip])).rows.length, 0);
+    assert.equal((await tx.query("delete from public.trip_expenses where trip_id=$1 returning id", [trip])).rows.length, 0);
+  });
+  await assert.rejects(asUser(db, null, (tx) => tx.query("select id from public.trip_expenses")), { code: "42501" });
+  await db.query("delete from public.bookings where id=$1", [booking]);
+  const { rows } = await asUser(db, ownerA, (tx) => tx.query("select booking_id,amount,revision from public.trip_expenses where id=$1", [expense]));
+  assert.deepEqual(rows, [{ booking_id: null, amount: 300000, revision: 2 }]);
+});
