@@ -7,6 +7,20 @@
   --ed-shadow: 0 3px 9px #432d1c0e, 0 1px 2px #432d1c08;
   --ed-serif: "Noto Serif KR", "Batang", "AppleMyungjo", var(--font-serif);
 }
+.suite-page { width: min(100%, 780px); }
+.suite-page h1 { font-size: clamp(1.9rem, 6vw, 3rem); }
+.suite-stack { display: grid; gap: 12px; min-width: 0; overflow-wrap: anywhere; }
+.suite-form { display: grid; gap: 10px; margin-block: 10px; }
+.suite-form label { display: grid; gap: 5px; min-width: 0; }
+.suite-form input:not([type="hidden"]):not([type="checkbox"]), .suite-form select, .suite-form textarea {
+  width: 100%; min-width: 0; min-height: 44px; padding: 8px; border: 1px solid var(--ed-line); border-radius: 8px; background: white;
+}
+.suite-row { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.suite-entry { border-top: 1px solid var(--ed-line); padding-block: 8px; }
+.suite-page summary, .suite-check { display: flex; align-items: center; min-height: 44px; gap: 7px; cursor: pointer; }
+.suite-page summary::before { content: "▸"; }
+.suite-page details[open] > summary::before { content: "▾"; }
+.suite-page progress { accent-color: var(--color-primary); width: 100%; }
 .brand { flex-wrap: nowrap; }
 .brand-illustration { width: 64px; height: 44px; flex: none; }
 .brand-type { display: grid; gap: 4px; }

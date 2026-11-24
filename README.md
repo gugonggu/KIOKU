@@ -15,6 +15,8 @@ npm run dev
 
 여행·일정·장소·예약·공유를 사용하려면 아래 인증 설정과 [M1~M5 마이그레이션](supabase/README.md)을 같은 Supabase 인스턴스에 적용합니다.
 
+여행을 연 뒤 **더보기**에서 준비 목록, 오프라인 수첩, 예산과 경비, 인쇄용 여행 가이드를 관리합니다. 기능별 사용법과 격리 검증은 [여행 수첩 확장 기록](TRAVEL_SUITE.md), DB 적용 순서는 [Supabase 문서](supabase/README.md)를 참고하세요.
+
 ## 집과 회사 PC에서 이어서 개발하기
 
 두 PC에서 같은 GitHub 저장소와 작업 브랜치를 사용합니다. 다른 PC로 옮기기 전에 `git status`를 확인하고, 이어서 작업할 변경은 검토한 뒤 커밋하여 프로젝트 소유자가 GitHub에 반영합니다. 새 PC에서는 저장소를 클론하거나 기존 체크아웃을 빠른 병합으로 갱신합니다(`git pull --ff-only`). Codex와 Claude Code는 PC별로 로그인하고, [공통 작업 규칙](AGENTS.md)과 Git 이력을 읽은 뒤 작업을 시작합니다.

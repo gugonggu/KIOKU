@@ -193,6 +193,8 @@ test.beforeAll(async () => {
     if (["/rest/v1/itinerary_items", "/rest/v1/trip_places", "/rest/v1/bookings", "/rest/v1/flight_segments",
       "/rest/v1/stay_details", "/rest/v1/tour_details", "/rest/v1/booking_private_details",
       "/rest/v1/rpc/read_shared_trip", "/rest/v1/rpc/read_share_settings", "/rest/v1/rpc/write_share_settings",
+      "/rest/v1/trip_preparation", "/rest/v1/rpc/apply_preparation_template", "/rest/v1/rpc/move_preparation",
+      "/rest/v1/trip_budgets", "/rest/v1/trip_expenses", "/rest/v1/rpc/save_trip_budget",
       "/rest/v1/rpc/save_booking", "/rest/v1/rpc/delete_booking", "/rest/v1/rpc/save_trip_place", "/rest/v1/rpc/delete_trip_place",
       "/rest/v1/rpc/authorize_place_search", "/rest/v1/rpc/save_itinerary_item", "/rest/v1/rpc/update_trip_period",
       "/rest/v1/rpc/swap_itinerary_items", "/rest/v1/rpc/place_itinerary_item"].includes(url.pathname)) {
@@ -217,7 +219,8 @@ test.beforeEach(async () => {
   sharedReads = 0;
   pkceChallenge = undefined;
   await database.exec("truncate table public.booking_private_details, public.flight_segments, public.stay_details, public.tour_details, " +
-    "kioku_private.trip_share_links, public.bookings, public.itinerary_items, public.trip_places, public.trips");
+    "kioku_private.trip_share_links, public.trip_expenses, public.trip_budgets, public.trip_preparation, " +
+    "public.bookings, public.itinerary_items, public.trip_places, public.trips");
 });
 
 test.afterAll(async () => {
@@ -234,6 +237,182 @@ test("a visitor is denied a configured protected route without a verified sessio
   const response = await request.get("/trips/new", { maxRedirects: 0 });
   expect(response.status()).toBe(307);
   expect(response.headers().location).toBe("/login");
+});
+
+test("suite preparation applies templates once and updates the travel home", async ({ page }) => {
+  const trip = await seedFiveDayTrip("가상 준비 여행");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  await page.goto(trip);
+  await page.getByRole("link", { name: "준비 목록 열기" }).click();
+  await page.getByText("여행 준비 템플릿", { exact: true }).click();
+  await page.getByRole("button", { name: "일본 기본 템플릿" }).click();
+  const item = page.getByRole("button", { name: "여권 유효기간 확인 완료", exact: true });
+  await expect(item).toBeVisible();
+  await page.getByRole("button", { name: "일본 기본 템플릿" }).click();
+  await expect(item).toHaveCount(1);
+  await item.click();
+  await expect(page.getByRole("button", { name: "여권 유효기간 확인 미완료로 변경" })).toBeVisible();
+  await page.goto(trip);
+  await expect(page.getByText("14개 중 1개 완료 · 7%")).toBeVisible();
+});
+
+test("suite offline saves an owner snapshot, reloads disconnected and clears on sign out", async ({ page, context, request }) => {
+  const trip = await seedFiveDayTrip("가상 오프라인 삿포로");
+  const tripId = trip.split("/").at(-1)!;
+  const endpoint = "/api/offline/" + tripId;
+  expect((await request.get(endpoint)).status()).toBe(401);
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  await page.goto(trip + "/offline");
+  const response = await page.request.get(endpoint);
+  expect(response.headers()["cache-control"]).toContain("no-store");
+  expect(Object.keys(await response.json()).sort()).toEqual(["owner", "savedAt", "snapshot", "tripId"]);
+  await page.getByRole("button", { name: "오프라인 수첩 저장" }).click();
+  await expect(page.getByText("이 기기에 수첩을 저장했어요.")).toBeVisible();
+  const cached = await page.evaluate(async () => {
+    const names = await caches.keys();
+    const resources = await Promise.all(names.map(async (name) => (await (await caches.open(name)).keys()).map(({ url }) => new URL(url).pathname)));
+    return resources.flat();
+  });
+  expect(cached).toContain("/offline.html");
+  expect(cached.every((path) => !path.startsWith("/api/") && !path.startsWith("/trips/"))).toBe(true);
+
+  await context.setOffline(true);
+  const offline = await context.newPage();
+  await offline.goto("/offline.html?trip=" + tripId);
+  await expect(offline.getByRole("heading", { name: "가상 오프라인 삿포로" })).toBeVisible();
+  await offline.reload();
+  await expect(offline.getByText("인터넷 연결 없이 보고 있습니다.")).toBeVisible();
+  await expect(offline.getByRole("heading", { name: "가상 오프라인 삿포로" })).toBeVisible();
+  await context.setOffline(false);
+  await page.goto("/trips");
+  await page.getByRole("button", { name: "로그아웃" }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(offline.getByText("이 기기에 저장된 수첩이 없습니다.")).toBeVisible();
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  await page.goto(trip + "/offline");
+  await page.getByRole("button", { name: "오프라인 수첩 저장" }).click();
+  await expect(page.getByText("이 기기에 수첩을 저장했어요.")).toBeVisible();
+  await context.clearCookies();
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-second");
+  await expect(page).toHaveURL(/\/trips$/);
+  await offline.goto("/offline.html?trip=" + tripId);
+  await expect(offline.getByText("이 기기에 저장된 수첩이 없습니다.")).toBeVisible();
+  const denied = await page.request.get(endpoint);
+  expect(denied.status()).toBe(404);
+  expect(denied.headers()["cache-control"]).toContain("no-store");
+});
+
+test("suite budget settles a three-person trip with prepayment and a local yen refund", async ({ page, browser }) => {
+  const trip = await seedFiveDayTrip("가상 홋카이도 3인 경비");
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  await page.goto(trip + "/budget");
+  await page.getByLabel("총예산 (원)").fill("500000");
+  await page.getByLabel("기본 환율 (1엔당 원)").fill("9.1234");
+  await page.getByLabel("정산 별칭 (한 줄에 한 명)").fill("가\n나\n다");
+  await page.getByRole("button", { name: "예산 저장" }).click();
+  await expect(page.getByRole("heading", { name: "예산 현황" })).toBeVisible();
+  const form = page.locator("#new-expense");
+  await form.getByLabel("지출명").fill("가상 숙소비");
+  await form.getByLabel("원래 결제액").fill("300000");
+  await form.locator('select[name="currency"]').selectOption("KRW");
+  await form.getByLabel("결제 시점").selectOption("prepaid");
+  await form.getByLabel("카테고리").selectOption("stay");
+  await form.getByRole("button", { name: "지출 등록" }).click();
+  await expect(page.getByText("나 → 가 · 100,000원", { exact: true })).toBeVisible();
+  await form.getByLabel("지출명").fill("가상 현지 교통");
+  await form.getByLabel("원래 결제액").fill("105");
+  await form.getByLabel("누적 환불액 (같은 통화)").fill("5");
+  await form.locator('select[name="currency"]').selectOption("JPY");
+  await form.getByLabel("결제 시점").selectOption("local");
+  await form.getByLabel("결제자").selectOption("2");
+  await form.getByRole("button", { name: "지출 등록" }).click();
+  await expect(page.getByText("나 → 가 · 99,392원", { exact: true })).toBeVisible();
+  await expect(page.getByText("다 → 가 · 100,304원", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth === innerWidth)).toBe(true);
+  const visitor = await browser.newContext({ baseURL: appUrl });
+  try {
+    const other = await visitor.newPage();
+    await other.goto("/auth/confirm?type=email&token_hash=local-fixture-second");
+    await expect(other).toHaveURL(/\/trips$/);
+    await other.goto(trip + "/budget");
+    await expect(other.getByRole("heading", { name: "여행을 찾을 수 없어요" })).toBeVisible();
+    await expect(other.getByText("가상 숙소비")).toHaveCount(0);
+  } finally {
+    await visitor.close();
+  }
+});
+
+test("suite guide prints a private-field-free A4 Sapporo notebook and applies output options", async ({ page, browserName }, testInfo) => {
+  const trip = await seedFiveDayTrip("삿포로 수첩 · 札幌の旅");
+  const tripId = trip.split("/").at(-1)!;
+  await asUser(database, ownerA, async (tx) => {
+    await tx.query("update public.trips set traveler_count=3 where id=$1", [tripId]);
+    const { rows: [place] } = await tx.query<{ id: string }>("insert into public.trip_places(trip_id,display_name,address_ja) " +
+      "values ($1,'小樽運河','北海道小樽市港町 · 仮の長い住所で印刷時の折り返しを確認します') returning id", [tripId]);
+    await tx.query("insert into public.itinerary_items(trip_id,title,local_date,place_id,private_note,shared_note) values " +
+      "($1,'삿포로 시내','2027-02-17',null,'FIXTURE_ONLY_PRIVATE_GUIDE','공유용 안내')," +
+      "($1,'비에이','2027-02-18',null,null,null),($1,'오타루 산책','2027-02-19',$2,null,null)," +
+      "($1,'귀국','2027-02-21',null,null,null)", [tripId, place.id]);
+    await tx.query("insert into public.itinerary_items(trip_id,title,local_date) " +
+      "select $1,'가상 인쇄 줄 ' || n,'2027-02-19' from generate_series(1,32) n", [tripId]);
+    await tx.query("select public.save_booking($1,$2,null,$3)", [tripId, randomUUID(), {
+      kind: "STAY", title: "가상 숙소 · Sapporo Hotel by Granbell", status: "CONFIRMED",
+      detail: { check_in_local_date: "2027-02-17", check_out_local_date: "2027-02-21" },
+      private: { confirmation_reference: "FIXTURE_ONLY_PRIVATE_GUIDE", amount: 11000, currency: "JPY" },
+    }]);
+    await tx.query("select public.save_trip_budget($1,500000,91234,array['가','나','다'])", [tripId]);
+  });
+  await page.setViewportSize({ width: 320, height: 844 });
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  await page.goto(trip + "/preparation");
+  await page.getByText("여행 준비 템플릿", { exact: true }).click();
+  await page.getByRole("button", { name: "일본 기본 템플릿" }).click();
+  await page.getByRole("button", { name: "여권 유효기간 확인 완료", exact: true }).click();
+  await page.goto(trip + "/budget");
+  const expense = page.locator("#new-expense");
+  await expense.getByLabel("지출명").fill("가상 숙박 사전 결제");
+  await expense.getByLabel("결제 시점").selectOption("prepaid");
+  await expense.getByLabel("연결 예약").selectOption({ label: "가상 숙소 · Sapporo Hotel by Granbell · 예약 완료" });
+  await expense.getByLabel("선택한 예약의 금액과 통화로 기록").check();
+  await expense.getByRole("button", { name: "지출 등록" }).click();
+  await expect(page.getByText("나 → 가 · 33,452원")).toBeVisible();
+  await page.goto(trip + "/offline");
+  await page.getByRole("button", { name: "오프라인 수첩 저장" }).click();
+  await expect(page.getByText("이 기기에 수첩을 저장했어요.")).toBeVisible();
+  await page.context().setOffline(true);
+  await page.goto("/offline.html?trip=" + tripId);
+  await expect(page.getByRole("heading", { name: "삿포로 수첩 · 札幌の旅" })).toBeVisible();
+  await expect(page.getByText(/小樽運河/).first()).toBeVisible();
+  await expect(page.getByText(/가상 숙박 사전 결제/)).toHaveCount(0);
+  await page.context().setOffline(false);
+  await page.goto(trip + "/guide");
+  const preview = page.getByRole("article", { name: "인쇄 미리보기" });
+  await expect(preview.getByText("삿포로 수첩 · 札幌の旅")).toBeVisible();
+  await expect(preview.getByText(/小樽運河/).first()).toBeVisible();
+  await expect(preview.getByText(/Sapporo Hotel by Granbell/)).toBeVisible();
+  await expect(preview.getByText("14개 중 1개 완료 · 7%")).toBeVisible();
+  const html = await page.content();
+  expect(html).not.toContain("FIXTURE_ONLY_PRIVATE_GUIDE");
+  expect(html).not.toContain("500,000원");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth === innerWidth)).toBe(true);
+  await page.emulateMedia({ media: "print" });
+  await expect(page.getByRole("navigation", { name: "여행 바로가기" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "인쇄 / PDF로 저장" })).toHaveCount(0);
+  if (browserName === "chromium") {
+    const pdf = await page.pdf({ path: testInfo.outputPath("kioku-guide-a4.pdf"), preferCSSPageSize: true, printBackground: true });
+    expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
+  }
+  await page.emulateMedia({ media: "screen" });
+  await page.getByLabel("특정 날짜만 인쇄 (비우면 전체)").fill("2027-02-19");
+  await page.getByLabel("장소 정보", { exact: true }).uncheck();
+  await page.getByLabel("경비 요약 (소유자용)").check();
+  await page.getByRole("button", { name: "출력 범위 적용" }).click();
+  await expect(preview.getByText("삿포로 시내", { exact: true })).toHaveCount(0);
+  await expect(preview.getByText(/小樽運河/)).toHaveCount(0);
+  await expect(preview.getByText("오타루 산책", { exact: false })).toBeVisible();
+  await expect(preview.getByText(/500,000원/)).toBeVisible();
 });
 
 test("Google PKCE keeps the existing owner session after refresh and browser restart", async ({}, testInfo) => {

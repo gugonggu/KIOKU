@@ -19,11 +19,62 @@ export async function handlePlanRequest({ database, userId, method, url, readJso
     return send(200, rows[0].result);
   }
   if (!userId) return send(401, { message: "fixture session required" });
+  if (url.pathname === "/rest/v1/trip_expenses" && method !== "GET") {
+    const trip = url.searchParams.get("trip_id")?.slice(3);
+    const id = url.searchParams.get("id")?.slice(3);
+    const revision = url.searchParams.get("revision")?.slice(3);
+    const { rows } = await asUser(database, userId, async (tx) => {
+      if (method === "DELETE") return tx.query("delete from public.trip_expenses where trip_id=$1 and id=$2 and revision=$3 returning id", [trip, id, revision]);
+      const body = await readJson();
+      const keys = ["title", "amount", "refund", "currency", "rate", "spent_on", "category", "payer", "shares", "method", "prepaid", "note", "booking_id"];
+      const values = keys.map((key) => body[key]);
+      if (method === "POST") return tx.query(
+        "insert into public.trip_expenses(id,trip_id," + keys.join(",") + ") values (" +
+        Array.from({ length: values.length + 2 }, (_, i) => "$" + (i + 1)).join(",") + ") returning id",
+        [body.id, body.trip_id, ...values]);
+      return tx.query("update public.trip_expenses set " + keys.map((key, i) => key + "=$" + (i + 4)).join(",") +
+        " where trip_id=$1 and id=$2 and revision=$3 returning id", [trip, id, revision, ...values]);
+    });
+    return send(method === "POST" ? 201 : 200, rows);
+  }
+  if (url.pathname === "/rest/v1/trip_preparation" && method !== "GET") {
+    const trip = url.searchParams.get("trip_id")?.slice(3);
+    const id = url.searchParams.get("id")?.slice(3);
+    await asUser(database, userId, async (tx) => {
+      if (method === "DELETE") {
+        await tx.query("delete from public.trip_preparation where trip_id=$1 and id=$2", [trip, id]);
+        return;
+      }
+      const body = await readJson();
+      if (method === "POST") {
+        await tx.query("insert into public.trip_preparation (trip_id,title,category,due_date,note) values ($1,$2,$3,$4,$5)",
+          [body.trip_id, body.title, body.category, body.due_date, body.note]);
+      } else if (method === "PATCH" && "done" in body) {
+        await tx.query("update public.trip_preparation set done=$3 where trip_id=$1 and id=$2", [trip,id,body.done]);
+      } else if (method === "PATCH") {
+        await tx.query("update public.trip_preparation set title=$3,category=$4,due_date=$5,note=$6 where trip_id=$1 and id=$2",
+          [trip,id,body.title,body.category,body.due_date,body.note]);
+      }
+    });
+    return send(method === "POST" ? 201 : 204, null);
+  }
   if (url.pathname.startsWith("/rest/v1/rpc/") && method === "POST") {
     const body = await readJson();
     let query: string;
     let args: unknown[];
     switch (url.pathname) {
+      case "/rest/v1/rpc/save_trip_budget":
+        query = "select public.save_trip_budget($1,$2,$3,$4) as result";
+        args = [body.p_trip, body.p_amount, body.p_rate, body.p_people];
+        break;
+      case "/rest/v1/rpc/apply_preparation_template":
+        query = "select public.apply_preparation_template($1,$2) as result";
+        args = [body.p_trip, JSON.stringify(body.p_items)];
+        break;
+      case "/rest/v1/rpc/move_preparation":
+        query = "select public.move_preparation($1,$2,$3) as result";
+        args = [body.p_trip, body.p_id, body.p_direction];
+        break;
       case "/rest/v1/rpc/read_share_settings":
         query = "select public.read_share_settings($1,$2) as result";
         args = [body.p_trip, body.p_preview];
@@ -89,6 +140,16 @@ export async function handlePlanRequest({ database, userId, method, url, readJso
   const booking = url.searchParams.get("booking_id")?.match(/^eq\.(.+)$/)?.[1] ?? null;
   let query: string;
   switch (url.pathname) {
+    case "/rest/v1/trip_budgets":
+      query = "select trip_id,budget_krw,rate,people from public.trip_budgets where trip_id=$1";
+      break;
+    case "/rest/v1/trip_expenses":
+      query = "select id,trip_id,title,amount,refund,currency,rate,spent_on::text,category,payer,shares,method,prepaid,note,booking_id,revision" +
+        " from public.trip_expenses where trip_id=$1 order by spent_on desc,id";
+      break;
+    case "/rest/v1/trip_preparation":
+      query = "select id,trip_id,title,category,done,due_date::text,note,sort_order::float8,source from public.trip_preparation where trip_id=$1 order by sort_order,id";
+      break;
     case "/rest/v1/bookings":
       query = columns === "id,kind,title,status" ?
         "select id,kind,title,status from public.bookings where trip_id=$1 order by title,id" :

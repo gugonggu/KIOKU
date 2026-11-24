@@ -15,7 +15,7 @@ const config: NextConfig = {
     }, ...["/trips/:path*", "/login", "/auth/:path*"].map((source) => ({
       source,
       headers: [{ key: "Cache-Control", value: "private, no-store" }],
-    })), ...["/s/:path*", "/api/shared/:path*"].map((source) => ({
+    })), ...["/s/:path*", "/api/shared/:path*", "/api/offline/:path*"].map((source) => ({
       source,
       headers: [
         { key: "Cache-Control", value: "private, no-store" },
