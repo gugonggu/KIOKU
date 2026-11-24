@@ -88,6 +88,20 @@ Windows에서 `listen EACCES`로 개발 서버가 시작되지 않으면 `netsh 
 - 4박 5일, 3인 가상 여행에서 320px·1440px의 홈과 날짜별 지도 이동을 확인했습니다. 린트, 타입 검사, 프로덕션 빌드, 단위 14건, PGlite DB 15건, Chrome E2E 36건과 실제 OpenFreeMap 1건을 통과했습니다. Chrome은 `PLAYWRIGHT_BASE_PORT=4600`, `PLAYWRIGHT_CHANNEL=chrome`으로 실행했습니다.
 - 다음 검증은 iPhone과 Android의 홈 → 일정 → 장소 상세 및 실제 계정의 공유 흐름입니다. 운영 가상 여행 쓰기는 별도 승인 뒤 실행합니다.
 
+### 2026-11-24 실사용 릴리스 후보
+
+| 흐름 | 이어서 완성한 내용 | 검증 범위 |
+| --- | --- | --- |
+| 여행 전·중·후 홈 | 일본 현지 D-Day, Day 번호, 여행 종료 상태와 오늘 확인할 예약을 표시합니다. 다음 일정은 시각이 지정된 오늘 일정 중 현재 시각 이후 항목입니다. 빈 날과 시간이 지난 날을 구별하고, 다음 일정 시각이 지나거나 일본 자정을 넘으면 보이는 홈을 다시 조회합니다. | 고정 시각 단위 테스트로 일본 자정 전후와 일정 시각 경계를 확인합니다. 가상 여행 홈으로 날짜별 상태를 확인합니다. |
+| 일정·장소·예약 | 기존 추가·이동·순서·삭제 흐름을 사용합니다. 장소 및 예약 상세에는 연결 일정의 날짜·시각과 원래 일정으로 돌아가는 링크가 있습니다. 숙소의 체크인부터 체크아웃까지 오늘 예약에 표시하며 취소된 예약은 예약 기록에서 확인합니다. | 가상 3인 5일 여행에서 Day 4 후보 장소를 재사용하고 날짜별 지도와 연결 일정을 왕복합니다. 기존 DB 테스트로 연결 해제·다른 여행 참조 제한을 확인합니다. |
+| 동행자 | 기존 공유 데이터로 오늘 날짜와 선택 날짜의 방문 장소를 표시합니다. 전체 지도, 길찾기 및 공유 범위 내 예약도 열 수 있습니다. 연결 장애에는 재시도 버튼을 표시합니다. | 지연된 이전 응답, 철회 후 뒤로 가기, 날짜 변경과 `pageshow.persisted` 재검증 핸들러를 확인합니다. 실제 모바일 브라우저의 BFCache 사용 여부는 실기기 검증 항목입니다. |
+
+- 스키마·마이그레이션·RLS·공유 DTO 변경은 없습니다. 장소 상세는 소유자 권한으로 기존 일정의 식별자·제목·날짜·시각을 추가 조회합니다. 기존 MapLibre, OpenFreeMap, 무료 Geoapify 구성과 외부 지도 링크를 사용합니다. 개발 Geoapify 키가 없어 실검색은 미실행이며 검색 응답·실패 폴백은 격리 환경에서 검증합니다.
+- 린트·타입 검사·프로덕션 빌드, 단위 16건, PGlite 15건, 전체 Chrome 39건, Windows WebKit 선별 7건, 실제 OpenFreeMap 1건을 통과했습니다. 가상 여행 홈은 320·360·375·390·430·768·1440px에서 가로 넘침을 검사했습니다. WebKit에서 본문 이동 링크가 기본 Tab 탐색에 포함되도록 탭 순서를 명시했습니다.
+- 로컬 확인은 `npm ci`, `npm run build` 후 `npm test`를 사용합니다. Chrome은 `PLAYWRIGHT_CHANNEL=chrome`, WebKit은 `npx playwright install webkit` 후 `PLAYWRIGHT_BROWSER=webkit`을 지정합니다. `KIOKU_UI_SCREENSHOTS=test-results/kioku-rc`로 가상 화면을 저장합니다. Git 연동 Preview는 Vercel 인증이 필요하며 데이터 변경 테스트는 로컬 격리 DB에서 실행합니다. [후속 PR #3](https://github.com/gugonggu/KIOKU/pull/3)
+- 실기기 확인 순서는 iPhone Safari와 Android Chrome에서 로그인 → 홈 → 오늘 일정 → 장소 상세 → 외부 지도 → 예약·공유입니다. 키보드를 연 상태에서 편집·저장, 하단 탭과 안전 영역, 지도 제스처, 느린 네트워크와 뒤로 가기를 확인합니다.
+- 승인 후 PR #2를 먼저 병합하고, PR #3의 기준을 `main`으로 바꾼 뒤 변경 범위와 CI를 다시 확인합니다. `main`은 Vercel Production 추적 브랜치입니다. 장애 시 배포 직전의 Ready 배포로 Vercel에서 롤백하고, 원인 수정과 Git 되돌리기는 별도 PR로 검토합니다. [Vercel Git 연동](https://vercel.com/docs/git#production-branch)
+
 ## Supabase 이메일 로그인 설정
 
 1. `Copy-Item .env.example .env.local`로 로컬 설정 파일을 만들고 아래 값을 입력합니다.
