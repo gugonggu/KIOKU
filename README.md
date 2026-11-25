@@ -134,6 +134,21 @@ PC에서는 `npm run build` 후 `npm test -- --grep 'review skip link|review sha
 - 첫 운영 변경 전 롤백 지점은 `2a85bf1`의 Ready 배포입니다. PR #2 배포 후에는 PR #3 직전 Ready 운영 배포도 기록합니다. 장애 시 승인 후 Vercel에서 직전 배포로 롤백하고 읽기 전용 스모크를 다시 실행합니다. [Vercel Git 연동](https://vercel.com/docs/git#production-branch) · [Instant Rollback](https://vercel.com/docs/instant-rollback)
 - 실사용 안정화 후 후보는 여행 준비 체크리스트, PWA·오프라인 열람, 여행 예산·경비, PDF 여행 가이드, 여행 사진·추억 기록입니다.
 
+### 2026-11-24 M6 실사용 개선·운영 안정화 릴리스
+
+| 단계 | Git과 Vercel | 운영 확인 |
+| --- | --- | --- |
+| 최초 정상 배포 | `2a85bf1aba0e317c8cbb61fa6d8d6916ca0ead02` · `dpl_Jw3FishZyL3BH9vjQLheAPUPNzyd` | 1차 롤백 지점. 대표 도메인의 배포가 Ready였고 사전 공개 스모크를 통과했습니다. [배포 기록](https://vercel.com/gugonggus-projects/kioku/Jw3FishZyL3BH9vjQLheAPUPNzyd) |
+| PR #2 운영 반영 | 일반 병합 `fc9abe74f7ddbaa58f4bc96ca40007e91f4711fe` · `dpl_7d4izGN3pq4aRYjHkLoj5tYsUTtq` · 01:18:58 UTC Ready | Git 자동 배포와 대표 도메인 연결을 확인했습니다. 공개 스모크 통과 후 최종 릴리스의 직전 롤백 지점으로 기록했습니다. [PR #2](https://github.com/gugonggu/KIOKU/pull/2) · [배포 기록](https://vercel.com/gugonggus-projects/kioku/7d4izGN3pq4aRYjHkLoj5tYsUTtq) |
+| PR #3 최종 운영 반영 | 일반 병합 `34e65b490a4f9a49a98788528c56c7958387a2c3` · `dpl_3awQZHbi1SZjS4gbEzjuRcrVhta4` · 01:25:14 UTC Ready | `main`과 대표 도메인 배포 SHA가 일치합니다. 자동 배포 후 공개 스모크를 통과했습니다. [PR #3](https://github.com/gugonggu/KIOKU/pull/3) · [배포 기록](https://vercel.com/gugonggus-projects/kioku/3awQZHbi1SZjS4gbEzjuRcrVhta4) · [대표 도메인](https://kioku-trip.vercel.app) |
+
+- **기능 구현·자동화·Production 반영 완료.** 여행 전·중·후 홈, 오늘 및 다음 일정, 일정·장소·지도·예약 연결, 후보 장소와 동행자 흐름을 반영했습니다. 독립 검수에서 발견한 본문 건너뛰기의 프래그먼트 변경과 공유 조회 장애의 잘못된 `404` 분류를 수정했습니다.
+- PR #3의 기준을 `main`으로 바꾼 뒤 검증한 최종 Head `f1d6122`는 독립 검수 후보와 소스 트리가 같았습니다. 린트, 타입 검사, 빌드, 단위 16건, PGlite DB 15건, Chrome 43건, Windows WebKit 선별 10건, 실제 OpenFreeMap 1건 통과. Head의 GitHub Actions 2건과 Vercel Preview, 최종 `main`의 검증도 통과했습니다. [최종 main 검사](https://github.com/gugonggu/KIOKU/actions/runs/45304837757)
+- 두 배포에서 로그인·공유 화면 `200`, 보호 경로 로그인 리디렉션 `307`, 미인증 장소 API `401`, 무효 공유 `404` 및 보호 헤더를 확인했습니다. 320·390·1440px 로그인 너비와 390px 동행자 본문 초점·주소 보존을 확인했습니다. 스모크에서 `5xx`는 없었으며, 배포별 런타임 로그 조회에서 오류·치명 등급과 `5xx` 기록이 반환되지 않았습니다. 전체 운영 트래픽의 `5xx` 집계는 확인하지 못했습니다.
+- 운영 마이그레이션 이력 5건과 확인한 여행·예약·공유 테이블 9개의 RLS·익명 권한이 동일했습니다. 운영 데이터 쓰기, 마이그레이션, 인증·환경변수·요금제 변경, 유료 리소스 추가, 수동 재배포 및 롤백은 실행하지 않았습니다. 무료 지도·수동 장소 등록 정책을 유지합니다.
+- **실기기 수용 테스트 대기.** 기존 승인 세션 없이 공개 흐름만 운영에서 확인했습니다. iPhone Safari와 Android Chrome에서 Google 로그인과 위 실기기 체크리스트를 실행합니다. 실제 BFCache 복원은 미검증입니다. 이번 Chrome 및 CI의 브라우저 이력 검증에서는 새 탐색이 관찰됐습니다.
+- **외부 실검색 검증 대기.** Geoapify 개발 키가 준비되면 격리 환경에서 실검색을 확인합니다. 여행 준비 체크리스트, PWA·오프라인 열람, 예산·경비, PDF 가이드, 사진·추억 기능은 기존 로드맵의 후속 후보로 유지합니다.
+
 ## Supabase 이메일 로그인 설정
 
 1. `Copy-Item .env.example .env.local`로 로컬 설정 파일을 만들고 아래 값을 입력합니다.
