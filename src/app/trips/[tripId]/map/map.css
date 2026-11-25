@@ -20,6 +20,10 @@
   .places-mobile-tools[data-search] .places-view-toggle button { padding-inline: 8px; }
   .places-mobile-tools[data-search] .places-find { padding-inline: 8px; gap: 4px; }
   .places-mobile-tools[data-search] .places-find svg { flex: none; }
+  .place-map-date-options > summary { min-height: 44px; }
+  .places-page .places-shell[data-filter="date"][data-view="map"] .place-detail {
+    max-height: min(30dvh, 240px, max(96px, calc(100dvh - 440px - env(safe-area-inset-bottom))));
+  }
 }
 
 @media (min-width: 840px) {

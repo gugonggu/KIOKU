@@ -141,11 +141,12 @@ export async function verifyM13Visual({ app, user, enter, must }) {
         await owner.goto(path + "/map?view=map&filter=date&date=2027-02-12&route=1");
         const route = owner.getByRole("region", { name: "날짜별 방문 순서" });
         await route.waitFor();
+        await owner.getByRole("button", { name: "지도 핀: 가상 운하" }).waitFor({ timeout: 12000 });
+        await owner.getByText("지도를 불러오는 중이에요.", { exact: true }).waitFor({ state: "hidden" });
         await route.scrollIntoViewIfNeeded();
         await owner.screenshot({ path: directory + "/390-route.png" });
         await owner.goto(path + "/budget");
-        await owner.getByRole("heading", { name: "지출 추가" }).scrollIntoViewIfNeeded();
-        await owner.screenshot({ path: directory + "/390-quick-expense.png" });
+        await owner.locator("#new-expense").screenshot({ path: directory + "/390-quick-expense.png" });
         await owner.goto(path + "/map?view=map&filter=date&date=2027-02-12");
       }
       await owner.getByRole("navigation", { name: "표시할 장소" }).getByRole("link", { name: "후보 장소" }).click();

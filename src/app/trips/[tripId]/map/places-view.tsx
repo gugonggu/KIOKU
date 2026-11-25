@@ -170,7 +170,7 @@ export function PlacesView({ places, links, trip, date, filter, itineraryDate }:
     }
   }
 
-  return <div className="places-shell" data-view={view} data-selected={item ? "true" : undefined}>
+  return <div className="places-shell" data-view={view} data-filter={filter} data-selected={item ? "true" : undefined}>
     <div className="places-mobile-tools" data-search={filtersOnMap && search ? "true" : undefined}>
       <div className="places-view-toggle" role="group" aria-label="장소 보기 방식">
         <button type="button" aria-pressed={view === "list"} onClick={() => updateContext({ view: "list" })}><List size={17} aria-hidden />목록</button>
@@ -214,13 +214,16 @@ export function PlacesView({ places, links, trip, date, filter, itineraryDate }:
 
     <div className="places-stage">
       {filtersOnMap && <div className="places-map-filters">
-        {filterLinks}{dayPicker}{routeControl}
+        {filter === "date" ? <details className="place-map-date-options">
+          <summary className="quiet-link">{dateLabel(date)} · 필터와 동선</summary>
+          {filterLinks}{dayPicker}{routeControl}
+        </details> : filterLinks}
       </div>}
       {!pins.length && <p className="plan-meta place-map-empty" role="status">
         {shown.length ? "검색 조건에 맞는 장소에 표시할 지도 핀이 없어요." : find ? "찾는 장소가 없어 지도 핀이 없어요." : "표시할 지도 핀이 없어요."}
       </p>}
       <MapCanvas pins={pins} selected={item?.id} onSelect={select} route={showRoute ? routeSegments : undefined} />
-      {item && <article className="place-detail editorial-paper" aria-label="선택한 장소">
+      {item && <article key={`${item.id}/${item.content_version}`} className="place-detail editorial-paper" aria-label="선택한 장소">
         <header>
           <span className="place-number" data-empty={number ? undefined : "true"} aria-hidden>{number ?? <MapPinOff size={15} />}</span>
           <div>

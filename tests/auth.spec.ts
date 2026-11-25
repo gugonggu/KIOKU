@@ -1794,6 +1794,8 @@ test("editorial places workspace keeps list, map and selection in sync on deskto
   await expect(edit).toHaveCount(0);
   await expect(page).toHaveURL(/date=2027-02-17&filter=date.*view=map&q=%ED%83%80%EC%9B%8C/);
   await expect(pin("삿포로 TV 타워")).toHaveAttribute("aria-pressed", "true");
+  const selectedMarker = (await pin("삿포로 TV 타워").boundingBox())!;
+  expect(selectedMarker.y + selectedMarker.height).toBeLessThan((await detail.boundingBox())!.y);
   await capture("places-filtered-map-390");
   await page.getByRole("button", { name: "목록", exact: true }).click();
   await expect(list).toBeVisible();
