@@ -797,11 +797,17 @@ test("an owner creates a trip with no dates, edits it and confirms deletion on m
   await expect(page.getByText("당일치기", { exact: true })).toBeVisible();
   await expect(page.getByText("2명", { exact: true })).toBeVisible();
 
-  await page.getByRole("link", { name: "여행 삭제" }).click();
+  await expect(page.getByRole("link", { name: "여행 삭제" })).toHaveCount(0);
+  const openDeletion = async () => {
+    await page.getByRole("link", { name: "여행 편집", exact: true }).click();
+    await page.getByRole("region", { name: "여행 관리" }).getByRole("link", { name: "여행 삭제" }).click();
+  };
+  await openDeletion();
   await expect(page.getByText("삭제한 여행은 되돌릴 수 없어요.")).toBeVisible();
+  await expect(page.getByText(/다른 기기는 각각 정리가 필요해요/)).toBeVisible();
   await page.getByRole("link", { name: "취소" }).click();
   await expect(page.getByRole("heading", { name: "봄빛 당일치기" })).toBeVisible();
-  await page.getByRole("link", { name: "여행 삭제" }).click();
+  await openDeletion();
   await page.getByRole("button", { name: "여행 삭제" }).click();
   await expect(page).toHaveURL(/\/trips$/);
   await expect(page.getByText("아직 등록된 여행이 없어요.")).toBeVisible();
