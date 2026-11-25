@@ -63,7 +63,7 @@ Node.js 24에서 `npm run build` 후, 모든 마이그레이션을 적용한 로
 
 ## JSON 일정 작성 규격
 
-UTF-8 JSON 배열을 붙여넣거나 `.json` 파일을 선택합니다. 한 파일에 1~30개 일정, 전체 20,000자까지 입력할 수 있습니다. 배열의 각 객체는 아래 필드만 받습니다.
+UTF-8 JSON 배열을 붙여넣거나 80,000바이트 이하의 `.json` 파일을 선택합니다. 한 파일에 1~30개 일정, 전체 20,000자까지 입력할 수 있습니다. 배열의 각 객체는 아래 필드만 받습니다. 선택 필드는 생략하거나 `null` 또는 빈 문자열로 둘 수 있습니다.
 
 | 필드 | 규칙 |
 | --- | --- |
@@ -92,3 +92,7 @@ UTF-8 JSON 배열을 붙여넣거나 `.json` 파일을 선택합니다. 한 파�
 Git 연동 [Preview](https://kioku-git-feature-travel-memory-and-polish-gugonggus-projects.vercel.app)는 Vercel 인증으로 보호됩니다. 기존 Preview의 `/trips`가 폐기된 도메인으로 이동하는 것을 확인해 이 브랜치에만 `APP_URL`을 고정 Preview 별칭으로 지정했습니다. 일반 Preview와 Production은 Supabase 환경변수 항목을 공유합니다. Preview에서는 공개·비로그인 경로를 확인하고, 인증된 읽기와 쓰기는 격리 로컬 DB에서 검증합니다. Vercel의 `SUPABASE_STORAGE_SECRET_KEY`는 아직 등록되지 않았습니다. `GEOAPIFY_API_KEY`도 목록에 없어 장소는 직접 등록을 사용합니다.
 
 운영 반영 전 [마이그레이션 적용·검증·복구 순서](supabase/README.md#운영-적용-준비-기록--2026-11-25)와 [모바일 검증 기록 및 실기기 체크리스트](MOBILE_QA.md)를 확인합니다. 운영 앱은 PR #5의 `3b06de3` 배포를 사용합니다. 이 작업에서 운영 DB 쓰기·마이그레이션, `main` 병합, Production 배포 및 유료 리소스 추가는 수행하지 않습니다.
+
+Preview `7474a3a`를 HTTPS로 점검했습니다. Google 버튼이 있는 `/login`, `/manifest.webmanifest`, `/kioku-worker.js`, `/offline.html`, `/s`는 `200`이었고 비로그인 `/trips`·`/trips/new`는 고정 Preview 로그인 별칭으로 `307`을 반환했습니다. 비로그인 사진 API는 `401`이었습니다. 인증 계정의 여행·지도·일정과 새 기능 쓰기는 격리 환경에서 확인한 범위입니다. [Preview 배포 기록](https://vercel.com/gugonggus-projects/kioku/AunHgh8ZzyMwJyRW4Tih4i9eufCv) · [PR 체크](https://github.com/gugonggu/KIOKU/pull/6/checks)
+
+판정은 **BLOCKED**입니다. 운영 마이그레이션 두 건과 서버 전용 Storage 키 등록이 필요합니다. 이 두 항목의 승인 후 기존 데이터와 스키마를 백업하고 변경을 적용한 뒤 Production 배포 및 스모크 검증을 진행합니다. Mobile QA 문서에 실제 폰에서 확인할 항목과 Android 에뮬레이터 결과를 기록했습니다.

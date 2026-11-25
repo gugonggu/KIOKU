@@ -34,7 +34,10 @@ async function enter(page, email) {
   const { properties } = must(await admin.auth.admin.generateLink({ type: "magiclink", email }), "local magic link");
   const target = new URL("/auth/confirm", app);
   target.search = new URLSearchParams({ type: "email", token_hash: properties.hashed_token });
-  await page.goto(target.href).catch(() => { throw new Error("Local fixture sign-in navigation failed"); });
+  await page.goto(target.href).catch((error) => {
+    const cause = error.message.match(/net::ERR_[A-Z_]+/)?.[0] ?? error.name;
+    throw new Error("Local fixture sign-in navigation failed (" + cause + ")");
+  });
   await expect(page).toHaveURL(/\/trips$/);
 }
 
@@ -86,7 +89,7 @@ try {
   }
   const path = "/trips/" + tripId;
   const date = "2027-02-20";
-  if (process.env.KIOKU_RELEASE_MOBILE === "1") {
+  if (process.env.KIOKU_RELEASE_MOBILE === "1" || process.env.KIOKU_RELEASE_MOBILE === "android") {
     await verifyReleaseMobile({ app, path, tripId, signIn: (page) => enter(page, owner.email) });
   } else {
     await verifyMemory({ owner, visitor, path, tripId, date });
