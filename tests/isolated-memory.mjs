@@ -132,13 +132,24 @@ async function verifyMemory({ owner, visitor, path, tripId, date }) {
   await page.getByRole("button", { name: "일기 저장", exact: true }).click();
   await expect(page.getByRole("heading", { name: "시험용 겨울 일기" })).toBeVisible();
 
-  async function upload(title, bytes) {
+  async function upload(title, bytes, name = "fixture.jpg", mimeType = "image/jpeg") {
     await page.locator("#add-photo summary").click();
-    await page.getByLabel("사진 파일").setInputFiles({ name: "fixture.jpg", mimeType: "image/jpeg", buffer: bytes });
+    await page.getByLabel("사진 파일").setInputFiles({ name, mimeType, buffer: bytes });
     await page.getByLabel("사진 제목").fill(title);
     await page.getByLabel("연결 일기").selectOption({ label: date + " · 시험용 겨울 일기" });
     await page.getByRole("button", { name: "사진 저장", exact: true }).click();
   }
+  let photoPosts = 0;
+  const countPhotoPosts = (request) => { if (request.method() === "POST") photoPosts++; };
+  page.on("request", countPhotoPosts);
+  await upload("큰 사진", Buffer.alloc(3_800_001));
+  await expect(page.locator("#add-photo").getByRole("alert")).toContainText("크기를 3.8MB 이하로 줄인");
+  await page.goto(path + "/memory?date=" + date);
+  await upload("HEIC 사진", Buffer.from("test fixture"), "fixture.heic", "image/heic");
+  await expect(page.locator("#add-photo").getByRole("alert")).toContainText("JPEG로 내보낸");
+  assert.equal(photoPosts, 0);
+  page.off("request", countPhotoPosts);
+  await page.goto(path + "/memory?date=" + date);
   await upload("잘못된 사진", Buffer.from("invalid test bytes"));
   await expect(page.locator("#add-photo").getByRole("alert")).toContainText("3.8MB");
   await page.goto(path + "/memory?date=" + date);

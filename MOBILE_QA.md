@@ -32,6 +32,10 @@ Windows의 대체 검증은 Playwright WebKit입니다. Xcode Simulator는 macOS
 
 Playwright Android 전용 실행과 초기 일반 CDP 연결은 시간 초과가 발생했습니다. `noDefaults` CDP 연결로 브라우저 검증을 실행했습니다. 사진 입력 재시험에서 수동 점검용 Next 서버가 같은 포트를 사용해 사진용 키 없는 인스턴스로 연결되는 것을 확인했습니다. 수동 서버를 종료했고 테스트 실행기도 포트가 이미 응답하면 중단합니다. 로컬 ADB 캡처 `test-results/mobile-release/android-offline.png`는 Chrome 주소와 시스템 UI를 보여 주지만 본문 영역의 시각 검수에는 사용할 수 없었습니다. 저장본 내용은 Android Chrome의 DOM 검증으로 확인했습니다.
 
+## M11~M12 운영 전 사진 확인
+
+고용량 JPEG와 HEIC 파일을 첨부하면 브라우저에서 제출을 막고 각각 축소와 JPEG 내보내기를 안내합니다. 카메라 앱 또는 사진 선택기가 변환해 전달한 JPEG는 정상 입력으로 처리합니다. 실제 iPhone Safari가 각 선택 경로에서 전달하는 형식과 카메라 직촬영은 실기기 확인 항목입니다. Windows WebKit 선별 실행의 확인된 범위는 6건입니다.
+
 ## 실기기 체크리스트
 
 | 단계 | iPhone Safari | Android Chrome |

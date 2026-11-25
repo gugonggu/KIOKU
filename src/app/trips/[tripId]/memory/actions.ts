@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { sanitizeMemoryPhoto } from "@/lib/memory-photo";
+import { memoryPhotoInputError, selectedMemoryPhotos } from "@/lib/memory-photo-input";
 import { memoryBucket, memoryPhotoKey, memoryStorageWriter } from "@/lib/trip-memory-data";
 import { readMemoryEntry, readMemoryPhoto, visitStatuses, type MemoryPhoto, type VisitStatus } from "@/lib/trip-memory";
 import { getTrip, isTripId, requireTripClient } from "@/lib/trips";
@@ -67,8 +68,9 @@ export async function saveMemoryPhoto(trip: string, id: string, editing: boolean
   }
   const storage = memoryStorageWriter();
   if (!storage) return uploadDisabled;
-  const selected = [form.get("photo"), form.get("camera")].filter((file): file is File => file instanceof File && file.size > 0);
-  if (selected.length !== 1) return "사진 선택이나 카메라 중 한 곳에서 사진을 한 장 지정해 주세요.";
+  const selected = selectedMemoryPhotos(form);
+  const inputError = memoryPhotoInputError(selected);
+  if (inputError) return inputError;
   const image = await sanitizeMemoryPhoto(selected[0]).catch(() => null);
   if (!image) return "3.8MB 이하의 JPEG, PNG 또는 WebP 사진을 선택해 주세요.";
   const reservation = await client.from("trip_memory_photos").insert({ id, trip_id: trip, ...fields }).select("id").maybeSingle();

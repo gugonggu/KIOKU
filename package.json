@@ -13,7 +13,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "playwright test",
     "test:db": "node --test tests/trips-db.test.mjs tests/trip-places-db.test.mjs tests/trip-bookings-db.test.mjs tests/trip-sharing-db.test.mjs tests/travel-suite-db.test.mjs tests/travel-memory-db.test.mjs",
-    "test:unit": "node --test --disable-warning=MODULE_TYPELESS_PACKAGE_JSON tests/trip-details.test.mjs tests/trip-plan.test.mjs tests/trip-places.test.mjs tests/trip-bookings.test.mjs tests/trip-sharing.test.mjs tests/travel-suite.test.mjs tests/travel-memory.test.mjs tests/trip-import.test.mjs"
+    "test:unit": "node --test --disable-warning=MODULE_TYPELESS_PACKAGE_JSON tests/trip-details.test.mjs tests/trip-plan.test.mjs tests/trip-places.test.mjs tests/trip-bookings.test.mjs tests/trip-sharing.test.mjs tests/travel-suite.test.mjs tests/travel-memory.test.mjs tests/trip-import.test.mjs tests/memory-photo-input.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",

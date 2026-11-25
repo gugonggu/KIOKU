@@ -97,4 +97,10 @@ Preview `7474a3a`를 HTTPS로 점검했습니다. Google 버튼이 있는 `/logi
 
 `46c430b` Preview에서 같은 HTTPS 스모크를 다시 통과했습니다. 운영 Auth의 공개 설정은 Google·이메일 활성화와 신규 가입 차단을 반환했습니다. `PLAYWRIGHT_LIVE_MAP=1`로 실행한 실제 OpenFreeMap Chrome E2E 한 건이 통과했습니다. [Preview 검증 배포](https://vercel.com/gugonggus-projects/kioku/HG8FU2jBnTw4QXtqjWGJvUNjCwkL)
 
-판정은 **BLOCKED**입니다. 운영 마이그레이션 두 건과 서버 전용 Storage 키 등록이 필요합니다. 이 두 항목의 승인 후 기존 데이터와 스키마를 백업하고 변경을 적용한 뒤 Production 배포 및 스모크 검증을 진행합니다. Mobile QA 문서에 실제 폰에서 확인할 항목과 Android 에뮬레이터 결과를 기록했습니다.
+이 릴리스 후보 점검 당시에는 운영 마이그레이션 두 건과 서버 전용 Storage 키 등록이 남아 있었습니다. 최종 운영 적용과 스모크 결과는 [PR #6](https://github.com/gugonggu/KIOKU/pull/6)에서 확인할 수 있습니다.
+
+### 사진 첨부와 검증 범위
+
+- 파일 또는 카메라에서 JPEG·PNG·WebP 한 장을 첨부합니다. 브라우저가 JPEG로 전달한 사진은 JPEG로 처리합니다. HEIC·HEIF로 전달되면 JPEG로 내보내고, 3.8MB를 넘는 파일은 크기를 줄인 뒤 첨부합니다. 브라우저에서 형식·파일 수·크기를 먼저 확인해 잘못된 파일을 제출 전에 안내합니다.
+- 서버에서 파일 헤더와 이미지 크기를 다시 검사하고 EXIF를 제거한 JPEG만 보관합니다. 저장 한도는 최대 변 1440px, 512KiB, 여행당 24장, 계정당 120장입니다. 처리할 수 없는 파일은 Storage 예약 전에 거절합니다.
+- Windows WebKit 결과는 실행이 확인된 선별 6건입니다. 이전 PR 설명의 11건은 실행 범위를 확인할 수 없어 이 릴리스 검증 건수에 포함하지 않습니다.

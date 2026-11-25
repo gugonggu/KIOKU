@@ -44,6 +44,7 @@ function PhotoFields({ day, plan, entries, photo }: { day: string; plan: TripPla
       <label>사진 파일<input type="file" name="photo" accept="image/jpeg,image/png,image/webp" /></label>
       <label>카메라로 촬영<input type="file" name="camera" accept="image/jpeg" capture="environment" /></label>
       <p className="plan-meta">JPEG·PNG·WebP, 원본 3.8MB 이하. 위치 등 사진 메타데이터는 저장 전에 제거해요.</p>
+      <p className="plan-meta">HEIC·HEIF 사진은 JPEG로 내보내고, 3.8MB를 넘는 사진은 크기를 줄인 뒤 첨부해 주세요.</p>
     </>}
     <label>사진 날짜<input type="date" required name="day" defaultValue={photo?.day ?? day} /></label>
     <label>사진 제목<input required name="title" maxLength={100} defaultValue={photo?.title} /></label>
@@ -114,7 +115,7 @@ export default async function Page({ params, searchParams }: PageProps<"/trips/[
         <summary className="quiet-link">새 사진</summary>
         {canUpload ? <>
           <p>소유자만 볼 수 있어요. 여행당 24장, 계정당 120장까지 보관할 수 있어요.</p>
-          <MemoryForm action={saveMemoryPhoto.bind(null, tripId, randomUUID(), false)} label="사진 저장">
+          <MemoryForm action={saveMemoryPhoto.bind(null, tripId, randomUUID(), false)} label="사진 저장" photoUpload>
             <PhotoFields day={day} plan={plan} entries={entries} />
           </MemoryForm>
         </> : <p className="plan-meta">사진 저장소가 준비되면 여기서 사진을 추가할 수 있어요.</p>}
