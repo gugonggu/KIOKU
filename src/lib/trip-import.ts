@@ -4,7 +4,11 @@ import { outsideTrip, parseSchedule } from "./trip-plan.ts";
 
 export type TripImportRow = Pick<ScheduleFields, "title" | "local_date" | "time_mode" | "fixed_local_time" | "period">;
 export type ImportPreviewRow = TripImportRow & { status: "new" | "duplicate" | "outside" };
-export const importLimits = { rows: 30, text: 20000 };
+export const importLimits = { rows: 30, text: 20000, fileBytes: 80000 };
+
+export function normalizeTripImportText(text: string) {
+  return text.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
+}
 
 export function parseTripImport(text: string): { rows: TripImportRow[] } | { error: string } {
   if (text.length > importLimits.text) return { error: "한 번에 최대 20,000자까지 붙여넣을 수 있어요." };

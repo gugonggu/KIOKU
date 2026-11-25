@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { importPreview, parseTripImport, type ImportPreviewRow } from "@/lib/trip-import";
+import { importPreview, normalizeTripImportText, parseTripImport, type ImportPreviewRow } from "@/lib/trip-import";
 import { loadTripPlan } from "@/lib/trip-plan-data";
 import { getTrip, requireTripClient } from "@/lib/trips";
 
@@ -14,7 +14,7 @@ export type ScheduleImportState = {
 };
 
 export async function handleScheduleImport(tripId: string, previous: ScheduleImportState, form: FormData): Promise<ScheduleImportState> {
-  const input = String(form.get("schedule_json") ?? "");
+  const input = normalizeTripImportText(String(form.get("schedule_json") ?? ""));
   const parsed = parseTripImport(input);
   if ("error" in parsed) return { message: parsed.error };
   const { data: trip, error } = await getTrip(tripId);

@@ -40,6 +40,8 @@ Playwright Android 전용 실행과 초기 일반 CDP 연결은 시간 초과가
 
 ## 실기기 체크리스트
 
+M15의 JSON 파일 입력 회귀는 가상 여행에서 Chrome과 Playwright WebKit의 390px 화면으로 통과했습니다. 파일 선택은 자동화 API를 사용했으며 Android·iOS 파일 앱은 아래 항목에서 확인합니다. 기존 Pixel AVD는 Android 17로 부팅됐지만 Chrome DevTools 연결이 되지 않아 설치·독립 실행·비행기 모드·카메라·PDF는 이번에 실행하지 않았습니다. BrowserStack은 무료 잔여량을 확인할 수 없어 원격 세션을 열지 않았습니다.
+
 | 단계 | iPhone Safari | Android Chrome |
 | --- | --- | --- |
 | 설치 | 공유 메뉴에서 홈 화면 추가 | Chrome 메뉴에서 앱 설치 |
@@ -47,4 +49,5 @@ Playwright Android 전용 실행과 초기 일반 CDP 연결은 시간 초과가
 | 오프라인 | 저장해 둔 날짜별 일정과 장소 확인 | 저장해 둔 날짜별 일정과 장소 확인 |
 | 사진 | 카메라 촬영과 사진 보관함에서 첨부 후 삭제 | 카메라 촬영과 파일 선택에서 첨부 후 삭제 |
 | PDF | A4로 인쇄하고 PDF 저장 및 공유 | A4 PDF 다운로드와 다운로드 앱에서 열기 |
+| JSON 파일 | 파일 앱에서 UTF-8 `.json` 파일을 골라 미리보기 확인 | 다운로드 앱에서 UTF-8 `.json` 파일을 골라 미리보기 확인 |
 | 조작 | 회전, Safe Area, 키보드와 일정 편집 | 회전, 지도 터치·확대, 네트워크 복구 |

@@ -479,6 +479,58 @@ test("product polish groups travel tools and adds, copies and continues imported
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
+test("schedule import previews and saves multiline files and checks duplicates on reselection", async ({ page }) => {
+  const trip = await seedFiveDayTrip("가상 파일 가져오기");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  await page.goto(trip + "/itinerary/import");
+  const file = page.getByLabel("JSON 파일 선택");
+  const input = page.getByLabel("일정 JSON");
+  const preview = page.getByRole("region", { name: "가져오기 결과 미리보기" });
+  const previewButton = page.getByRole("button", { name: "가져오기 미리보기" });
+  const error = page.getByRole("main").getByRole("alert");
+  const json = '[\n  {"title":"가상 시계탑 방문","date":"2027-02-17"}\n]\n';
+  const jsonFile = { name: "fixture.json", mimeType: "application/json", buffer: Buffer.from(json) };
+  const windowsFile = {
+    name: "fixture.JSON", mimeType: "application/octet-stream",
+    buffer: Buffer.from("\uFEFF" + json.replaceAll("\n", "\r\n")),
+  };
+
+  await expect(file).toBeEnabled();
+  await file.setInputFiles(jsonFile);
+  await expect(input).toHaveValue(json);
+  await previewButton.click();
+  await expect(preview).toContainText("추가 예정");
+  await page.getByRole("button", { name: "확인하고 일정 추가" }).click();
+  await expect(page.getByRole("status")).toContainText("1개 추가 · 중복 0개 건너뜀");
+
+  await expect(file).toHaveValue("");
+  await file.setInputFiles(jsonFile);
+  await previewButton.click();
+  await expect(preview).toContainText("중복 · 건너뜀");
+  await expect(page.getByRole("button", { name: "확인하고 일정 추가" })).toHaveCount(0);
+
+  await file.setInputFiles({ ...windowsFile, name: "fixture.txt" });
+  await expect(error).toContainText(".json");
+  await expect(input).toHaveValue(json);
+  await expect(preview).toHaveCount(0);
+
+  await file.setInputFiles({ ...windowsFile, name: "broken.json", buffer: Buffer.from("[") });
+  await expect(error).toContainText("JSON 형식이 올바르지 않아요.");
+  await expect(input).toHaveValue(json);
+  await expect(preview).toHaveCount(0);
+
+  await file.setInputFiles({ ...windowsFile, name: "encoding.json", buffer: Buffer.from([0xff, 0xfe, 0x5b, 0x00]) });
+  await expect(error).toContainText("UTF-8");
+  await expect(input).toHaveValue(json);
+
+  await file.setInputFiles(windowsFile);
+  await expect(error).toHaveCount(0);
+  await expect(input).toHaveValue(json);
+  await previewButton.click();
+  await expect(preview).toContainText("중복 · 건너뜀");
+});
+
 test("Google PKCE keeps the existing owner session after refresh and browser restart", async ({}, testInfo) => {
   const tripId = randomUUID();
   const title = "Google 연결 전부터 있던 여행";
