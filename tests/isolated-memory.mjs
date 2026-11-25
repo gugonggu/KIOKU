@@ -5,6 +5,7 @@ import { once } from "node:events";
 import { chromium, expect } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import sharp from "sharp";
+import { verifyReleaseMobile } from "./release-mobile.mjs";
 
 const fixture = JSON.parse(process.env.KIOKU_LOCAL_SUPABASE || "{}");
 const hosted = new URL(fixture.API_URL);
@@ -33,7 +34,7 @@ async function enter(page, email) {
   const { properties } = must(await admin.auth.admin.generateLink({ type: "magiclink", email }), "local magic link");
   const target = new URL("/auth/confirm", app);
   target.search = new URLSearchParams({ type: "email", token_hash: properties.hashed_token });
-  await page.goto(target.href);
+  await page.goto(target.href).catch(() => { throw new Error("Local fixture sign-in navigation failed"); });
   await expect(page).toHaveURL(/\/trips$/);
 }
 
@@ -85,6 +86,18 @@ try {
   }
   const path = "/trips/" + tripId;
   const date = "2027-02-20";
+  if (process.env.KIOKU_RELEASE_MOBILE === "1") {
+    await verifyReleaseMobile({ app, path, tripId, signIn: (page) => enter(page, owner.email) });
+  } else {
+    await verifyMemory({ owner, visitor, path, tripId, date });
+  }
+} finally {
+  await browser?.close();
+  if (child.exitCode === null) child.kill();
+  await stopped;
+}
+
+async function verifyMemory({ owner, visitor, path, tripId, date }) {
   browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHANNEL });
   const context = await browser.newContext({ baseURL: app, viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
@@ -171,8 +184,4 @@ try {
   assert.equal((await page.request.get(imagePath)).status(), 404);
   assert.ok((await admin.storage.from("trip-memory").download(filename)).error);
   console.log("Isolated Supabase + Chrome passed: five days, prep, bookings, settlement, offline, A4 PDF and private memory photo.");
-} finally {
-  await browser?.close();
-  if (child.exitCode === null) child.kill();
-  await stopped;
 }

@@ -53,3 +53,42 @@ Node.js 24에서 `npm run build` 후, 모든 마이그레이션을 적용한 로
 ```
 
 운영 반영은 여행 기억 스키마·비공개 Storage와 일정 가져오기 RPC의 적용, Vercel의 서버 전용 환경변수 설정 승인 후 진행합니다. 한글·일본어 PDF와 오프라인 열람의 브라우저 회귀를 확인하며, 설치·카메라 입력·기본 인쇄 메뉴의 실기기 검증을 따로 남깁니다.
+
+### 2026-11-25 로컬 검증 인계
+
+- `feature/travel-memory-and-polish`의 `c58d2b1`에서 Node.js `24.11.1`, npm `11.6.2`로 린트, 타입 검사, 프로덕션 빌드, 단위 24건, PGlite DB 19건을 통과했습니다. Chrome 전체 E2E 49건(`PLAYWRIGHT_CHANNEL=chrome`, `PLAYWRIGHT_BASE_PORT=4300`)과 WebKit 핵심 E2E 6건(`PLAYWRIGHT_BROWSER=webkit`, `PLAYWRIGHT_BASE_PORT=4600`, `--grep 'suite |memory archive|product polish'`)도 통과했습니다.
+- Supabase CLI `3.3.0`을 사용해 임시 로컬 프로젝트에 마이그레이션 9건을 순서대로 적용했습니다. `node tests/isolated-memory.mjs`로 실제 로컬 Auth·PostgREST·Storage를 사용해 5일 일정 가져오기, 준비·예약·정산, 오프라인 열람, 일기와 사진을 검증했습니다. 사진의 EXIF 제거, 다른 계정의 다운로드 차단, 비로그인 이미지 요청 차단, 대표 사진 선택과 Storage 파일 삭제를 확인했습니다. 검증 후 임시 스택을 중지했습니다.
+- Chrome이 생성한 A4 PDF 3쪽을 렌더링해 한글·일본어 표시와 페이지 나눔을 확인했습니다. PDF 텍스트에서도 테스트용 비공개 값이 제외된 것을 확인했습니다.
+- 실기기 수용 테스트는 남아 있습니다. iPhone Safari와 Android Chrome에서 홈 화면 설치, 비행기 모드에서 다시 열기, 카메라 입력, 기본 인쇄 메뉴의 A4/PDF 저장을 확인합니다. 운영 DB·Vercel 반영은 프로젝트 소유자 승인 후 진행합니다.
+
+## JSON 일정 작성 규격
+
+UTF-8 JSON 배열을 붙여넣거나 `.json` 파일을 선택합니다. 한 파일에 1~30개 일정, 전체 20,000자까지 입력할 수 있습니다. 배열의 각 객체는 아래 필드만 받습니다.
+
+| 필드 | 규칙 |
+| --- | --- |
+| `title` | 필수 문자열. 앞뒤 공백을 제거한 뒤 1~100자입니다. |
+| `date` | 선택. 실제 달력 날짜를 `YYYY-MM-DD`로 입력합니다. 생략하면 후보함에 들어갑니다. 여행 기간이 설정돼 있으면 그 안의 날짜를 사용합니다. |
+| `time` | 선택. `date`와 함께 24시간제 `HH:mm`을 입력합니다. `period`와 동시에 지정할 수 없습니다. |
+| `period` | 선택. `date`와 함께 `MORNING`, `AFTERNOON`, `EVENING` 중 하나를 입력합니다. 둘 다 생략하면 시간 미정입니다. |
+
+날짜와 시각은 일본 현지 `Asia/Tokyo` 기준입니다. `Z`, UTC 오프셋, 초, 공항별 타임존은 입력하지 않습니다. 가져온 항목은 일정 메모 유형으로 저장됩니다. 장소는 **장소와 지도**에서 등록한 뒤 일정 편집에서 연결합니다. 예약 종류, 상태, 구간별 공항 현지 시각은 **예약**에서 따로 등록하고 필요하면 일정에 연결합니다. 장소·예약·공유 메모·비공개 메모 필드를 JSON에 넣으면 검증 오류가 표시됩니다.
+
+같은 여행에서 제목의 앞뒤 공백과 대소문자를 무시하고 날짜·시간 유형·시각·시간대가 모두 같은 행을 건너뜁니다. 같은 파일의 중복에도 적용합니다. 기존 일정은 보존됩니다. 날짜가 기간을 벗어나거나 형식이 잘못된 행은 수정한 뒤 다시 미리봅니다. 가져오기 확정은 트랜잭션 한 건으로 저장합니다.
+
+- [최소 예제](examples/itinerary-minimal.json)는 날짜 미정 후보 한 건입니다.
+- [삿포로 4박 5일 예제](examples/itinerary-sapporo-five-days.json)는 2027-02-17~21의 지역별 일정입니다. 여행 생성에서 일본 홋카이도 삿포로와 3명을 설정합니다. 부산–신치토세 항공편과 Sapporo Hotel by Granbell은 예약 화면에서 확정 정보가 있을 때 입력합니다. 예제는 날짜별 지역만 담고 시간과 예약 상세는 비워 둡니다.
+
+## 릴리스 후보 · 2026-11-25
+
+`feature/travel-memory-and-polish`를 사용합니다. [PR #5](https://github.com/gugonggu/KIOKU/pull/5)는 `origin/main`의 `3b06de3`으로 병합됐고, [Draft PR #6](https://github.com/gugonggu/KIOKU/pull/6)이 그 위의 여행 기억(`c8f8481`)과 가져오기·여행 단계별 화면(`c58d2b1`)을 함께 포함합니다. 별도의 Draft PR #4는 이전 M6 배포 기록입니다.
+
+| 실사용 흐름 | 후보에 포함된 기능과 검증 |
+| --- | --- |
+| 출발 전 | Google 및 이메일 인증, 여행 생성·수정, JSON 미리보기·저장, 일정 편집, 장소·지도, 항공·숙소 예약, 준비 체크리스트, 동행자 공유. 기존 Chrome E2E와 격리 DB 검증을 참조합니다. |
+| 여행 중 | 일본 현지 오늘 일정, 연결 장소와 외부 길찾기, 경비 등록, 날짜별 기록·사진·방문 상태, 오프라인 일정·장소. 격리 Storage 및 브라우저 검증을 참조합니다. |
+| 여행 후 | 전체 일정, 회고와 여행 사진, 원화·엔화 경비와 정산, A4 PDF 내보내기. 가상 여행의 정산과 한글·일본어 PDF를 확인했습니다. |
+
+Git 연동 [Preview](https://kioku-git-feature-travel-memory-and-polish-gugonggus-projects.vercel.app)는 Vercel 인증으로 보호됩니다. 기존 Preview의 `/trips`가 폐기된 도메인으로 이동하는 것을 확인해 이 브랜치에만 `APP_URL`을 고정 Preview 별칭으로 지정했습니다. 일반 Preview와 Production은 Supabase 환경변수 항목을 공유합니다. Preview에서는 공개·비로그인 경로를 확인하고, 인증된 읽기와 쓰기는 격리 로컬 DB에서 검증합니다. Vercel의 `SUPABASE_STORAGE_SECRET_KEY`는 아직 등록되지 않았습니다. `GEOAPIFY_API_KEY`도 목록에 없어 장소는 직접 등록을 사용합니다.
+
+운영 반영 전 [마이그레이션 적용·검증·복구 순서](supabase/README.md#운영-적용-준비-기록--2026-11-25)와 [모바일 검증 기록 및 실기기 체크리스트](MOBILE_QA.md)를 확인합니다. 운영 앱은 PR #5의 `3b06de3` 배포를 사용합니다. 이 작업에서 운영 DB 쓰기·마이그레이션, `main` 병합, Production 배포 및 유료 리소스 추가는 수행하지 않습니다.
