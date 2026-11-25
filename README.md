@@ -1,6 +1,6 @@
 # KIOKU — Japan Travel Planner
 
-한국어 사용자를 위한 일본 여행 수첩입니다. 이메일로 로그인해 내 여행을 만들고, 일본 현지 날짜별 일정을 짜고, 방문 장소를 지도와 목록에서 관리할 수 있습니다.
+한국어 사용자를 위한 일본 여행 수첩입니다. 이메일 또는 Google로 로그인해 일본 현지 날짜별 일정을 만들고, 장소·예약·준비물·경비를 한곳에서 관리할 수 있습니다. 동행자에게 필요한 정보만 공유하고, 여행 중에는 저장한 수첩을 오프라인에서 읽고, 돌아와서는 일기와 사진을 보관할 수 있습니다.
 
 ## 로컬 실행
 
@@ -13,13 +13,27 @@ npm run dev
 
 브라우저에서 [localhost:3000](http://localhost:3000)을 엽니다. Supabase 설정을 생략하면 로그인 화면에서 설정 안내를 볼 수 있습니다. 비로그인 사용자가 `/trips` 또는 `/trips/new`를 열면 `/login`으로 이동합니다.
 
-여행·일정·장소·예약·공유를 사용하려면 아래 인증 설정과 [M1~M5 마이그레이션](supabase/README.md)을 같은 Supabase 인스턴스에 적용합니다.
+여행 기능을 로컬에서 사용하려면 `.env.example`을 참고해 `.env.local`을 만들고, 해당 격리 Supabase 인스턴스에 [저장소 마이그레이션](supabase/README.md)을 순서대로 적용합니다. OAuth 콜백과 앱 주소는 같은 환경의 값을 사용합니다.
 
 여행을 연 뒤 **더보기**에서 준비 목록, 오프라인 수첩, 예산과 경비, 인쇄용 여행 가이드를 관리합니다. 기능별 사용법과 격리 검증은 [여행 수첩 확장 기록](TRAVEL_SUITE.md), DB 적용 순서는 [Supabase 문서](supabase/README.md)를 참고하세요.
 
 여행 기억과 JSON 일정 가져오기 운영 릴리스의 배포 및 스모크 기록은 [PR #6](https://github.com/gugonggu/KIOKU/pull/6)에 있습니다. 일정 파일의 [작성 규격과 예제](TRAVEL_SUITE.md#json-일정-작성-규격)와 [실기기 체크리스트](MOBILE_QA.md#실기기-체크리스트)를 참고하세요.
 
 M13의 여행 홈, 일정 전체 보기, 모바일 지도 개선과 브라우저 비교 방법은 [디자인 검증 기록](UX_IMPROVEMENTS.md)에 있습니다. [가상 삿포로 5일 입력 예제](examples/sapporo-2027/README.md)로 가져오기와 수동 입력을 연습할 수 있습니다.
+
+## 운영 배포와 복구
+
+GitHub Actions에서 lint, 타입, 단위 테스트, PGlite DB, 프로덕션 빌드와 Playwright를 검증합니다. Vercel Git 연동은 PR에 Preview를 만들고 `main`을 운영에 배포합니다. Preview가 운영 DB를 사용하면 쓰기 검증은 로컬 격리 환경에서 수행합니다. 운영 배포 전 현재 정상 배포 ID를 기록하고, 배포 후 승인받은 세션 또는 읽기 전용 점검으로 로그인·보호 경로·여행 목록을 확인합니다. 앱 장애 시 직전 Ready 배포를 복원하고, DB 변경이 있는 릴리스는 [Supabase 백업과 복구 절차](supabase/README.md)를 따릅니다. [운영 사이트](https://kioku-trip.vercel.app) · [여행 수첩 UI 릴리스 PR #7](https://github.com/gugonggu/KIOKU/pull/7)
+
+Preview의 보호 경로는 `APP_URL`을 로그인 주소로 사용합니다. 필요한 경우 Vercel에서 **Preview 및 해당 Git 브랜치에만** 정확한 배포 별칭을 설정합니다. OAuth 콜백은 Supabase의 정확한 허용 주소를 사용합니다. 배포 개요와 알려진 제약은 [GitHub Releases](https://github.com/gugonggu/KIOKU/releases), 실기기 확인은 [모바일 검증 체크리스트](MOBILE_QA.md#실기기-체크리스트)에 기록합니다.
+
+## 포트폴리오용 기술 요약
+
+- 소규모 일본 여행에서 일정표, 예약 내역, 지도 링크가 여러 곳에 흩어지는 문제를 한 여행 단위로 정리했습니다. 여행 단계별 홈, 날짜별·전체 일정, 모바일 하단 내비게이션을 실제 여행 준비 흐름에 맞췄습니다. [화면 개선과 재현 방법](UX_IMPROVEMENTS.md)
+- Next.js App Router와 TypeScript 앱을 Vercel Hobby에 배포하고, Supabase Free의 Auth, PostgreSQL, 비공개 Storage를 사용합니다. 소유자 데이터는 RLS로 격리합니다. 동행자 링크는 서버에서 토큰을 검증하고 허용한 필드만 반환합니다.
+- MapLibre GL과 OpenFreeMap으로 저장한 장소를 표시합니다. Geoapify 설정이 없어도 장소를 직접 입력하고 좌표나 주소로 외부 길찾기를 열 수 있습니다. 오프라인 수첩은 기기별로 저장을 선택하며, 서비스 워커는 공개 정적 셸만 캐시합니다.
+- 사진은 서버에서 이미지 형식과 크기를 검증하고, Sharp로 축소하면서 EXIF를 제거한 뒤 비공개 버킷에 저장합니다. PDF와 공유 화면에도 공개 범위에 맞는 데이터만 포함합니다. [저장·공유·인쇄 검증](TRAVEL_SUITE.md)
+- 모바일 지도의 버튼이 핀 터치를 가로채던 문제는 컨트롤을 지도 밖으로 이동해 해결했습니다. JSON 일정 파일은 브라우저와 서버에서 같은 줄바꿈으로 비교하고, 중복 여부를 확인한 뒤 저장합니다. [가상 데이터로 화면 다시 촬영하기](UX_IMPROVEMENTS.md#재검증)
 
 ## 집과 회사 PC에서 이어서 개발하기
 
@@ -133,6 +147,10 @@ PC에서는 `npm run build` 후 `npm test -- --grep 'review skip link|review sha
 - 승인 후 PR #2를 일반 Merge Commit으로 `main`에 병합하고 Production `Ready`를 확인합니다. PR #3의 기준을 `main`으로 바꾸고 `git merge-base --is-ancestor <PR2 HEAD> origin/main`과 `git diff origin/main...HEAD`로 조상 관계와 리뷰 범위를 확인합니다. 최신 `main`으로 CI와 통합 검증을 실행한 뒤 Draft를 해제하고 검수합니다. PR #3 병합 뒤 Production 자동 배포와 읽기 전용 스모크를 확인합니다. Squash 또는 Rebase가 필요한 경우 병합 전 `git log --reverse --no-merges <PR2 HEAD>..origin/feature/trip-day-usability`로 PR #3 전용 커밋을 기록합니다. 최신 `main`의 별도 브랜치에 이 커밋만 순서대로 적용해 diff·CI를 검증하고 대체 PR을 승인받습니다.
 - 첫 운영 변경 전 롤백 지점은 `2a85bf1`의 Ready 배포입니다. PR #2 배포 후에는 PR #3 직전 Ready 운영 배포도 기록합니다. 장애 시 승인 후 Vercel에서 직전 배포로 롤백하고 읽기 전용 스모크를 다시 실행합니다. [Vercel Git 연동](https://vercel.com/docs/git#production-branch) · [Instant Rollback](https://vercel.com/docs/instant-rollback)
 - 실사용 안정화 후 후보는 여행 준비 체크리스트, PWA·오프라인 열람, 여행 예산·경비, PDF 여행 가이드, 여행 사진·추억 기록입니다.
+
+### 2026-11-24 M6 운영 릴리스 이력
+
+PR #2의 병합 커밋 `fc9abe7`과 PR #3의 병합 커밋 `34e65b4`가 차례로 운영에 반영됐습니다. PR #3의 정상 배포 `dpl_3awQZHbi1SZjS4gbEzjuRcrVhta4`는 다음 릴리스의 복구 지점으로 사용됐습니다. 당시 공개 스모크에서 로그인과 공유 화면, 보호 경로, 잘못된 공유 링크의 응답을 확인했습니다. [PR #2](https://github.com/gugonggu/KIOKU/pull/2) · [PR #3](https://github.com/gugonggu/KIOKU/pull/3) · [당시 main CI](https://github.com/gugonggu/KIOKU/actions/runs/45304837757)
 
 ## Supabase 이메일 로그인 설정
 
