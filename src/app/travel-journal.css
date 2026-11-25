@@ -85,6 +85,8 @@
   .places-map-filters { display: grid; gap: 6px; margin-bottom: 8px; }
   .places-map-filters .places-filters a { background: transparent; border: 1px solid var(--ed-line); white-space: nowrap; }
   .places-map-filters .places-filters a[aria-current] { background: var(--ed-sage); color: #254936; }
-  .places-shell[data-view="map"] .place-map-viewport { height: max(300px, calc(100dvh - 395px - env(safe-area-inset-bottom))); }
-  .places-shell[data-view="map"] .place-detail { max-height: min(34dvh, 320px); }
+  .places-shell[data-view="map"] .place-map-viewport { height: max(300px, calc(100dvh - 426px - env(safe-area-inset-bottom))); }
+  .places-shell[data-view="map"] .place-detail {
+    max-height: min(34dvh, 320px, max(120px, calc(100dvh - 422px - env(safe-area-inset-bottom))));
+  }
 }

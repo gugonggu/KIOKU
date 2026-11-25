@@ -418,13 +418,14 @@ body:has(.editorial-dialog[open]) { overflow: hidden; }
 .places-stage { position: relative; min-width: 0; }
 .places-page .place-map { gap: 6px; }
 .places-page .place-map-viewport { border-radius: 18px; border-color: var(--ed-line); box-shadow: var(--ed-shadow); background: #e8ebe3; }
+.places-page .place-map-footer { display: flex; align-items: center; justify-content: space-between; gap: 4px 8px; }
 .places-page .place-map-footer p { font-size: .72rem; }
 .places-page .place-map-footer a, .shared-guide .place-map-footer a { white-space: nowrap; }
 
 .place-map-locate {
-  position: absolute; z-index: 2; top: 84px; right: 10px; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 13px;
+  display: inline-flex; flex: none; align-items: center; gap: 6px; min-height: 44px; padding: 0 11px;
   border: 1px solid var(--ed-line); border-radius: 999px; background: var(--ed-paper); color: #2f5641; font-size: .82rem; font-weight: 700;
-  box-shadow: 0 3px 10px #3a2d1f24; cursor: pointer;
+  cursor: pointer;
 }
 .place-map-locate:disabled { opacity: .6; cursor: default; }
 .place-map-toast { position: absolute; z-index: 2; inset: auto 10px 10px; padding: 8px 12px; border-radius: 10px; background: var(--ed-paper); border: 1px solid var(--ed-line); font-size: .84rem; box-shadow: var(--ed-shadow); }
