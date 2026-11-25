@@ -2,9 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { parsePlace } from "@/lib/trip-places";
+import { filterPlaces, parsePlace, searchPlaces } from "@/lib/trip-places";
 import { isTripId, requireTripClient } from "@/lib/trips";
-import { mapHref } from "./links";
+import { mapHref, type MapContext } from "./links";
 import { writeTripPlace } from "./place-write";
 
 export type PlaceState = { error?: string; conflict?: boolean; duplicate?: string; existing?: string; linkCount?: number };
@@ -15,14 +15,14 @@ function valid(id: string, version: number | null) {
   return isTripId(id) && (version === null || (Number.isInteger(version) && version >= 1));
 }
 
-function complete(tripId: string, date: string | null, place?: string): never {
+function complete(tripId: string, context: MapContext, place?: string): never {
   revalidatePath(`/trips/${tripId}/map`);
   revalidatePath(`/trips/${tripId}/itinerary`);
-  return redirect(mapHref(tripId, { date, place }));
+  return redirect(mapHref(tripId, { ...context, place }));
 }
 
 export async function savePlace(
-  tripId: string, id: string, version: number | null, date: string | null, _previous: PlaceState, form: FormData,
+  tripId: string, id: string, version: number | null, context: MapContext, _previous: PlaceState, form: FormData,
 ): Promise<PlaceState> {
   const { client } = await requireTripClient();
   if (!isTripId(tripId) || !valid(id, version)) return changed;
@@ -35,11 +35,13 @@ export async function savePlace(
   if (data.status === "duplicate" && data.id) return { duplicate: data.id };
   if (data.status === "existing" && data.id) return { error: "이 장소는 이미 저장됐어요.", existing: data.id };
   if (data.status !== "saved") return changed;
-  return complete(tripId, date, id);
+  const added = version === null;
+  const matches = !added || searchPlaces(filterPlaces([{ ...fields, id }], [], context.filter ?? "all", context.date ?? null), context.query ?? "").length > 0;
+  return complete(tripId, context, matches ? id : context.place);
 }
 
 export async function deletePlace(
-  tripId: string, id: string, version: number, date: string | null, _previous: PlaceState, form: FormData,
+  tripId: string, id: string, version: number, context: MapContext, _previous: PlaceState, form: FormData,
 ): Promise<PlaceState> {
   const { client } = await requireTripClient();
   if (!isTripId(tripId) || !valid(id, version)) return changed;
@@ -51,5 +53,5 @@ export async function deletePlace(
   if (error || !data) return { error: "장소를 삭제하지 못했어요. 잠시 후 다시 시도해 주세요." };
   if (data.status === "preview") return { linkCount: data.count };
   if (data.status !== "deleted") return changed;
-  return complete(tripId, date);
+  return complete(tripId, context);
 }

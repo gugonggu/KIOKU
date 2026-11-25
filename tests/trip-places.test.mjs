@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { directionsUrl, filterPlaces, parsePlace } from "../src/lib/trip-places.ts";
+import { mapHref } from "../src/app/trips/[tripId]/map/links.ts";
+import { directionsUrl, filterPlaces, parseGoogleMapsCoordinates, parsePlace, searchPlaces } from "../src/lib/trip-places.ts";
 import { queryGeoapify, normalizeQuery, searchLanguage } from "../src/lib/geoapify.ts";
 
 function form(fields) {
@@ -29,6 +30,41 @@ test("map date and candidate filters have distinct scope", () => {
   const links = [{ place_id:"a",local_date:"2027-02-19" },{ place_id:"a",local_date:"2027-02-20" },{ place_id:"b",local_date:null }, { place_id:"d",local_date:"2027-02-20" }];
   assert.deepEqual(filterPlaces(places, links, "date", "2027-02-19"), [{ id:"a" }]);
   assert.deepEqual(filterPlaces(places, links, "candidates", null), [{ id:"b" },{ id:"c" }]);
+});
+
+test("saved place search matches localized names and addresses without broadening the active filter", () => {
+  const station = { id: "a", display_name: "삿포로역", name_ja: "札幌駅", name_en: "Sapporo Station", address_text: "北海道" };
+  const food = { id: "b", display_name: "오타루 식당", name_ja: "小樽", address_text: "北海道" };
+  const scoped = filterPlaces([station, food], [{ place_id: "a", local_date: "2027-02-19" }], "date", "2027-02-19");
+  assert.deepEqual(searchPlaces(scoped, " ＳＡＰＰＯＲＯ  station "), [station]);
+  assert.deepEqual(searchPlaces(scoped, "札幌"), [station]);
+  assert.deepEqual(searchPlaces(scoped, "北海道"), [station]);
+  assert.deepEqual(searchPlaces(scoped, "小樽"), []);
+  assert.deepEqual(filterPlaces([{ id: "a", latitude: 0, longitude: 0 }, { id: "b", latitude: null, longitude: null }], [], "unlocated", null).map(({ id }) => id), ["b"]);
+});
+
+test("Google Maps links yield only explicit coordinate pairs and never use a viewport center", () => {
+  assert.deepEqual(parseGoogleMapsCoordinates("https://www.google.com/maps/search/?api=1&query=43.06%2C141.35"), [141.35, 43.06]);
+  assert.deepEqual(parseGoogleMapsCoordinates("https://maps.google.co.jp/maps?q=43%2C+141"), [141, 43]);
+  for (const link of [
+    "https://www.google.com/maps/place/Sapporo/@43,141,15z",
+    "https://www.google.com/maps/search/?query=43,141&query_place_id=ChIJ123",
+    "https://www.google.com/maps/search/?query=95,181",
+    "https://www.google.com/maps/search/?query=43,141&query=44,142",
+    "https://maps.app.goo.gl/example",
+    "https://www.google.com.example/maps?q=43,141",
+    "http://www.google.com/maps?q=43,141",
+  ]) assert.equal(parseGoogleMapsCoordinates(link), null, link);
+});
+
+test("map links preserve filter, view and search alongside editor and route state", () => {
+  const href = mapHref("trip-fixture", { date: "2027-02-19", filter: "date", view: "map", place: "place-fixture", mode: "edit", query: "삿포로 역", route: true });
+  const { pathname, searchParams } = new URL(href, "https://example.test");
+  assert.equal(pathname, "/trips/trip-fixture/map");
+  assert.deepEqual(Object.fromEntries(searchParams), {
+    date: "2027-02-19", filter: "date", place: "place-fixture", mode: "edit", view: "map", q: "삿포로 역", route: "1",
+  });
+  assert.equal(mapHref("trip-fixture", { view: "list", place: "place-fixture" }), "/trips/trip-fixture/map?place=place-fixture&view=list");
 });
 
 test("Geoapify requests use a Japan filter and a fixed endpoint and validate external rows", async () => {

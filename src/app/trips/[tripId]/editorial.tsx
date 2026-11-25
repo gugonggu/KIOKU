@@ -29,7 +29,7 @@ export function timeLabel(item: Pick<PlanSchedule, "fixed_local_time" | "period"
 const shortDay = new Intl.DateTimeFormat("ko-KR", { month: "numeric", day: "numeric", weekday: "short", timeZone: "Asia/Tokyo" });
 
 export function DayCards({ trip, date, summaries, counts, href = (day) => itineraryHref(trip.id, day) }: {
-  trip: Trip; date: string; summaries?: Map<string, string>; counts?: ReadonlyMap<string, number>; href?: (day: string) => string;
+  trip: Pick<Trip, "id" | "start_date" | "end_date">; date: string; summaries?: Map<string, string>; counts?: ReadonlyMap<string, number>; href?: (day: string) => string;
 }) {
   const start = trip.start_date;
   const countId = useId();

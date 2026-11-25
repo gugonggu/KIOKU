@@ -52,13 +52,41 @@ export function directionsUrl(place: Pick<PlaceFields, "latitude" | "longitude" 
   return destination ? `https://www.google.com/maps/dir/?${new URLSearchParams({ api: "1", destination })}` : null;
 }
 
-export type PlaceFilter = "all" | "date" | "candidates";
+export type PlaceFilter = "all" | "date" | "candidates" | "unlocated";
 export type PlaceLink = { place_id: string | null; local_date: string | null };
 
-export function filterPlaces<Place extends { id: string }>(places: Place[], links: PlaceLink[], filter: PlaceFilter, date: string | null) {
+export function filterPlaces<Place extends { id: string; latitude?: number | null; longitude?: number | null }>(places: Place[], links: PlaceLink[], filter: PlaceFilter, date: string | null) {
   if (filter === "all") return places;
+  if (filter === "unlocated") return places.filter(({ latitude, longitude }) => !validCoordinates(latitude, longitude));
   const linked = new Set(links.map(({ place_id }) => place_id));
   const visible = new Set(links.filter(({ local_date }) => local_date === (filter === "candidates" ? null : date))
     .map(({ place_id }) => place_id));
   return places.filter(({ id }) => visible.has(id) || (filter === "candidates" && !linked.has(id)));
+}
+
+const searchFields = ["display_name", "name_ko", "name_ja", "name_en", "address_text", "address_ja"] as const;
+const normalizeSearch = (text: string) => text.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
+
+export function searchPlaces<Place extends Partial<Pick<PlaceFields, typeof searchFields[number]>>>(places: Place[], query: string) {
+  const needle = normalizeSearch(query);
+  return needle ? places.filter((place) => searchFields.some((field) => normalizeSearch(place[field] ?? "").includes(needle))) : places;
+}
+
+const googleMapsHosts = new Set(["google.com", "www.google.com", "maps.google.com", "www.google.co.jp", "maps.google.co.jp", "www.google.co.kr", "maps.google.co.kr"]);
+
+export function parseGoogleMapsCoordinates(input: string): [number, number] | null {
+  try {
+    const url = new URL(input.trim());
+    if (url.protocol !== "https:" || url.port || url.username || url.password || !googleMapsHosts.has(url.hostname)
+      || !/^\/maps(?:\/|$)/.test(url.pathname)) return null;
+    if (url.searchParams.has("query_place_id") || url.searchParams.has("destination_place_id")) return null;
+    const candidates = ["q", "query", "destination"].flatMap((key) => url.searchParams.getAll(key));
+    if (candidates.length !== 1) return null;
+    const pair = candidates[0].split(",").map((value) => value.trim());
+    if (pair.length !== 2 || !pair.every((value) => decimal.test(value))) return null;
+    const [lat, lon] = pair.map(Number);
+    return validCoordinates(lat, lon) ? [lon, lat] : null;
+  } catch {
+    return null;
+  }
 }

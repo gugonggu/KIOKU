@@ -5,9 +5,10 @@ import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { suggestionFields, type PlaceSuggestion, type GeoapifyResult } from "@/lib/geoapify";
-import { placeLimits } from "@/lib/trip-places";
+import { parseGoogleMapsCoordinates, placeLimits, validCoordinates } from "@/lib/trip-places";
 import type { PlanPlace } from "@/lib/trip-plan-data";
 import type { PlaceState } from "./actions";
+import { MapCanvas, mapLatitudeLimit, type MapPin as CanvasPin } from "./map-canvas";
 
 type Action = (state: PlaceState, form: FormData) => Promise<PlaceState>;
 const searchMessages = {
@@ -69,24 +70,48 @@ export function PlaceSearch({ tripId, choose, schedule = false, onFallback }: {
 
 export function PlaceEditor({ action, tripId, item, back }: { action: Action; tripId: string; item?: PlanPlace; back: string }) {
   const [state, dispatch, pending] = useActionState(action, {});
+  const [picker, setPicker] = useState(false);
+  const [mapUrl, setMapUrl] = useState("");
+  const [locationMessage, setLocationMessage] = useState<{ error: boolean; text: string }>();
+  const [source, setSource] = useState<"search" | "manual">(item ? "manual" : "search");
   const [values, setValues] = useState<Record<string,string>>({
     display_name: item?.display_name ?? "", address_text: item?.address_text ?? "", address_ja: item?.address_ja ?? "",
     name_ko: item?.name_ko ?? "", name_ja: item?.name_ja ?? "", name_en: item?.name_en ?? "", notes: item?.notes ?? "",
     latitude: item?.latitude?.toString() ?? "", longitude: item?.longitude?.toString() ?? "",
     provider: item?.provider ?? "MANUAL", provider_place_id: item?.provider_place_id ?? "",
   });
+  function updateCoordinates(latitude: string, longitude: string) {
+    setSource("manual");
+    setValues((before) => ({ ...before, latitude, longitude, provider: "MANUAL", provider_place_id: "" }));
+  }
+  function setPoint([longitude, latitude]: [number, number]) {
+    updateCoordinates(String(Number(latitude.toFixed(6))), String(Number(longitude.toFixed(6))));
+    setLocationMessage({ error: false, text: "위치를 선택했어요. 장소를 저장하면 적용돼요." });
+  }
   function field(name: string, label: string, options: React.ComponentProps<"input"> = {}) {
     return <label className="form-field"><span>{label}</span><Input name={name} value={values[name]}
-      onChange={(event) => setValues((before) => ({ ...before, [name]: event.target.value }))} {...options} /></label>;
+      onChange={(event) => {
+        const { value } = event.target;
+        if (name === "latitude" || name === "longitude") {
+          updateCoordinates(name === "latitude" ? value : values.latitude, name === "longitude" ? value : values.longitude);
+          setLocationMessage(undefined);
+        } else setValues((before) => ({ ...before, [name]: value }));
+      }} {...options} /></label>;
   }
   function choose(row: PlaceSuggestion) {
     setValues((before) => ({ ...before, ...suggestionFields(row) }));
   }
-  const [source, setSource] = useState<"search" | "manual">(item ? "manual" : "search");
   const chosen = values.provider === "GEOAPIFY";
   const searching = !item && source === "search" && !chosen;
   const toManual = () => setValues((before) => ({ ...before, provider: "MANUAL", provider_place_id: "" }));
   const existing = state.duplicate ?? state.existing;
+  const lat = Number(values.latitude);
+  const lon = Number(values.longitude);
+  const located = Boolean(values.latitude && values.longitude && validCoordinates(lat, lon));
+  const pickerPins: CanvasPin[] = located && Math.abs(lat) <= mapLatitudeLimit
+    ? [{ id: "position-preview", label: "선택한 위치", point: [lon, lat], number: 1 }] : [];
+  const existingHref = new URL(back, "https://kioku.example");
+  if (existing) existingHref.searchParams.set("place", existing);
   return <div className="place-editor">
     {!item && <div className="editorial-sources places-sources" role="group" aria-label="장소 등록 방식">
       <button type="button" aria-pressed={source === "search"} onClick={() => setSource("search")}><Search size={15} aria-hidden />장소 검색</button>
@@ -117,6 +142,31 @@ export function PlaceEditor({ action, tripId, item, back }: { action: Action; tr
         <input type="hidden" name="provider_place_id" value={values.provider_place_id} />
         {field("display_name", "장소 이름", { required:true, maxLength:placeLimits.name, placeholder: chosen ? undefined : "예: 오도리 공원" })}
         {!chosen && field("address_text", "주소", { maxLength:placeLimits.address })}
+        <div className="place-location-tools">
+          {!located && <p className="plan-meta">좌표 없이 저장한 장소는 목록에서 볼 수 있어요.</p>}
+          <button type="button" className="quiet-link" aria-expanded={picker} onClick={() => setPicker(!picker)}>
+            <MapPin size={16} aria-hidden />{picker ? "지도 닫기" : located ? "지도에서 위치 확인·수정" : "지도에서 위치 선택"}
+          </button>
+          {picker && <>
+            <p className="plan-meta">지도를 이동하거나 확대하고, 원하는 지점을 눌러 핀을 놓으세요. 좌표를 직접 입력할 수도 있어요.</p>
+            <MapCanvas pins={pickerPins} onPick={setPoint} showLocation={false} />
+            {located && <p className="plan-meta">위도 {values.latitude} · 경도 {values.longitude}{!pickerPins.length && " · 지도 표시 범위 밖"}</p>}
+          </>}
+          <details>
+            <summary className="quiet-link">Google Maps 링크에서 좌표 입력</summary>
+            <div className="place-coordinate-url">
+              <Input inputMode="url" aria-label="Google Maps 링크" placeholder="https://www.google.com/maps/…" value={mapUrl}
+                onChange={(event) => { setMapUrl(event.target.value); setLocationMessage(undefined); }} />
+              <button type="button" className="secondary-button" onClick={() => {
+                const point = parseGoogleMapsCoordinates(mapUrl);
+                if (point) setPoint(point);
+                else setLocationMessage({ error: true, text: "위도와 경도가 명시된 Google Maps 링크만 지원해요. 단축 링크나 장소 이름만 담긴 링크는 지도에서 위치를 고르거나 좌표를 직접 입력해 주세요." });
+              }}>좌표 적용</button>
+            </div>
+          </details>
+          {locationMessage && <p className={locationMessage.error ? "notice notice-error" : "plan-meta"}
+            role={locationMessage.error ? "alert" : "status"}>{locationMessage.text}</p>}
+        </div>
         <details className="place-editor-more" open={item ? true : undefined}>
           <summary className="quiet-link">{chosen ? "주소·좌표·다국어 이름·메모" : "좌표·다국어 이름·메모"}</summary>
           <div className="plan-fields itinerary-details">
@@ -141,7 +191,7 @@ export function PlaceEditor({ action, tripId, item, back }: { action: Action; tr
           name={state.duplicate ? "confirm_duplicate" : undefined} value={state.duplicate}>
           {pending ? "저장 중…" : state.duplicate ? "별도로 저장" : "장소 저장"}
         </button>
-        {existing && <Link className="quiet-link" href={`${back}${back.includes("?") ? "&" : "?"}place=${existing}`}>기존 장소 보기</Link>}
+        {existing && <Link className="quiet-link" href={`${existingHref.pathname}${existingHref.search}`}>기존 장소 보기</Link>}
         <Link className="quiet-link" href={back}>취소</Link>
       </div>
     </form>}

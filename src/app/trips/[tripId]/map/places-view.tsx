@@ -1,18 +1,21 @@
 "use client";
 
-import { CalendarPlus, Copy, List, Map as MapIcon, MapPinOff, Navigation, Search, X } from "lucide-react";
+import { CalendarPlus, Copy, List, Map as MapIcon, MapPinOff, Navigation, Plus, Search, X } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Blossom } from "@/components/brand";
-import { dateLabel } from "@/lib/trip-details";
-import { directionsUrl, filterPlaces, type PlaceFilter } from "@/lib/trip-places";
+import { Input } from "@/components/ui/input";
+import { dateLabel, type Trip } from "@/lib/trip-details";
+import { directionsUrl, filterPlaces, searchPlaces, type PlaceFilter } from "@/lib/trip-places";
+import { sortSchedule } from "@/lib/trip-plan";
 import type { PlaceVisit, PlanPlace } from "@/lib/trip-plan-data";
-import { timeLabel } from "../editorial";
+import { DayCards, timeLabel, TripTabs } from "../editorial";
 import { itineraryEntryHref, itineraryHref } from "../itinerary/links";
-import { mapHref } from "./links";
+import { mapHref, type MapContext, type MapView } from "./links";
 import { MapCanvas, mapLatitudeLimit, type MapPin } from "./map-canvas";
 
-const filters: [PlaceFilter, string][] = [["all", "전체"], ["date", "날짜별"], ["candidates", "후보 장소"]];
+const filters: [PlaceFilter, string][] = [["all", "전체"], ["date", "날짜별"], ["candidates", "후보 장소"], ["unlocated", "좌표 없음"]];
 const mobileMap = "(max-width: 839px)";
 
 function subscribeToMobileMap(notify: () => void) {
@@ -25,33 +28,81 @@ function hasCoordinates({ latitude, longitude }: PlanPlace) {
   return latitude !== null && longitude !== null;
 }
 
-export function PlacesView({ places, links, tripId, date, filter, initialPlace, initialView, itineraryDate, dayPicker, mapDayPicker }: {
-  places: PlanPlace[]; links: PlaceVisit[]; tripId: string; date: string; filter: PlaceFilter; initialPlace?: string;
-  initialView?: "map"; itineraryDate: string | null; dayPicker?: ReactNode; mapDayPicker?: ReactNode;
+function useMapContext(date: string, filter: PlaceFilter): MapContext & { view: MapView; query: string; route: boolean } {
+  const params = useSearchParams();
+  const place = params.get("place") ?? undefined;
+  const mode = params.get("view");
+  return { date, filter, place, view: mode === "map" || mode === "list" ? mode : place ? "map" : "list",
+    query: params.get("q")?.slice(0, 100) ?? "", route: params.get("route") === "1" };
+}
+
+export function PlaceAddLink({ tripId, date, filter }: { tripId: string; date: string; filter: PlaceFilter }) {
+  const context = useMapContext(date, filter);
+  return <Link className="primary-button places-add" href={mapHref(tripId, { ...context, mode: "add" })} scroll={false}
+    data-itinerary-add><Plus size={18} aria-hidden />장소 추가</Link>;
+}
+
+export function PlacesTabs({ tripId, date, filter, itineraryDate }: { tripId: string; date: string; filter: PlaceFilter; itineraryDate: string | null }) {
+  const context = useMapContext(date, filter);
+  return <TripTabs href={`/trips/${tripId}`} active="map" date={itineraryDate} mapLink={mapHref(tripId, context)} />;
+}
+
+export function PlacesView({ places, links, trip, date, filter, itineraryDate }: {
+  places: PlanPlace[]; links: PlaceVisit[]; trip: Pick<Trip, "id" | "start_date" | "end_date">; date: string; filter: PlaceFilter;
+  itineraryDate: string | null;
 }) {
-  const [selected, setSelected] = useState(initialPlace);
+  const tripId = trip.id;
+  const router = useRouter();
+  const context = useMapContext(date, filter);
+  const { view, query: find, place: selected, route: showRoute } = context;
+  const searchInput = useRef<HTMLInputElement>(null);
+  const routeInput = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (searchInput.current && searchInput.current.value !== find) searchInput.current.value = find; }, [find]);
+  useEffect(() => { if (routeInput.current) routeInput.current.checked = showRoute; }, [showRoute]);
   const [nearbyPins, setNearbyPins] = useState<MapPin[]>([]);
-  const [view, setView] = useState<"list" | "map">(initialView ?? (initialPlace ? "map" : "list"));
   const compact = useSyncExternalStore(subscribeToMobileMap, () => window.matchMedia(mobileMap).matches, () => false);
   const filtersOnMap = compact && view === "map";
-  const [find, setFind] = useState("");
   const [copyMessage, setCopyMessage] = useState("");
   const visible = useMemo(() => filterPlaces(places, links, filter, date), [places, links, filter, date]);
-  const pins = useMemo(() => visible.filter(({ latitude, longitude }) =>
-    latitude !== null && longitude !== null && Math.abs(latitude) <= mapLatitudeLimit)
-    .map(({ id, display_name, latitude, longitude }, index): MapPin => ({ id, label: display_name, point: [longitude!, latitude!], number: index + 1 })),
-  [visible]);
+  const shown = useMemo(() => searchPlaces(visible, find), [visible, find]);
+  const ordered = useMemo(() => filter === "date" ? sortSchedule(links.filter((entry) => entry.local_date === date)) : [], [links, filter, date]);
+  const firstVisits = useMemo(() => {
+    const slots = new Map<string, number>();
+    ordered.forEach(({ place_id }, index) => { if (place_id && !slots.has(place_id)) slots.set(place_id, index + 1); });
+    return slots;
+  }, [ordered]);
+  const pins = useMemo(() => {
+    const markers: MapPin[] = [];
+    for (const { id, display_name, latitude, longitude } of shown) {
+      if (latitude !== null && longitude !== null && Math.abs(latitude) <= mapLatitudeLimit) {
+        markers.push({ id, label: display_name, point: [longitude, latitude], number: firstVisits.get(id) ?? markers.length + 1 });
+      }
+    }
+    return markers;
+  }, [shown, firstVisits]);
   const numbers = useMemo(() => new Map(pins.map(({ id, number }) => [id, number])), [pins]);
+  const dayVisits = useMemo(() => {
+    const matches = new Map(shown.map((place) => [place.id, place]));
+    return ordered.flatMap((entry, index) => {
+      const place = entry.place_id ? matches.get(entry.place_id) : undefined;
+      return place ? [{ entry, place, number: index + 1 }] : [];
+    });
+  }, [ordered, shown]);
+  const routeSegments = useMemo(() => {
+    const points = new Map(pins.map(({ id, point }) => [id, point]));
+    return dayVisits.flatMap(({ place, number }, index) => {
+      const next = dayVisits[index + 1];
+      const from = points.get(place.id);
+      const to = next && points.get(next.place.id);
+      return from && to && next.number === number + 1 && place.id !== next.place.id ? [[from, to]] : [];
+    });
+  }, [dayVisits, pins]);
   const visits = useMemo(() => {
     const counts = new Map<string, number>();
     for (const { place_id } of links) if (place_id) counts.set(place_id, (counts.get(place_id) ?? 0) + 1);
     return counts;
   }, [links]);
-  const needle = find.normalize("NFKC").trim().toLowerCase();
-  const shown = needle ? visible.filter((place) => [place.display_name, place.name_ko, place.name_ja, place.name_en, place.address_text, place.address_ja]
-    .some((value) => value?.normalize("NFKC").toLowerCase().includes(needle))) : visible;
-
-  const item = visible.find(({ id }) => id === selected);
+  const item = shown.find(({ id }) => id === selected);
   const number = item && numbers.get(item.id);
   const address = item?.address_ja || item?.address_text;
   const directions = item ? directionsUrl(item) : null;
@@ -61,16 +112,55 @@ export function PlacesView({ places, links, tripId, date, filter, initialPlace, 
   const scheduleHref = item && `${itineraryHref(tripId, filter === "date" ? date : itineraryDate, "add", undefined,
     !itineraryDate && filter !== "date")}&place=${item.id}`;
 
-  function select(id?: string, nearby: MapPin[] = []) {
-    setCopyMessage("");
-    setSelected(id);
-    setNearbyPins(nearby);
+  function updateContext(change: MapContext, replace = false) {
+    const href = mapHref(tripId, { ...context, ...change });
+    if (href === window.location.pathname + window.location.search) return;
+    if (replace) window.history.replaceState(null, "", href);
+    else window.history.pushState(null, "", href);
   }
 
-  const filterLinks = (mapView?: "map") => <nav className="places-filters" aria-label="표시할 장소">
-    {filters.map(([key, label]) => <Link key={key} href={mapHref(tripId, { filter: key, date, view: mapView })}
-      aria-current={filter === key ? "page" : undefined}>{label}</Link>)}
+  function select(id?: string, nearby: MapPin[] = []) {
+    setCopyMessage("");
+    setNearbyPins(nearby);
+    updateContext({ place: id });
+  }
+
+  const filterLinks = <nav className="places-filters" aria-label="표시할 장소">
+    {filters.map(([key, label]) => <Link key={key} href={mapHref(tripId, { ...context, filter: key })}
+      scroll={false} aria-current={filter === key ? "page" : undefined}>{label}</Link>)}
   </nav>;
+  const dayPicker = filter === "date" && <div className="places-days">
+    {trip.start_date && trip.end_date && date >= trip.start_date && date <= trip.end_date &&
+      <DayCards trip={trip} date={date} href={(day) => mapHref(tripId, { ...context, date: day })} />}
+    <details className="editorial-date-tools">
+      <summary>날짜 직접 선택</summary>
+      <form className="plan-date-picker" onSubmit={(event) => {
+        event.preventDefault();
+        const day = new FormData(event.currentTarget).get("date");
+        if (typeof day === "string") router.push(mapHref(tripId, { ...context, date: day }), { scroll: false });
+      }}>
+        <Input key={date} aria-label="장소를 볼 날짜" name="date" type="date" min="0001-01-01" max="9999-12-31" defaultValue={date} required />
+        <button type="submit" className="quiet-link">이동</button>
+      </form>
+    </details>
+  </div>;
+  const search = places.length > 0 && <label className="places-find">
+    <Search size={16} aria-hidden />
+    <input ref={searchInput} type="search" aria-label="저장된 장소 찾기" placeholder="이름이나 주소로 찾기" defaultValue={find} maxLength={100}
+      onChange={(event) => { setNearbyPins([]); updateContext({ query: event.target.value }, true); }} />
+  </label>;
+  const routeControl = filter === "date" && <label className="place-route-toggle">
+    <input ref={routeInput} type="checkbox" defaultChecked={showRoute} onChange={(event) => updateContext({ route: event.target.checked })} />
+    여행 동선 표시
+  </label>;
+  const visitList = filter === "date" && showRoute && <section className="place-route" aria-label="날짜별 방문 순서">
+    <h3>방문 순서 <span className="plan-meta">{dayVisits.length}회 · 장소 {shown.length}곳</span></h3>
+    <p className="plan-meta">점선은 방문 순서를 보여줘요. 실제 도로·도보 경로와 이동 거리는 표시되지 않아요.</p>
+    {dayVisits.length ? <ol>{dayVisits.map(({ entry, place, number }) => <li key={entry.id} value={number}>
+      <button type="button" className="quiet-link" onClick={() => select(place.id)}>{place.display_name}</button>
+      <span className="plan-meta">{timeLabel(entry)} · {entry.title}{!numbers.has(place.id) && " · 지도 핀 없음"}</span>
+    </li>)}</ol> : <p className="plan-meta">표시할 방문 일정이 없어요.</p>}
+  </section>;
   async function copy(value: string) {
     try {
       await navigator.clipboard.writeText(value);
@@ -81,23 +171,20 @@ export function PlacesView({ places, links, tripId, date, filter, initialPlace, 
   }
 
   return <div className="places-shell" data-view={view} data-selected={item ? "true" : undefined}>
-    <div className="places-view-toggle" role="group" aria-label="장소 보기 방식">
-      <button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}><List size={17} aria-hidden />목록</button>
-      <button type="button" aria-pressed={view === "map"} onClick={() => setView("map")}><MapIcon size={17} aria-hidden />지도</button>
+    <div className="places-mobile-tools" data-search={filtersOnMap && search ? "true" : undefined}>
+      <div className="places-view-toggle" role="group" aria-label="장소 보기 방식">
+        <button type="button" aria-pressed={view === "list"} onClick={() => updateContext({ view: "list" })}><List size={17} aria-hidden />목록</button>
+        <button type="button" aria-pressed={view === "map"} onClick={() => updateContext({ view: "map" })}><MapIcon size={17} aria-hidden />지도</button>
+      </div>
+      {filtersOnMap && search}
     </div>
 
     <section className="places-list-panel editorial-paper" aria-labelledby="places-list">
       <div className="places-list-heading">
         <h2 id="places-list">저장된 장소</h2>
-        <span className="plan-meta">{visible.length}곳</span>
+        <span className="plan-meta" role="status">{shown.length}곳</span>
       </div>
-      {!filtersOnMap && filterLinks()}
-      {!filtersOnMap && filter === "date" && dayPicker}
-      {places.length > 0 && <label className="places-find">
-        <Search size={16} aria-hidden />
-        <input type="search" aria-label="저장된 장소 찾기" placeholder="이름이나 주소로 찾기" value={find}
-          onChange={(event) => setFind(event.target.value)} />
-      </label>}
+      {!filtersOnMap && <>{filterLinks}{dayPicker}{search}{routeControl}{visitList}</>}
       {shown.length ? <ul className="places-cards">{shown.map((place) => {
         const pin = numbers.get(place.id);
         const count = visits.get(place.id) ?? 0;
@@ -114,20 +201,25 @@ export function PlacesView({ places, links, tripId, date, filter, initialPlace, 
             </span>
             <span className="place-card-meta">{count ? `일정 ${count}` : "일정 없음"}</span>
           </button>
+          {filter === "unlocated" && <Link className="quiet-link place-coordinate-edit" href={mapHref(tripId, { ...context, place: place.id, mode: "edit" })}
+            aria-label={`${place.display_name} 위치 수정`} scroll={false}>위치 수정</Link>}
         </li>;
       })}</ul> : <div className="places-empty">
         <Blossom className="places-empty-sprig" />
         <p className="plan-empty">{!places.length ? "저장된 장소가 없어요." : visible.length ? "찾는 장소가 없어요." : "이 조건에 해당하는 장소가 없어요."}</p>
-        {!places.length && <Link className="quiet-link" href={mapHref(tripId, { date, mode: "add" })} scroll={false}>검색으로 첫 장소 등록</Link>}
+        {find && <button type="button" className="quiet-link" onClick={() => updateContext({ query: "" }, true)}>검색 지우기</button>}
+        {!places.length && <Link className="quiet-link" href={mapHref(tripId, { ...context, mode: "add" })} scroll={false}>검색으로 첫 장소 등록</Link>}
       </div>}
     </section>
 
     <div className="places-stage">
       {filtersOnMap && <div className="places-map-filters">
-        {filterLinks("map")}
-        {filter === "date" && mapDayPicker}
+        {filterLinks}{dayPicker}{routeControl}
       </div>}
-      <MapCanvas pins={pins} selected={item?.id} onSelect={select} />
+      {!pins.length && <p className="plan-meta place-map-empty" role="status">
+        {shown.length ? "검색 조건에 맞는 장소에 표시할 지도 핀이 없어요." : find ? "찾는 장소가 없어 지도 핀이 없어요." : "표시할 지도 핀이 없어요."}
+      </p>}
+      <MapCanvas pins={pins} selected={item?.id} onSelect={select} route={showRoute ? routeSegments : undefined} />
       {item && <article className="place-detail editorial-paper" aria-label="선택한 장소">
         <header>
           <span className="place-number" data-empty={number ? undefined : "true"} aria-hidden>{number ?? <MapPinOff size={15} />}</span>
@@ -161,25 +253,26 @@ export function PlacesView({ places, links, tripId, date, filter, initialPlace, 
             <p className="plan-meta">길찾기를 열려면 주소나 좌표를 등록해 주세요.</p>}
           <button type="button" className="quiet-link" onClick={() => copy(address || item.display_name)}>
             <Copy size={16} aria-hidden /><span>{address ? "주소 복사" : "이름 복사"}</span></button>
-          {number && view === "list" && <button type="button" className="quiet-link place-detail-map" onClick={() => setView("map")}>
+          {number && view === "list" && <button type="button" className="quiet-link place-detail-map" onClick={() => updateContext({ view: "map" })}>
             <MapIcon size={16} aria-hidden /><span>지도에서 보기</span></button>}
         </div>
         {copyMessage && <p className="plan-meta" role="status">{copyMessage}</p>}
-        {nearbyPins.length > 1 && <div className="place-nearby" role="group" aria-label="가까운 지도 핀">
+        {nearbyPins.length > 1 && nearbyPins.some(({ id }) => id === item.id) && <div className="place-nearby" role="group" aria-label="가까운 지도 핀">
           <p className="plan-meta">가까운 지도 핀</p>
           <div className="place-nearby-options">
-            {nearbyPins.map(({ id, label, number }) => <button key={id} type="button" className="quiet-link"
+            {nearbyPins.filter(({ id }) => numbers.has(id)).map(({ id, label, number }) => <button key={id} type="button" className="quiet-link"
               aria-pressed={id === selected} onClick={() => select(id, nearbyPins)}>
               <span>{number}</span> {label}
             </button>)}
           </div>
         </div>}
         <footer className="place-detail-manage">
-          <Link className="quiet-link" href={mapHref(tripId, { date, place: item.id, mode: "edit" })} scroll={false}>장소 수정</Link>
-          <Link className="quiet-link danger-link" href={mapHref(tripId, { date, place: item.id, mode: "delete" })} scroll={false}>장소 삭제</Link>
+          <Link className="quiet-link" href={mapHref(tripId, { ...context, place: item.id, mode: "edit" })} scroll={false}>장소 수정</Link>
+          <Link className="quiet-link danger-link" href={mapHref(tripId, { ...context, place: item.id, mode: "delete" })} scroll={false}>장소 삭제</Link>
           {item.provider === "GEOAPIFY" && <p className="plan-meta">출처 <a href="https://www.geoapify.com/" target="_blank" rel="noreferrer">Geoapify</a></p>}
         </footer>
       </article>}
     </div>
+    {filtersOnMap && visitList}
   </div>;
 }

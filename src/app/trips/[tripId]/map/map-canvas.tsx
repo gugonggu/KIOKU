@@ -1,6 +1,6 @@
 "use client";
 
-import type { Map as MapLibre, Marker } from "maplibre-gl";
+import type { GeoJSONSource, Map as MapLibre, MapMouseEvent, Marker } from "maplibre-gl";
 import { LocateFixed } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -9,8 +9,9 @@ type GeoPoint = [number, number];
 export const mapLatitudeLimit = 85.051129;
 const styleUrl = "https://tiles.openfreemap.org/styles/liberty";
 
-export function MapCanvas({ pins, selected, onSelect, showLocation = true }: {
-  pins: MapPin[]; selected?: string; onSelect: (id: string, nearby: MapPin[]) => void; showLocation?: boolean;
+export function MapCanvas({ pins, selected, onSelect, showLocation = true, onPick, route }: {
+  pins: MapPin[]; selected?: string; onSelect?: (id: string, nearby: MapPin[]) => void; showLocation?: boolean;
+  onPick?: (point: GeoPoint) => void; route?: GeoPoint[][];
 }) {
   const container = useRef<HTMLDivElement>(null);
   const [runtime, setRuntime] = useState<{ map: MapLibre; lib: typeof import("maplibre-gl") }>();
@@ -18,9 +19,13 @@ export function MapCanvas({ pins, selected, onSelect, showLocation = true }: {
   const [retry, setRetry] = useState(0);
   const [geo, setGeo] = useState<{ message: string; point?: GeoPoint }>();
   const callback = useRef(onSelect);
+  const pick = useRef(onPick);
+  const picking = Boolean(onPick);
+  const fittedPicker = useRef<MapLibre>(undefined);
   const fit = useRef<() => void>(() => {});
   const alive = useRef(true);
   useEffect(() => { callback.current = onSelect; }, [onSelect]);
+  useEffect(() => { pick.current = onPick; }, [onPick]);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
   useEffect(() => {
@@ -48,6 +53,12 @@ export function MapCanvas({ pins, selected, onSelect, showLocation = true }: {
     if (!runtime) return;
     const { map, lib } = runtime;
     const markers: Marker[] = pins.map(({ id, label, point, number }) => {
+      if (picking) {
+        const element = document.createElement("span");
+        element.className = "kioku-map-location";
+        element.setAttribute("aria-label", "선택한 위치");
+        return new lib.Marker({ element }).setLngLat(point).addTo(map);
+      }
       const button = document.createElement("button");
       button.type = "button";
       button.className = "kioku-map-pin";
@@ -58,11 +69,19 @@ export function MapCanvas({ pins, selected, onSelect, showLocation = true }: {
         const center = map.project(point);
         // Pin buttons are 44px wide. Offer a choice when their touch targets can overlap.
         const nearby = pins.filter((pin) => center.dist(map.project(pin.point)) < 44);
-        callback.current(id, nearby);
+        callback.current?.(id, nearby);
       });
       return new lib.Marker({ element: button, anchor: "center" }).setLngLat(point).addTo(map);
     });
     fit.current = () => {
+      if (picking) {
+        if (fittedPicker.current === map) {
+          const point = pins[0]?.point;
+          if (point && !map.getBounds().contains(point)) map.jumpTo({ center: point, zoom: Math.max(13, map.getZoom()) });
+          return;
+        }
+        fittedPicker.current = map;
+      }
       if (pins.length === 1) map.jumpTo({ center: pins[0].point, zoom: 13 });
       if (pins.length > 1) {
         const bounds = new lib.LngLatBounds();
@@ -72,7 +91,31 @@ export function MapCanvas({ pins, selected, onSelect, showLocation = true }: {
     };
     fit.current();
     return () => markers.forEach((marker) => marker.remove());
-  }, [runtime, pins]);
+  }, [runtime, pins, picking]);
+
+  useEffect(() => {
+    if (!runtime || !picking) return;
+    const { map } = runtime;
+    const selectPoint = ({ lngLat }: MapMouseEvent) => {
+      if (Math.abs(lngLat.lat) <= mapLatitudeLimit) pick.current?.([lngLat.wrap().lng, lngLat.lat]);
+    };
+    map.on("click", selectPoint);
+    return () => { map.off("click", selectPoint); };
+  }, [runtime, picking]);
+
+  useEffect(() => {
+    if (!runtime || picking) return;
+    const { map } = runtime;
+    const id = "kioku-visit-route";
+    const source = map.getSource<GeoJSONSource>(id);
+    if (!source && !route?.length) return;
+    const data = { type: "Feature", properties: {}, geometry: { type: "MultiLineString", coordinates: route ?? [] } } as const;
+    if (source) source.setData(data);
+    else {
+      map.addSource(id, { type: "geojson", data });
+      map.addLayer({ id, type: "line", source: id, paint: { "line-color": "#31549a", "line-width": 3, "line-dasharray": [2, 2] } });
+    }
+  }, [runtime, picking, route]);
 
   const active = pins.find((pin) => pin.id === selected);
   const focus = useRef<() => void>(() => {});
@@ -140,7 +183,7 @@ export function MapCanvas({ pins, selected, onSelect, showLocation = true }: {
     );
   }
 
-  return <section id="trip-place-map" className="place-map" aria-label="장소 지도">
+  return <section id={picking ? undefined : "trip-place-map"} className={picking ? "place-map place-point-picker" : "place-map"} aria-label={picking ? "위치 선택 지도" : "장소 지도"}>
     <div className="place-map-footer">
       <p className="plan-meta">지도 <a href="https://openfreemap.org/" target="_blank" rel="noreferrer">OpenFreeMap</a>
         {" · "}<a href="https://openmaptiles.org/" target="_blank" rel="noreferrer">© OpenMapTiles</a>
@@ -153,7 +196,7 @@ export function MapCanvas({ pins, selected, onSelect, showLocation = true }: {
       {geo && <p className="place-map-toast" role="status">{geo.message}</p>}
       {status === "loading" && <p className="place-map-overlay notice" role="status">지도를 불러오는 중이에요.</p>}
       {status === "failed" && <div className="place-map-overlay notice notice-error" role="alert">
-        <p>지도를 불러오지 못했어요. 저장된 장소 목록에서 주소와 길찾기를 사용할 수 있어요.</p>
+        <p>{picking ? "지도를 불러오지 못했어요. 아래 입력란에 위도와 경도를 직접 입력할 수 있어요." : "지도를 불러오지 못했어요. 저장된 장소 목록에서 주소와 길찾기를 사용할 수 있어요."}</p>
         <button type="button" className="quiet-link" onClick={() => { setRuntime(undefined); setStatus("loading"); setRetry((value) => value + 1); }}>지도 다시 불러오기</button>
       </div>}
     </div>
