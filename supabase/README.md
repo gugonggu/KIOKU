@@ -100,3 +100,12 @@ M5는 M4 적용과 확인에 이어 별도 승인 후 적용합니다. 적용 �
 [Supabase 백업 안내](https://supabase.com/docs/guides/platform/backups) · [Supabase CLI 복원](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore) · [Geoapify Autocomplete](https://apidocs.geoapify.com/docs/geocoding/address-autocomplete/)
 
 [Supabase CLI의 로컬 개발](https://supabase.com/docs/guides/local-development) · [Supabase RLS](https://supabase.com/docs/guides/database/postgres/row-level-security)
+
+
+## v1.1 정산 인원 보호
+
+운영 적용 승인이 나면 현재 운영 앱과 연결된 프로젝트 및 9건의 적용 이력을 대조합니다. 권한, 스키마, 데이터, 마이그레이션 이력을 보호된 위치에 백업하고, `supabase db push --dry-run`에 `20261125090002_preserve_settlement_participants.sql` 1건만 표시되는지 확인합니다. 승인된 DB 적용 후 앱 배포를 진행합니다.
+
+마이그레이션은 기존 인원 검증 트리거 함수의 본문만 교체합니다. 컬럼, 데이터, RPC 인자, RLS, Storage 권한에는 변경이 없습니다. 지출이 있는 동안 배열의 기존 이름과 위치를 보호하며 새 인원을 마지막에 추가할 수 있습니다. 이전 앱에서 기존 목록 조회와 지출 등록은 계속 가능합니다. 이전 앱의 UI에서 기존 인원을 바꾸면 DB가 저장을 거부합니다. 새 앱은 기존 DB에서도 같은 변경을 화면과 서버에서 제한하며, 모든 DB 입력 경로를 보호하려면 마이그레이션이 필요합니다.
+
+적용 실패 시 적용 이력과 트랜잭션을 확인하고 배포를 보류합니다. 앱 장애 시 직전 Ready 배포로 복구하고 DB의 인원 보호는 유지합니다. DB 변경이 필요하면 기존 인덱스와 정산 결과를 비교한 후 보정 마이그레이션을 준비합니다.
