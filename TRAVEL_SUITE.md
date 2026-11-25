@@ -95,4 +95,6 @@ Git 연동 [Preview](https://kioku-git-feature-travel-memory-and-polish-gugonggu
 
 Preview `7474a3a`를 HTTPS로 점검했습니다. Google 버튼이 있는 `/login`, `/manifest.webmanifest`, `/kioku-worker.js`, `/offline.html`, `/s`는 `200`이었고 비로그인 `/trips`·`/trips/new`는 고정 Preview 로그인 별칭으로 `307`을 반환했습니다. 비로그인 사진 API는 `401`이었습니다. 인증 계정의 여행·지도·일정과 새 기능 쓰기는 격리 환경에서 확인한 범위입니다. [Preview 배포 기록](https://vercel.com/gugonggus-projects/kioku/AunHgh8ZzyMwJyRW4Tih4i9eufCv) · [PR 체크](https://github.com/gugonggu/KIOKU/pull/6/checks)
 
+`46c430b` Preview에서 같은 HTTPS 스모크를 다시 통과했습니다. 운영 Auth의 공개 설정은 Google·이메일 활성화와 신규 가입 차단을 반환했습니다. `PLAYWRIGHT_LIVE_MAP=1`로 실행한 실제 OpenFreeMap Chrome E2E 한 건이 통과했습니다. [Preview 검증 배포](https://vercel.com/gugonggus-projects/kioku/HG8FU2jBnTw4QXtqjWGJvUNjCwkL)
+
 판정은 **BLOCKED**입니다. 운영 마이그레이션 두 건과 서버 전용 Storage 키 등록이 필요합니다. 이 두 항목의 승인 후 기존 데이터와 스키마를 백업하고 변경을 적용한 뒤 Production 배포 및 스모크 검증을 진행합니다. Mobile QA 문서에 실제 폰에서 확인할 항목과 Android 에뮬레이터 결과를 기록했습니다.

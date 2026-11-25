@@ -24,13 +24,13 @@ Windows의 대체 검증은 Playwright WebKit입니다. Xcode Simulator는 macOS
 | 환경 | 결과와 범위 |
 | --- | --- |
 | Desktop Mobile Emulation | **PASS**. Chrome에서 보호 화면 11개를 360·390·430·768·1440px로 열고 가로 넘침을 확인했습니다. 이전 WebKit 자동화 6건은 Chromium과 별개로 통과했습니다. |
-| Android OS Emulator | **PASS** A01·A02·A03·A06·A07·A10·A11·A17. 실제 Chrome에서 보안 컨텍스트, Service Worker의 공개 셸 캐시, 설치 가능 조건과 설치 확인 창, 저장 후 네트워크 차단 상태의 일정·장소 및 복구, 시스템 회전을 확인했습니다. `test-results/mobile-release/android-offline.png`에 가상 데이터 캡처가 있습니다. |
+| Android OS Emulator | **PASS** A01·A02·A03·A06·A07·A08·A10·A11·A17. 실제 Chrome에서 보안 컨텍스트, Service Worker의 공개 셸 캐시, 설치 가능 조건과 설치 확인 창, 저장한 일정·장소, 시스템 회전을 확인했습니다. 비행기 모드에서 ADB reverse를 제거하고 Chrome의 기존 연결도 차단한 상태에서 저장본을 다시 불러온 뒤 네트워크를 복구했습니다. |
 | Android OS Emulator | **PASS** A13의 가상 JPEG 파일 입력·업로드·삭제. **PASS** A16 중 터치 장소 선택, 길찾기 URL, 지도 캔버스 표시. 지도 드래그·핀치 및 시스템 파일 선택 창은 **NOT RUN**. PDF는 가이드 미리보기까지 확인했습니다. |
-| Android OS Emulator | **BLOCKED** A04·A05·A09·A18의 설치 PWA 흐름. 설치 창에서 Install을 선택한 뒤 이번 AVD에서 홈 화면 아이콘과 WebAPK 설치 완료를 확인하지 못했습니다. 비행기 모드에서 Chrome 프로세스를 재시작해 오프라인 셸까지는 열렸으나 그 실행에서 저장된 여행을 확인하지 못했습니다. A12 가상 카메라, A14·A15 시스템 PDF 저장·열기는 **NOT RUN**. |
+| Android OS Emulator | **PASS** 일반 Chrome 프로세스 종료 후 비행기 모드에서 오프라인 수첩을 다시 열어 저장 여행을 확인했습니다. A04·A05 및 A09·A18의 설치 PWA 흐름은 **BLOCKED**입니다. 설치 창에서 Install을 선택한 뒤 이번 AVD에서 홈 화면 아이콘이나 WebAPK 설치 완료를 확인하지 못했습니다. A14 시스템 인쇄 호출은 입력 시간 초과 후 AVD가 ADB에서 사라져 **BLOCKED**였습니다. A12 가상 카메라 촬영·첨부와 A15 저장 PDF 열기는 **NOT RUN**입니다. |
 | iOS Simulator / Physical Android Device | **NOT RUN**. Windows에서는 Xcode Simulator를 사용하지 않았으며 물리 Android는 연결하지 않았습니다. |
 | Physical iPhone Device | **BLOCKED**(I01~I14). BrowserStack OAuth와 MCP 연결, Automate Free 플랜, 실제 iPhone 15(iOS 17·26·27)·16(iOS 18)·17(iOS 26)의 Safari 목록을 확인했습니다. API는 동시 실행 수만 제공해 계정의 잔여 무료 분은 확인하지 못했습니다. 원격 세션 사용량은 이번 작업 기준 0분입니다. [Plan API](https://www.browserstack.com/docs/automate/api-reference/selenium/plan) |
 
-Playwright Android 전용 실행과 초기 일반 CDP 연결은 시간 초과가 발생했습니다. 실제 Chrome에 `noDefaults` CDP 연결로 브라우저 검증을 실행했으며 Chrome 탭이 여러 개 남은 상태에서는 간헐적 연결 시간 초과가 있었습니다. 이 환경 제약과 실기기 미확인 항목을 릴리스 기록에 남깁니다.
+Playwright Android 전용 실행과 초기 일반 CDP 연결은 시간 초과가 발생했습니다. `noDefaults` CDP 연결로 브라우저 검증을 실행했습니다. 사진 입력 재시험에서 수동 점검용 Next 서버가 같은 포트를 사용해 사진용 키 없는 인스턴스로 연결되는 것을 확인했습니다. 수동 서버를 종료했고 테스트 실행기도 포트가 이미 응답하면 중단합니다. 로컬 ADB 캡처 `test-results/mobile-release/android-offline.png`는 Chrome 주소와 시스템 UI를 보여 주지만 본문 영역의 시각 검수에는 사용할 수 없었습니다. 저장본 내용은 Android Chrome의 DOM 검증으로 확인했습니다.
 
 ## 실기기 체크리스트
 

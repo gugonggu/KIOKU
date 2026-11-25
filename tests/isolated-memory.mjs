@@ -14,6 +14,8 @@ assert.ok(fixture.PUBLISHABLE_KEY?.startsWith("sb_publishable_") && fixture.SECR
 const port = Number(process.env.KIOKU_MEMORY_TEST_PORT ?? "5331");
 assert.ok(Number.isInteger(port) && port > 1024 && port <= 65535);
 const app = "http://127.0.0.1:" + port;
+const existing = await fetch(app + "/login", { signal: AbortSignal.timeout(2000) }).then(() => true, () => false);
+assert.equal(existing, false, "The fixture app port is already serving HTTP. Stop it or set KIOKU_MEMORY_TEST_PORT.");
 const options = { auth: { persistSession: false, autoRefreshToken: false } };
 const admin = createClient(hosted.href, fixture.SECRET_KEY, options);
 const must = (result, label) => {
@@ -51,11 +53,14 @@ const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start
 const stopped = once(child, "exit");
 let browser;
 try {
+  let ready = false;
   for (let attempt = 0; attempt < 30; attempt++) {
     if (child.exitCode !== null) throw new Error("Local Next start failed");
-    if (await fetch(app + "/login").then((response) => response.ok).catch(() => false)) break;
+    ready = await fetch(app + "/login").then((response) => response.ok).catch(() => false);
+    if (ready) break;
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
+  assert.equal(ready, true, "Local fixture app did not become ready");
   const owner = await user();
   const visitor = await user();
   const tripId = randomUUID();

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { chromium, expect } from "@playwright/test";
 import sharp from "sharp";
 
@@ -45,6 +45,7 @@ async function verifyAndroid({ app, path, tripId, signIn }) {
   try {
     const context = android.contexts()[0];
     page = await context.newPage();
+    await page.bringToFront();
     await signIn(page);
     const agent = await page.evaluate(() => navigator.userAgent);
     assert.match(agent, /Android.*Chrome/);
@@ -78,29 +79,23 @@ async function verifyAndroid({ app, path, tripId, signIn }) {
       await page.goto(app + "/offline.html?trip=" + tripId);
       await expectAndroid(page.getByText(/오타루 운하/)).toBeVisible();
       await expectAndroid(page.getByText(/가상 운하 위치/).first()).toBeVisible();
-      await mkdir("test-results/mobile-release", { recursive: true });
-      await page.screenshot({ path: "test-results/mobile-release/android-offline.png" });
+      await captureEmulator();
     } finally {
       await cdp.send("Network.emulateNetworkConditions", { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+      await cdp.detach();
     }
     await page.goto(app + path + "/guide");
     await expectAndroid(page.getByRole("article", { name: "인쇄 미리보기" })).toBeVisible();
     console.log("PASS Android Chrome: secure context, manifest, service worker cache, offline schedule and place, network recovery and guide preview.");
 
-    await page.goto(app + path + "/map");
-    await touch(cdp, page.getByRole("button", { name: /가상 운하 위치/ }).first());
-    const directions = page.getByRole("link", { name: "Google Maps 길찾기" });
-    await expectAndroid(directions).toBeVisible();
-    assert.match(await directions.getAttribute("href"), /^https:\/\/www\.google\.com\/maps\/dir\//);
-    await touch(cdp, page.getByRole("button", { name: "지도에서 보기" }));
-    await expectAndroid(page.locator(".maplibregl-canvas").first()).toBeVisible();
-    await cdp.detach();
-    console.log("PASS Android Chrome: touch-select place, directions link and map canvas.");
+    if (process.env.KIOKU_ANDROID_EMULATOR) await verifyEmulatorControls({ page, app, tripId });
 
     await page.goto(app + path + "/memory?date=2027-02-19");
     await page.locator("#add-photo summary").click();
     const image = await sharp({ create: { width: 64, height: 48, channels: 3, background: "#768677" } }).jpeg().toBuffer();
-    await page.getByLabel("사진 파일").setInputFiles({ name: "android-fixture.jpg", mimeType: "image/jpeg", buffer: image });
+    const input = page.locator("#add-photo input[name=photo]");
+    await expectAndroid(input).toBeVisible();
+    await input.setInputFiles({ name: "android-fixture.jpg", mimeType: "image/jpeg", buffer: image });
     await page.getByLabel("사진 제목").fill("Android 시험용 사진");
     await page.getByRole("button", { name: "사진 저장", exact: true }).click();
     await expectAndroid(page.getByRole("img", { name: "Android 시험용 사진", exact: true })).toBeVisible();
@@ -110,10 +105,29 @@ async function verifyAndroid({ app, path, tripId, signIn }) {
     await photo.getByRole("button", { name: "사진 삭제" }).click();
     await expectAndroid(photo).toHaveCount(0);
     console.log("PASS Android Chrome: fixture file input, upload and photo deletion.");
-    if (process.env.KIOKU_ANDROID_EMULATOR) await verifyEmulatorControls({ page, app, tripId });
+
+    await page.goto(app + path + "/map");
+    const mapCdp = await context.newCDPSession(page);
+    await touch(mapCdp, page.getByRole("button", { name: /가상 운하 위치/ }).first());
+    const directions = page.getByRole("link", { name: "Google Maps 길찾기" });
+    await expectAndroid(directions).toBeVisible();
+    assert.match(await directions.getAttribute("href"), /^https:\/\/www\.google\.com\/maps\/dir\//);
+    await touch(mapCdp, page.getByRole("button", { name: "지도에서 보기" }));
+    await expectAndroid(page.locator(".maplibregl-canvas").first()).toBeVisible();
+    await mapCdp.detach();
+    console.log("PASS Android Chrome: touch-select place, directions link and map canvas.");
   } finally {
     try { await page?.close(); } finally { await android.close(); }
   }
+}
+
+async function captureEmulator() {
+  const serial = process.env.KIOKU_ANDROID_EMULATOR;
+  if (!serial) return;
+  assert.match(serial, /^emulator-\d+$/, "Select a dedicated Android emulator");
+  const png = execFileSync("adb", ["-s", serial, "exec-out", "screencap", "-p"], { timeout: 10000, maxBuffer: 8 * 1024 * 1024 });
+  await mkdir("test-results/mobile-release", { recursive: true });
+  await writeFile("test-results/mobile-release/android-offline.png", png);
 }
 
 async function touch(cdp, target) {
