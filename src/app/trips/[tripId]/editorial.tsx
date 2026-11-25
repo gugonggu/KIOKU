@@ -1,5 +1,6 @@
 import { CalendarDays, Ellipsis, House, MapPinned, Ticket } from "lucide-react";
 import Link from "next/link";
+import { useId } from "react";
 import { dateLabel, type Trip } from "@/lib/trip-details";
 import { periods, shiftDay } from "@/lib/trip-plan";
 import type { PlanSchedule } from "@/lib/trip-plan-data";
@@ -27,17 +28,20 @@ export function timeLabel(item: Pick<PlanSchedule, "fixed_local_time" | "period"
 
 const shortDay = new Intl.DateTimeFormat("ko-KR", { month: "numeric", day: "numeric", weekday: "short", timeZone: "Asia/Tokyo" });
 
-export function DayCards({ trip, date, summaries, href = (day) => itineraryHref(trip.id, day) }: {
-  trip: Trip; date: string; summaries?: Map<string, string>; href?: (day: string) => string;
+export function DayCards({ trip, date, summaries, counts, href = (day) => itineraryHref(trip.id, day) }: {
+  trip: Trip; date: string; summaries?: Map<string, string>; counts?: ReadonlyMap<string, number>; href?: (day: string) => string;
 }) {
   const start = trip.start_date;
+  const countId = useId();
   if (!start) return null;
   return <div className="editorial-days">
     {tripDays(trip, date).map((day) => <Link key={day} className="editorial-day" href={href(day)}
-      aria-current={day === date ? "date" : undefined} aria-label={dateLabel(day)}>
+      aria-current={day === date ? "date" : undefined}
+      aria-label={dateLabel(day)} aria-describedby={counts ? countId + day : undefined}>
       <strong>Day {dayNumber(start, day)}</strong>
       <time dateTime={day}>{shortDay.format(new Date(day))}</time>
       {summaries && <span className="day-summary">{summaries.get(day) ?? "일정 없음"}</span>}
+      {counts && <span id={countId + day} className="day-summary">일정 {counts.get(day) ?? 0}개</span>}
     </Link>)}
   </div>;
 }

@@ -6,6 +6,7 @@ import { chromium, expect } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import sharp from "sharp";
 import { verifyReleaseMobile } from "./release-mobile.mjs";
+import { verifyM13Visual } from "./m13-visual.mjs";
 
 const fixture = JSON.parse(process.env.KIOKU_LOCAL_SUPABASE || "{}");
 const hosted = new URL(fixture.API_URL);
@@ -61,6 +62,18 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
   assert.equal(ready, true, "Local fixture app did not become ready");
+  if (process.env.KIOKU_M13_VISUAL) {
+    await verifyM13Visual({ app, user, enter, must });
+  } else {
+    await verifyIsolatedMemoryScenario();
+  }
+} finally {
+  await browser?.close();
+  if (child.exitCode === null) child.kill();
+  await stopped;
+}
+
+async function verifyIsolatedMemoryScenario() {
   const owner = await user();
   const visitor = await user();
   const tripId = randomUUID();
@@ -99,10 +112,6 @@ try {
   } else {
     await verifyMemory({ owner, visitor, path, tripId, date });
   }
-} finally {
-  await browser?.close();
-  if (child.exitCode === null) child.kill();
-  await stopped;
 }
 
 async function verifyMemory({ owner, visitor, path, tripId, date }) {

@@ -1,0 +1,125 @@
+[
+  {
+    "title": "가상 출국과 공항 도착",
+    "date": "2027-02-10",
+    "period": "MORNING"
+  },
+  {
+    "title": "철도로 시내 이동",
+    "date": "2027-02-10",
+    "period": "AFTERNOON"
+  },
+  {
+    "title": "짐 먼저 맡기기",
+    "date": "2027-02-10",
+    "period": "AFTERNOON"
+  },
+  {
+    "title": "라멘 점심",
+    "date": "2027-02-10",
+    "period": "AFTERNOON"
+  },
+  {
+    "title": "시계탑에서 만남",
+    "date": "2027-02-10",
+    "period": "AFTERNOON"
+  },
+  {
+    "title": "공원과 전망대",
+    "date": "2027-02-10",
+    "period": "AFTERNOON"
+  },
+  {
+    "title": "저녁 모임",
+    "date": "2027-02-10",
+    "time": "19:00"
+  },
+  {
+    "title": "숙소로 돌아가기",
+    "date": "2027-02-10"
+  },
+  {
+    "title": "겨울 들판 투어",
+    "date": "2027-02-11"
+  },
+  {
+    "title": "시내 복귀",
+    "date": "2027-02-11"
+  },
+  {
+    "title": "항구 도시로 이동",
+    "date": "2027-02-12",
+    "period": "MORNING"
+  },
+  {
+    "title": "시장 점심",
+    "date": "2027-02-12",
+    "period": "MORNING"
+  },
+  {
+    "title": "오르골 가게",
+    "date": "2027-02-12",
+    "period": "AFTERNOON"
+  },
+  {
+    "title": "디저트와 커피",
+    "date": "2027-02-12",
+    "period": "AFTERNOON"
+  },
+  {
+    "title": "유리공방 관람",
+    "date": "2027-02-12",
+    "period": "AFTERNOON"
+  },
+  {
+    "title": "상점가 산책",
+    "date": "2027-02-12",
+    "period": "AFTERNOON"
+  },
+  {
+    "title": "운하 야경",
+    "date": "2027-02-12",
+    "period": "EVENING"
+  },
+  {
+    "title": "시내 복귀",
+    "date": "2027-02-12",
+    "period": "EVENING"
+  },
+  {
+    "title": "시내 자유 일정",
+    "date": "2027-02-13"
+  },
+  {
+    "title": "가상 캐릭터 굿즈샵"
+  },
+  {
+    "title": "가상 백화점"
+  },
+  {
+    "title": "시장과 전시관 후보"
+  },
+  {
+    "title": "저녁 식사 후보"
+  },
+  {
+    "title": "체크아웃과 공항 이동",
+    "date": "2027-02-14",
+    "period": "MORNING"
+  },
+  {
+    "title": "공항 쇼핑",
+    "date": "2027-02-14",
+    "period": "MORNING"
+  },
+  {
+    "title": "가상 귀국편",
+    "date": "2027-02-14",
+    "time": "14:00"
+  },
+  {
+    "title": "가상 귀국 도착",
+    "date": "2027-02-14",
+    "time": "17:00"
+  }
+]

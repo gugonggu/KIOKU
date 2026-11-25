@@ -1032,10 +1032,14 @@ test("release trip home labels upcoming, empty active, and finished trips withou
   await expect(page.getByText("출발까지 D-2")).toBeVisible();
   await expect(page.getByRole("heading", { name: "다음 정시 일정" })).toHaveCount(0);
   await page.goto(`/trips/${id("가상 여행 중")}`);
-  await expect(page.getByText("Day 2 · 일본 현지 오늘")).toBeVisible();
+  const phase = page.locator(".editorial-kicker");
+  await expect(phase).toContainText("Day 2 · 일본 현지");
+  await expect(phase.locator("time")).toHaveText(/^\d{2}:\d{2}$/);
+  await expect(page.getByRole("navigation", { name: "여행 중 바로가기" }).getByRole("link", { name: "오늘 장소" })).toBeVisible();
   await expect(page.getByText("오늘 등록된 일정이 없어요.")).toBeVisible();
   await page.goto(`/trips/${id("가상 종료 여행")}`);
-  await expect(page.getByText("여행 종료 · 기록 보기")).toBeVisible();
+  await expect(phase).toHaveText("여행 종료");
+  await expect(page.getByRole("region", { name: "여행의 기억" }).getByRole("link", { name: "여행 가이드 내보내기" })).toBeVisible();
   await expect(page.getByRole("link", { name: "예약 전체 보기" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "다음 정시 일정" })).toHaveCount(0);
 });

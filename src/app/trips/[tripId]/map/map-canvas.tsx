@@ -84,11 +84,12 @@ export function MapCanvas({ pins, selected, onSelect, showLocation = true }: {
       // Keep the selected pin clear of the place card: it covers the lower map on phones and the left edge on desktop.
       const narrow = window.matchMedia("(max-width: 839px)").matches;
       const { clientWidth, clientHeight } = runtime.map.getContainer();
+      const verticalOffset = showLocation ? 0.3 : 0.22;
       runtime.map.easeTo({ center: active.point, zoom: Math.max(13, runtime.map.getZoom()), duration: 0,
-        offset: narrow ? [0, -Math.round(clientHeight * 0.22)] : [Math.min(192, Math.round(clientWidth * 0.2)), 0] });
+        offset: narrow ? [0, -Math.round(clientHeight * verticalOffset)] : [Math.min(192, Math.round(clientWidth * 0.2)), 0] });
     };
     focus.current();
-  }, [runtime, active, pins, selected]);
+  }, [runtime, active, pins, selected, showLocation]);
 
   // The map can start hidden behind the mobile list view; re-measure and re-frame when it becomes visible.
   useEffect(() => {
@@ -144,11 +145,11 @@ export function MapCanvas({ pins, selected, onSelect, showLocation = true }: {
       <p className="plan-meta">지도 <a href="https://openfreemap.org/" target="_blank" rel="noreferrer">OpenFreeMap</a>
         {" · "}<a href="https://openmaptiles.org/" target="_blank" rel="noreferrer">© OpenMapTiles</a>
         {" · "}<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a></p>
+      {showLocation && <button type="button" className="place-map-locate" disabled={status !== "ready" || geo?.message === "현재 위치를 확인하는 중이에요."}
+        onClick={locate}><LocateFixed size={17} aria-hidden />내 위치</button>}
     </div>
     <div className="place-map-viewport" data-map-state={status}>
       <div ref={container} className="place-map-canvas" aria-label="일본 지도" />
-      {showLocation && <button type="button" className="place-map-locate" disabled={status !== "ready" || geo?.message === "현재 위치를 확인하는 중이에요."}
-        onClick={locate}><LocateFixed size={17} aria-hidden />내 위치</button>}
       {geo && <p className="place-map-toast" role="status">{geo.message}</p>}
       {status === "loading" && <p className="place-map-overlay notice" role="status">지도를 불러오는 중이에요.</p>}
       {status === "failed" && <div className="place-map-overlay notice notice-error" role="alert">

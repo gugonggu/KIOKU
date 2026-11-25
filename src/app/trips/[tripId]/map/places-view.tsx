@@ -2,7 +2,7 @@
 
 import { CalendarPlus, Copy, List, Map as MapIcon, MapPinOff, Navigation, Search, X } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Blossom } from "@/components/brand";
 import { dateLabel } from "@/lib/trip-details";
 import { directionsUrl, filterPlaces, type PlaceFilter } from "@/lib/trip-places";
@@ -13,18 +13,27 @@ import { mapHref } from "./links";
 import { MapCanvas, mapLatitudeLimit, type MapPin } from "./map-canvas";
 
 const filters: [PlaceFilter, string][] = [["all", "전체"], ["date", "날짜별"], ["candidates", "후보 장소"]];
+const mobileMap = "(max-width: 839px)";
+
+function subscribeToMobileMap(notify: () => void) {
+  const media = window.matchMedia(mobileMap);
+  media.addEventListener("change", notify);
+  return () => media.removeEventListener("change", notify);
+}
 
 function hasCoordinates({ latitude, longitude }: PlanPlace) {
   return latitude !== null && longitude !== null;
 }
 
-export function PlacesView({ places, links, tripId, date, filter, initialPlace, itineraryDate, dayPicker }: {
+export function PlacesView({ places, links, tripId, date, filter, initialPlace, initialView, itineraryDate, dayPicker, mapDayPicker }: {
   places: PlanPlace[]; links: PlaceVisit[]; tripId: string; date: string; filter: PlaceFilter; initialPlace?: string;
-  itineraryDate: string | null; dayPicker?: ReactNode;
+  initialView?: "map"; itineraryDate: string | null; dayPicker?: ReactNode; mapDayPicker?: ReactNode;
 }) {
   const [selected, setSelected] = useState(initialPlace);
   const [nearbyPins, setNearbyPins] = useState<MapPin[]>([]);
-  const [view, setView] = useState<"list" | "map">(initialPlace ? "map" : "list");
+  const [view, setView] = useState<"list" | "map">(initialView ?? (initialPlace ? "map" : "list"));
+  const compact = useSyncExternalStore(subscribeToMobileMap, () => window.matchMedia(mobileMap).matches, () => false);
+  const filtersOnMap = compact && view === "map";
   const [find, setFind] = useState("");
   const [copyMessage, setCopyMessage] = useState("");
   const visible = useMemo(() => filterPlaces(places, links, filter, date), [places, links, filter, date]);
@@ -57,6 +66,11 @@ export function PlacesView({ places, links, tripId, date, filter, initialPlace, 
     setSelected(id);
     setNearbyPins(nearby);
   }
+
+  const filterLinks = (mapView?: "map") => <nav className="places-filters" aria-label="표시할 장소">
+    {filters.map(([key, label]) => <Link key={key} href={mapHref(tripId, { filter: key, date, view: mapView })}
+      aria-current={filter === key ? "page" : undefined}>{label}</Link>)}
+  </nav>;
   async function copy(value: string) {
     try {
       await navigator.clipboard.writeText(value);
@@ -77,11 +91,8 @@ export function PlacesView({ places, links, tripId, date, filter, initialPlace, 
         <h2 id="places-list">저장된 장소</h2>
         <span className="plan-meta">{visible.length}곳</span>
       </div>
-      <nav className="places-filters" aria-label="표시할 장소">
-        {filters.map(([key, label]) => <Link key={key} href={mapHref(tripId, { filter: key, date })}
-          aria-current={filter === key ? "page" : undefined}>{label}</Link>)}
-      </nav>
-      {filter === "date" && dayPicker}
+      {!filtersOnMap && filterLinks()}
+      {!filtersOnMap && filter === "date" && dayPicker}
       {places.length > 0 && <label className="places-find">
         <Search size={16} aria-hidden />
         <input type="search" aria-label="저장된 장소 찾기" placeholder="이름이나 주소로 찾기" value={find}
@@ -97,6 +108,7 @@ export function PlacesView({ places, links, tripId, date, filter, initialPlace, 
             </span>
             <span className="place-card-copy">
               <strong>{place.display_name}</strong>
+              {place.name_ja && place.name_ja !== place.display_name && <span lang="ja">{place.name_ja}</span>}
               <span>{place.address_ja || place.address_text || "주소 미정"}</span>
               {!pin && <span className="place-pin-status">{hasCoordinates(place) ? "지도 범위 밖" : "좌표 없음"}</span>}
             </span>
@@ -111,6 +123,10 @@ export function PlacesView({ places, links, tripId, date, filter, initialPlace, 
     </section>
 
     <div className="places-stage">
+      {filtersOnMap && <div className="places-map-filters">
+        {filterLinks("map")}
+        {filter === "date" && mapDayPicker}
+      </div>}
       <MapCanvas pins={pins} selected={item?.id} onSelect={select} />
       {item && <article className="place-detail editorial-paper" aria-label="선택한 장소">
         <header>

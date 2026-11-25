@@ -1,0 +1,17 @@
+[
+  {
+    "title": "방한복 준비",
+    "category": "packing",
+    "done": true
+  },
+  {
+    "title": "겨울 투어 시각 확인",
+    "category": "activity",
+    "done": false
+  },
+  {
+    "title": "오프라인 수첩 저장",
+    "category": "other",
+    "done": false
+  }
+]
