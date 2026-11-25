@@ -149,7 +149,11 @@ export async function verifyM13Visual({ app, user, enter, must }) {
         await owner.locator("#new-expense").screenshot({ path: directory + "/390-quick-expense.png" });
         await owner.goto(path + "/map?view=map&filter=date&date=2027-02-12");
       }
-      await owner.getByRole("navigation", { name: "표시할 장소" }).getByRole("link", { name: "후보 장소" }).click();
+      const filters = owner.getByRole("navigation", { name: "표시할 장소" });
+      if (!(await filters.isVisible())) {
+        await owner.getByText(/필터와 동선$/, { exact: false }).click();
+      }
+      await filters.getByRole("link", { name: "후보 장소" }).click();
       await expect(owner.getByRole("button", { name: "지도", exact: true })).toHaveAttribute("aria-pressed", "true");
     }
     await owner.context().setOffline(true);
