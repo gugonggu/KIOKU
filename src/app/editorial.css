@@ -21,6 +21,27 @@
 .suite-page summary::before { content: "▸"; }
 .suite-page details[open] > summary::before { content: "▾"; }
 .suite-page progress { accent-color: var(--color-primary); width: 100%; }
+.memory-cover { display: grid; gap: .5rem; }
+.memory-cover .quiet-link { justify-self: start; }
+.memory-image { width: 100%; height: auto; max-height: 420px; object-fit: contain; border-radius: .5rem; background: var(--ed-sage); }
+.memory-sprig { width: 30px; height: 30px; color: var(--color-primary); }
+.memory-note { border-top: 1px solid var(--ed-line); padding-top: .75rem; min-width: 0; }
+.memory-body { white-space: pre-wrap; overflow-wrap: anywhere; }
+.memory-gallery { list-style: none; padding: 0; display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); }
+.memory-card { min-width: 0; border-top: 1px solid var(--ed-line); padding-block: .75rem; }
+.memory-card figcaption { overflow-wrap: anywhere; padding-top: .5rem; }
+.memory-days [aria-current] { background: var(--ed-sage); }
+.memory-page [id] { scroll-margin-top: 5rem; }
+.memory-hero-photo { object-fit: cover; mask-image: linear-gradient(to bottom, #000 44%, transparent 98%); }
+@media (min-width: 600px) {
+  .memory-hero-photo { mask-image: linear-gradient(to right, transparent 5%, #000 68%); }
+}
+.more-groups { display: grid; gap: 0 1.5rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); }
+.more-group { min-width: 0; padding-block: .85rem; border-bottom: 1px solid var(--ed-line); }
+.more-group h2 { display: flex; gap: .55rem; align-items: center; margin-bottom: .35rem; }
+.more-group ul { padding: 0; list-style: none; }
+.more-group .more-entry { display: grid; gap: .15rem; align-content: center; padding-block: .45rem; overflow-wrap: anywhere; }
+.trip-phase-links { margin-top: -.5rem; }
 .brand { flex-wrap: nowrap; }
 .brand-illustration { width: 64px; height: 44px; flex: none; }
 .brand-type { display: grid; gap: 4px; }

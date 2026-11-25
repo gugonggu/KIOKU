@@ -95,6 +95,9 @@ export async function deleteTrip(id: string, version: number): Promise<TripMutat
 
   const { error, data } = await client.from("trips").delete()
     .eq("owner_id", ownerId).eq("id", id).eq("content_version", version).select("id").maybeSingle();
+  if (error?.code === "23001" || error?.code === "23503") {
+    return { message: "여행 기억의 사진을 삭제하거나 정리한 뒤 여행을 삭제해 주세요." };
+  }
   if (error) return { message: "여행을 삭제하지 못했어요. 잠시 후 다시 시도해 주세요." };
   if (!data) return { message: changedTrip, conflict: true };
 

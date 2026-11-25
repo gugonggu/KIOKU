@@ -15,8 +15,8 @@ import { PlaceSearch } from "../map/place-editor";
 
 type Action = (state: ItineraryState, form: FormData) => Promise<ItineraryState>;
 
-function FormFooter({ state, pending, cancel, label, danger }: {
-  state: ItineraryState; pending: boolean; cancel: string; label: string; danger?: boolean;
+function FormFooter({ state, pending, cancel, label, danger, again }: {
+  state: ItineraryState; pending: boolean; cancel: string; label: string; danger?: boolean; again?: boolean;
 }) {
   return <>
     {state.error && !pending && <div className="notice notice-error" role="alert">
@@ -31,6 +31,8 @@ function FormFooter({ state, pending, cancel, label, danger }: {
         name={state.outside ? "outside_confirmation" : undefined} value={state.outside?.key}>
         {pending ? "처리 중…" : state.outside ? "기간 밖 일정 저장 확인" : label}
       </button>
+      {again && !state.outside && <button type="submit" name="save_another" value="1" className="quiet-link"
+        disabled={pending || state.refresh}>저장하고 계속 추가</button>}
       <Link className="quiet-link" href={cancel}>취소</Link>
     </div>
     {pending && <p className="sr-only" role="status">일정을 처리하는 중이에요.</p>}
@@ -161,7 +163,7 @@ export function ScheduleEditor({ action, cancel, item, date, places, initialPlac
       </details>
       </>}
     </fieldset>
-    {!selecting && <FormFooter state={state} pending={pending} cancel={cancel} label="일정 저장" />}
+    {!selecting && <FormFooter state={state} pending={pending} cancel={cancel} label="일정 저장" again={Boolean(quickTripId)} />}
   </form>;
 }
 

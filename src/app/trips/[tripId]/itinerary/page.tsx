@@ -77,15 +77,20 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
 
   const item = plan.schedule.find(({ id }) => id === query.id);
   const mode = query.mode;
-  const quick = mode === "add";
+  const copy = mode === "copy";
+  const quick = mode === "add" || copy;
   const placing = mode === "move" || mode === "restore" || mode === "delete";
-  if ((mode === "edit" || placing) && !item) notFound();
+  if ((mode === "edit" || copy || placing) && !item) notFound();
   if (mode === "restore" && !item?.archived_date) notFound();
 
   const editor = (entry?: PlanSchedule, initialPlace?: (typeof plan.places)[number]) => {
     const initialDate = initialPlace && typeof query.date === "string" && isCalendarDate(query.date) ? query.date : date;
-    return <ScheduleEditor key={entry?.id ?? back} action={saveItinerary.bind(null, trip.id, entry?.id ?? randomUUID(), entry?.revision ?? null, date)}
-      cancel={back} item={entry} date={candidates ? null : initialDate} initialPlace={initialPlace} places={plan.places}
+    const target = candidates ? null : initialDate;
+    const draft = copy && item ? { ...item, local_date: target, private_note: null, shared_note: null,
+      ...(target === null && { time_mode: "UNSCHEDULED" as const, fixed_local_time: null, period: null }) } : undefined;
+    const editorKey = entry?.id ?? draft?.id ?? (typeof query.next === "string" ? query.next : back);
+    return <ScheduleEditor key={editorKey} action={saveItinerary.bind(null, trip.id, entry?.id ?? randomUUID(), entry?.revision ?? null, date)}
+      cancel={back} item={entry ?? draft} date={target} initialPlace={initialPlace} places={plan.places}
       bookings={bookings} initialBooking={quick ? bookings.find(({ id }) => id === query.booking) : undefined}
       quickTripId={quick ? trip.id : undefined} />;
   };
@@ -146,6 +151,7 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
           <Link href={add} scroll={false} className="editorial-add" data-itinerary-add>
             <Plus size={21} aria-hidden /><span>{addLabel}</span>
           </Link>
+          {!candidates && <Link className="quiet-link itinerary-import-link" href={homeHref + "/itinerary/import"}>JSON 일정 가져오기</Link>}
         </section>
         {!candidates && otherDates.size > 0 && <section className="plan-section" aria-labelledby="outside-title">
           <h2 id="outside-title">{date ? "여행 기간 밖 일정" : "날짜가 정해진 일정"}</h2>
@@ -172,7 +178,7 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
       </aside>
     </div>
     <TripTabs href={homeHref} active="itinerary" date={date} mapLink={map} />
-    {quick && <EditorialDialog title={addLabel} back={back}>
+    {quick && <EditorialDialog title={copy ? "일정 복사" : addLabel} back={back}>
       {editor(undefined, plan.places.find(({ id }) => id === query.place))}
     </EditorialDialog>}
   </div>;

@@ -157,6 +157,24 @@ export type Database = {
         Update: Partial<import("./trip-budget").ExpenseFields>;
         Relationships: [];
       };
+      trip_memory_entries: {
+        Row: import("./trip-memory").MemoryEntry;
+        Insert: Omit<import("./trip-memory").MemoryEntry, "created_at">;
+        Update: Partial<import("./trip-memory").MemoryEntryFields>;
+        Relationships: [];
+      };
+      trip_memory_photos: {
+        Row: import("./trip-memory").MemoryPhoto;
+        Insert: import("./trip-memory").MemoryPhotoFields & { id: string; trip_id: string };
+        Update: Partial<Omit<import("./trip-memory").MemoryPhoto, "id" | "trip_id" | "created_at">>;
+        Relationships: [];
+      };
+      trip_visit_marks: {
+        Row: import("./trip-memory").VisitMark;
+        Insert: import("./trip-memory").VisitMark;
+        Update: { status?: import("./trip-memory").VisitStatus };
+        Relationships: [];
+      };
     };
     Views: Record<never, never>;
     Functions: {
@@ -164,6 +182,9 @@ export type Database = {
       apply_preparation_template: { Args: { p_trip: string; p_items: { title: string; category: string; source: string }[] }; Returns: undefined };
       move_preparation: { Args: { p_trip: string; p_id: string; p_direction: number }; Returns: undefined };
       save_trip_budget: { Args: { p_trip: string; p_amount: number; p_rate: number; p_people: string[] }; Returns: undefined };
+      set_trip_visit: { Args: { p_trip: string; p_schedule: string; p_status: import("./trip-memory").VisitStatus }; Returns: undefined };
+      organize_memory_photo: { Args: { p_trip: string; p_id: string; p_command: "earlier" | "later" | "cover" }; Returns: boolean };
+      import_trip_schedule: { Args: { p_trip: string; p_version: number; p_rows: import("./trip-import").TripImportRow[] }; Returns: { inserted: number; skipped: number } | null };
       read_share_settings: { Args: { p_trip: string; p_preview: boolean }; Returns: ShareSettings | SharedTrip | null };
       write_share_settings: {
         Args: { p_trip: string; p_revision: number; p_mode: "issue" | "settings" | "stop"; p_expiry: string | null;

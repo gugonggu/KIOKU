@@ -1,4 +1,4 @@
-export type ItineraryMode = "add" | "edit" | "move" | "restore" | "delete";
+export type ItineraryMode = "add" | "copy" | "edit" | "move" | "restore" | "delete";
 
 export function itineraryHref(tripId: string, date: string | null, mode?: ItineraryMode, id?: string, candidates = false) {
   const query = new URLSearchParams();
