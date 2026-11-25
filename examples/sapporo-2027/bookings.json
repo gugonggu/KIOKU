@@ -1,0 +1,46 @@
+[
+  {
+    "kind": "FLIGHT",
+    "title": "가상 왕복 항공",
+    "status": "CONFIRMED",
+    "detail": [
+      {
+        "departure_airport": "PUS",
+        "arrival_airport": "CTS",
+        "departure_local_date": "2027-02-10",
+        "arrival_local_date": "2027-02-10",
+        "departure_timezone": "Asia/Seoul",
+        "arrival_timezone": "Asia/Tokyo"
+      },
+      {
+        "departure_airport": "CTS",
+        "arrival_airport": "PUS",
+        "departure_local_date": "2027-02-14",
+        "arrival_local_date": "2027-02-14",
+        "departure_local_time": "14:00",
+        "arrival_local_time": "17:00",
+        "departure_timezone": "Asia/Tokyo",
+        "arrival_timezone": "Asia/Seoul"
+      }
+    ]
+  },
+  {
+    "kind": "STAY",
+    "title": "가상 도심 호텔",
+    "status": "CONFIRMED",
+    "detail": {
+      "check_in_local_date": "2027-02-10",
+      "check_out_local_date": "2027-02-14",
+      "check_in_local_time": "16:00",
+      "check_out_local_time": "10:00"
+    }
+  },
+  {
+    "kind": "TOUR",
+    "title": "가상 겨울 버스 투어",
+    "status": "PENDING",
+    "detail": {
+      "event_local_date": "2027-02-11"
+    }
+  }
+]

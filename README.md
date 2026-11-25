@@ -19,6 +19,8 @@ npm run dev
 
 여행 기억과 JSON 일정 가져오기 운영 릴리스의 배포 및 스모크 기록은 [PR #6](https://github.com/gugonggu/KIOKU/pull/6)에 있습니다. 일정 파일의 [작성 규격과 예제](TRAVEL_SUITE.md#json-일정-작성-규격)와 [실기기 체크리스트](MOBILE_QA.md#실기기-체크리스트)를 참고하세요.
 
+M13의 여행 홈, 일정 전체 보기, 모바일 지도 개선과 브라우저 비교 방법은 [디자인 검증 기록](UX_IMPROVEMENTS.md)에 있습니다. [가상 삿포로 5일 입력 예제](examples/sapporo-2027/README.md)로 가져오기와 수동 입력을 연습할 수 있습니다.
+
 ## 집과 회사 PC에서 이어서 개발하기
 
 두 PC에서 같은 GitHub 저장소와 작업 브랜치를 사용합니다. 다른 PC로 옮기기 전에 `git status`를 확인하고, 이어서 작업할 변경은 검토한 뒤 커밋하여 프로젝트 소유자가 GitHub에 반영합니다. 새 PC에서는 저장소를 클론하거나 기존 체크아웃을 빠른 병합으로 갱신합니다(`git pull --ff-only`). Codex와 Claude Code는 PC별로 로그인하고, [공통 작업 규칙](AGENTS.md)과 Git 이력을 읽은 뒤 작업을 시작합니다.

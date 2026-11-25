@@ -1,0 +1,30 @@
+[
+  {
+    "name": "가상 시계탑",
+    "nameJa": "時計台",
+    "latitude": 43.0626,
+    "longitude": 141.3536,
+    "schedule": "시계탑에서 만남"
+  },
+  {
+    "name": "가상 항구 시장",
+    "nameJa": "市場",
+    "latitude": 43.1988,
+    "longitude": 140.9936,
+    "schedule": "시장 점심"
+  },
+  {
+    "name": "가상 운하",
+    "nameJa": "小樽運河",
+    "latitude": 43.2014,
+    "longitude": 141.0021,
+    "schedule": "운하 야경"
+  },
+  {
+    "name": "가상 설경 전망대",
+    "nameJa": "展望台",
+    "latitude": 43.595,
+    "longitude": 142.47,
+    "schedule": null
+  }
+]

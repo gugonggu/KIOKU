@@ -20,12 +20,16 @@ import { ScheduleList } from "./schedule-list";
 
 export const metadata = { title: "여행 일정" };
 
-function DateNavigation({ trip, date }: { trip: Trip; date: string }) {
+function DateNavigation({ trip, date, today, counts }: {
+  trip: Trip; date: string; today: string; counts: ReadonlyMap<string, number>;
+}) {
   const previous = shiftDay(date, -1);
   const next = shiftDay(date, 1);
   return <nav className="editorial-date-nav" aria-label="일정 날짜 이동">
     <h2>여행 날짜</h2>
-    <DayCards trip={trip} date={date} />
+    <DayCards trip={trip} date={date} counts={counts} />
+    {date !== today && !outsideTrip(trip, today) &&
+      <Link className="quiet-link itinerary-today" href={itineraryHref(trip.id, today)}>오늘로 이동</Link>}
     <details className="editorial-date-tools" key={date}>
       <summary className="quiet-link">날짜 직접 이동</summary>
       <div className="editorial-date-options">
@@ -51,9 +55,13 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
   if (error || !trip) return <TripLoadError />;
   const [plan, bookingRows] = await Promise.all([loadTripPlan(trip.id), loadBookingSummaries(trip.id)]);
   const bookings = bookingRows ?? [];
-  const date = planDay(trip, typeof query.date === "string" ? query.date : undefined, japanDate());
+  const today = japanDate();
+  const date = planDay(trip, typeof query.date === "string" ? query.date : undefined, today);
   const candidates = query.view === "candidates";
+  const overview = query.view === "all";
   const back = itineraryHref(trip.id, date, undefined, undefined, candidates);
+  const datedHref = itineraryHref(trip.id, date);
+  const overviewHref = datedHref + (date ? "&" : "?") + "view=all";
   const homeHref = `/trips/${trip.id}`;
   const map = mapHref(trip.id, { date, filter: candidates ? "candidates" : date ? "date" : "all" });
   const header = <header className="editorial-itinerary-header">
@@ -62,7 +70,8 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
       <h1>여행 일정</h1>
     </div>
     <nav className="editorial-switch" aria-label="일정 분류">
-      <Link className="quiet-link" aria-current={!candidates ? "page" : undefined} href={itineraryHref(trip.id, date)}>날짜별 일정</Link>
+      <Link className="quiet-link" aria-current={!overview && !candidates ? "page" : undefined} href={itineraryHref(trip.id, date)}>날짜별 일정</Link>
+      <Link className="quiet-link" aria-current={overview ? "page" : undefined} href={overviewHref}>전체 일정</Link>
       <Link className="quiet-link" aria-current={candidates ? "page" : undefined} href={itineraryHref(trip.id, date, undefined, undefined, true)}>후보함</Link>
       <Link className="quiet-link" href={map}><MapPin size={14} aria-hidden />장소와 지도</Link>
     </nav>
@@ -70,7 +79,7 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
   if (!plan) return <div className="editorial-page editorial-itinerary">{header}<div className="notice notice-error" role="alert">
     <p>일정을 불러오지 못했어요.</p><form method="get" action={itineraryHref(trip.id, null)}>
       {date && <input type="hidden" name="date" value={date} />}
-      {candidates && <input type="hidden" name="view" value="candidates" />}
+      {(candidates || overview) && <input type="hidden" name="view" value={candidates ? "candidates" : "all"} />}
       <button className="quiet-link">다시 불러오기</button>
     </form>
   </div><TripTabs href={homeHref} active="itinerary" date={date} mapLink={map} /></div>;
@@ -111,6 +120,33 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
 
   const onDay = date ? plan.schedule.filter((row) => row.local_date === date) : [];
   const undated = plan.schedule.filter((row) => row.local_date === null);
+  const dated = Map.groupBy(plan.schedule.filter((row) => row.local_date !== null), (row) => row.local_date!);
+  const counts = new Map([...dated].map(([day, rows]) => [day, rows.length]));
+
+  if (overview && !mode) return <div className="editorial-page editorial-itinerary">
+    {header}
+    <section className="itinerary-contents" aria-labelledby="itinerary-contents-heading">
+      <h2 id="itinerary-contents-heading">전체 일정</h2>
+      {[...dated].sort(([first], [second]) => first.localeCompare(second)).map(([day, rows]) => {
+        const inTrip = !!trip.start_date && !outsideTrip(trip, day);
+        return <section className="itinerary-contents-day" key={day} aria-labelledby={`contents-${day}`}>
+          <h3 id={`contents-${day}`}>
+            {inTrip ? <Link className="quiet-link" href={itineraryHref(trip.id, day)}>
+              Day {dayNumber(trip.start_date!, day)} · {dateLabel(day)} · 일정 {rows.length}개
+              <ChevronRight size={16} aria-hidden />
+            </Link> : <span>{dateLabel(day)} · {date ? "여행 기간 밖" : "날짜 지정"}</span>}
+          </h3>
+          <ul>{sortSchedule(rows).map((row) => <li key={row.id}>
+            <span>{timeLabel(row)}</span><strong>{row.title}</strong>
+          </li>)}</ul>
+        </section>;
+      })}
+      {dated.size === 0 && <p className="plan-empty">날짜가 정해진 일정이 없어요.</p>}
+      <Link className="quiet-link" href={itineraryHref(trip.id, date, undefined, undefined, true)}>후보함 {undated.length}개<ChevronRight size={16} aria-hidden /></Link>
+    </section>
+    <TripTabs href={homeHref} active="itinerary" date={date} mapLink={map} />
+  </div>;
+
   const otherDates = new Map<string, PlanSchedule[]>();
   for (const row of plan.schedule) {
     if (!row.local_date || (date && !outsideTrip(trip, row.local_date))) continue;
@@ -131,7 +167,7 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
   return <div className="editorial-page editorial-itinerary">
     {header}
     <div className="editorial-itinerary-grid">
-      {date && <DateNavigation trip={trip} date={date} />}
+      {date && <DateNavigation trip={trip} date={date} today={today} counts={counts} />}
       <div className="editorial-timeline-column">
         <section className="plan-section editorial-timeline-section" aria-labelledby="schedule-title">
           <div className="editorial-timeline-heading">
@@ -139,7 +175,7 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
               <h2 id="schedule-title" aria-label={candidates ? undefined : "날짜별 일정"}>
                 {candidates ? "후보함" : date && trip.start_date ? `Day ${dayNumber(trip.start_date, date)} · ${dateLabel(date)}` : "날짜별 일정"}
               </h2>
-              {date && !candidates && <p className="plan-meta">일본 현지 시간</p>}
+              {date && !candidates && <p className="plan-meta">일정 {onDay.length}개 · 일본 현지 시간</p>}
             </div>
             <Blossom className="editorial-timeline-sprig" />
           </div>

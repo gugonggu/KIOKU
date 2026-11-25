@@ -57,14 +57,16 @@ export default async function PlacesPage({ params, searchParams }: PageProps<"/t
   </div>{tabs}</div>;
 
   const { mode } = query;
+  const initialView = query.view === "map" ? "map" : undefined;
   if ((mode === "edit" || mode === "delete") && !current) notFound();
   const inTrip = trip.start_date && trip.end_date && date >= trip.start_date && date <= trip.end_date;
-  const dayPicker = <div className="places-days">
-    {inTrip && <DayCards trip={trip} date={date} href={(day) => mapHref(tripId, { filter: "date", date: day })} />}
+  const dayPicker = (view?: "map") => <div className="places-days">
+    {inTrip && <DayCards trip={trip} date={date} href={(day) => mapHref(tripId, { filter: "date", date: day, view })} />}
     <details className="editorial-date-tools">
       <summary>날짜 직접 선택</summary>
       <form method="get" action={mapHref(tripId)} className="plan-date-picker">
         <input type="hidden" name="filter" value="date" />
+        {view && <input type="hidden" name="view" value={view} />}
         <Input aria-label="장소를 볼 날짜" name="date" type="date" min="0001-01-01" max="9999-12-31" defaultValue={date} required />
         <button type="submit" className="quiet-link">이동</button>
       </form>
@@ -73,8 +75,8 @@ export default async function PlacesPage({ params, searchParams }: PageProps<"/t
 
   return <div className="editorial-page places-page">
     {header}
-    <PlacesView key={`${filter}/${date}/${current?.id ?? ""}`} {...data} tripId={tripId} date={date} filter={filter}
-      initialPlace={current?.id} itineraryDate={itineraryDate} dayPicker={dayPicker} />
+    <PlacesView key={`${filter}/${date}/${current?.id ?? ""}/${initialView ?? ""}`} {...data} tripId={tripId} date={date} filter={filter}
+      initialPlace={current?.id} initialView={initialView} itineraryDate={itineraryDate} dayPicker={dayPicker()} mapDayPicker={dayPicker("map")} />
     {tabs}
     {mode === "add" && <EditorialDialog title="장소 추가" back={base}>
       <PlaceEditor tripId={tripId} back={base} action={savePlace.bind(null, tripId, randomUUID(), null, date)} />

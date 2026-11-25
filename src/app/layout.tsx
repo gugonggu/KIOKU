@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { SkipLink } from "@/components/skip-link";
 import "./globals.css";
 import "./editorial.css";
+import "./travel-journal.css";
 
 export const metadata: Metadata = {
   title: { default: "KIOKU — Japan Travel Planner", template: "%s | KIOKU" },
