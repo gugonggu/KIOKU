@@ -47,6 +47,13 @@ test("budgets isolate owners, guard amount and participants, and prevent cross-t
   await insert(expense, booking);
   await assert.rejects(insert(randomUUID(), booking), { code: "23505" });
   await assert.rejects(asUser(db, ownerA, (tx) => tx.query("select public.save_trip_budget($1,500000,90000,array['A','B'])", [trip])), { code: "23514" });
+  await assert.rejects(asUser(db, ownerA, (tx) => tx.query("select public.save_trip_budget($1,500000,90000,array['B','A','C'])", [trip])), { code: "23514" });
+  await assert.rejects(asUser(db, ownerA, (tx) => tx.query("update public.trip_budgets set people=array['New A','B','C'] where trip_id=$1", [trip])), { code: "23514" });
+  await asUser(db, ownerA, async (tx) => {
+    await tx.query("select public.save_trip_budget($1,450000,90000,array['A','B','C','D'])", [trip]);
+    const { rows } = await tx.query("select people,payer,shares from public.trip_budgets join public.trip_expenses using (trip_id) where trip_id=$1", [trip]);
+    assert.deepEqual(rows, [{ people: ["A", "B", "C", "D"], payer: 1, shares: [1, 2, 3] }]);
+  });
   await asUser(db, ownerB, async (tx) => {
     assert.equal((await tx.query("select * from public.trip_budgets where trip_id=$1", [trip])).rows.length, 0);
     assert.equal((await tx.query("delete from public.trip_expenses where trip_id=$1 returning id", [trip])).rows.length, 0);

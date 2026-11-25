@@ -8,6 +8,7 @@ import { expenseCategories, parseRate, type ExpenseCategory, type ExpenseFields 
 import { getTrip, isTripId, requireTripClient } from "@/lib/trips";
 
 const field = (data: FormData, name: string) => String(data.get(name) ?? "").trim();
+const settlementPeopleError = "지출이 있는 정산 인원의 이름과 순서를 유지하고, 새 인원은 마지막에 추가해 주세요.";
 
 function integer(value: string, minimum: number, maximum: number) {
   if (!/^\d{1,10}$/.test(value)) return null;
@@ -26,24 +27,33 @@ function refresh(trip: string): never {
 export async function saveBudget(trip: string, _state: string, data: FormData) {
   const { client } = await requireTripClient();
   if (!(await getTrip(trip)).data) return "여행을 확인해 주세요.";
-  const amount = integer(field(data, "budget"), 0, 1000000000);
+  const amount = integer(field(data, "budget") || "0", 0, 1000000000);
   const rate = parseRate(field(data, "rate"));
   const people = field(data, "people").split(/\r?\n/).map((name) => name.trim()).filter(Boolean);
   if (amount === null || rate === null || people.length < 1 || people.length > 12 ||
     people.some((name) => name.length > 30) || new Set(people.map((name) => name.toLowerCase())).size !== people.length) {
-    return "예산, 환율과 중복 없는 정산 별칭을 확인해 주세요.";
+    return "입력한 예산, 확인된 환율과 중복 없는 동행자 이름을 확인해 주세요.";
+  }
+  const [current, expenses] = await Promise.all([
+    client.from("trip_budgets").select("people").eq("trip_id", trip).maybeSingle(),
+    client.from("trip_expenses").select("id").eq("trip_id", trip).limit(1),
+  ]);
+  if (current.error || expenses.error) return "현재 정산 인원을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.";
+  if (expenses.data.length && current.data?.people.some((name, index) => name !== people[index])) {
+    return settlementPeopleError;
   }
   const { error } = await client.rpc("save_trip_budget", { p_trip: trip, p_amount: amount, p_rate: rate, p_people: people });
-  if (error) return error.code === "23514" ? "이미 지출에 연결된 정산 인원은 삭제할 수 없어요." : "예산을 저장하지 못했어요.";
+  if (error) return error.code === "23514" ? settlementPeopleError : "예산을 저장하지 못했어요.";
   return refresh(trip);
 }
 
 export async function saveExpense(trip: string, id: string, revision: number | null, _state: string, data: FormData) {
   const { client } = await requireTripClient();
   if (!isTripId(id) || !(await getTrip(trip)).data) return "여행과 지출을 확인해 주세요.";
-  const title = field(data, "title");
   const spentOn = field(data, "date");
   const category = field(data, "category") as ExpenseCategory;
+  if (!Object.hasOwn(expenseCategories, category)) return "카테고리를 확인해 주세요.";
+  const title = field(data, "title") || expenseCategories[category];
   const bookingId = field(data, "booking") || null;
   const payer = integer(field(data, "payer"), 1, 12);
   const shares = data.getAll("shares").map((value) => integer(String(value), 1, 12));
@@ -62,10 +72,12 @@ export async function saveExpense(trip: string, id: string, revision: number | n
     currency = booking.currency!;
   }
   const rate = currency === "KRW" ? 10000 : parseRate(field(data, "rate"));
-  if (!title || title.length > 100 || !isCalendarDate(spentOn) || !Object.hasOwn(expenseCategories, category)
-    || !["KRW", "JPY"].includes(currency) || amount === null || refund === null || refund > amount || !rate
-    || payer === null || !shares.length || shares.some((share) => share === null)
-    || method.length > 40 || note.length > 500) return "금액과 날짜, 결제자, 분담 대상 등 입력값을 확인해 주세요.";
+  if (payer === null || !shares.length || shares.some((share) => share === null)) {
+    return "결제자와 분담 대상을 선택해 주세요.";
+  }
+  if (title.length > 100 || !isCalendarDate(spentOn) || !["KRW", "JPY"].includes(currency)
+    || amount === null || refund === null || refund > amount || !rate
+    || method.length > 40 || note.length > 500) return "금액, 날짜, 환율 등 입력값을 확인해 주세요.";
   const values: ExpenseFields = { title, amount, refund, currency: currency as "KRW" | "JPY", rate,
     spent_on: spentOn, category, payer, shares: shares as number[], method: method || null,
     prepaid: field(data, "phase") === "prepaid", note: note || null, booking_id: bookingId };

@@ -4,6 +4,8 @@ import { getTrip } from "@/lib/trips";
 import { TripLoadError } from "../../trip-load-error";
 import { TripTabs } from "../editorial";
 
+const tabRoutes = new Set(["/itinerary", "/map", "/bookings"]);
+
 export default async function Page({ params }: PageProps<"/trips/[tripId]/more">) {
   const { tripId } = await params;
   const { data: trip, error } = await getTrip(tripId);
@@ -25,7 +27,7 @@ export default async function Page({ params }: PageProps<"/trips/[tripId]/more">
       { path: "/guide", title: "여행 가이드 내보내기", detail: "인쇄 또는 PDF 저장" },
     ] },
     { label: "여행 관리", icon: Settings, links: [
-      { path: "/edit", title: "여행 정보", detail: "제목·기간·인원" },
+      { path: "/edit", title: "여행 설정", detail: "여행 정보와 관리" },
       { path: "/share", title: "동행자 공유", detail: "링크와 공개 범위" },
     ] },
   ];
@@ -34,7 +36,7 @@ export default async function Page({ params }: PageProps<"/trips/[tripId]/more">
     <nav aria-label="여행 도구" className="editorial-paper more-groups">
       {groups.map(({ label, icon: Icon, links }) => <section className="more-group" key={label} aria-label={label}>
         <h2><Icon size={19} aria-hidden />{label}</h2>
-        <ul>{links.map(({ path, title, detail }) => <li key={path}>
+        <ul>{links.map(({ path, title, detail }) => <li key={path} className={tabRoutes.has(path) ? "more-tab-route" : undefined}>
           <Link className="quiet-link more-entry" href={href + path}>
             <strong>{title}</strong><span className="plan-meta">{detail}</span>
           </Link>

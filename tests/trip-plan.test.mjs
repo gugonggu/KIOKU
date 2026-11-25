@@ -24,11 +24,11 @@ test("time modes distinguish a day, a clock time and a candidate", () => {
 test("sort order is secondary to the fixed clock or period group", () => {
   const row = (id, sort_order, time_mode, fixed_local_time = null, period = null) => ({ id, sort_order, time_mode, fixed_local_time, period });
   const input = [
-    row("late", 1, "FIXED", "11:00"), row("unscheduled", 2, "UNSCHEDULED"),
+    row("late", 1, "FIXED", "11:00"), row("tower", 1, "FIXED", "15:00"), row("dinner", 1, "FIXED", "18:00"), row("unscheduled", 2, "UNSCHEDULED"),
     row("evening", 3, "PERIOD", null, "EVENING"), row("afternoon", 4, "PERIOD", null, "AFTERNOON"),
     row("morning", 5, "PERIOD", null, "MORNING"), row("early2", 7, "FIXED", "09:00"), row("early1", 6, "FIXED", "09:00"),
   ];
-  assert.deepEqual(sortSchedule(input).map(({ id }) => id), ["early1", "early2", "late", "morning", "afternoon", "evening", "unscheduled"]);
+  assert.deepEqual(sortSchedule(input).map(({ id }) => id), ["morning", "early1", "early2", "late", "afternoon", "tower", "evening", "dinner", "unscheduled"]);
 });
 
 test("Japan calendar navigation and period boundaries ignore undated candidates", () => {

@@ -125,7 +125,7 @@ export function ScheduleEditor({ action, cancel, item, date, places, initialPlac
         <div className="plan-fields itinerary-details">
           <div className="plan-pair">
             {field("local_date", "일정 날짜", { ...calendar, required: Boolean(item?.local_date || values.time_mode !== "UNSCHEDULED") })}
-            <label className="form-field"><span>시간 방식</span><select className="plan-input" name="time_mode" value={values.time_mode}
+            <label className="form-field"><span>일정 시간</span><select className="plan-input" name="time_mode" value={values.time_mode}
               onChange={(event) => set("time_mode", event.target.value)}>
               <option value="UNSCHEDULED">시간 미정</option><option value="FIXED">정확한 시각</option><option value="PERIOD">오전·오후·저녁</option>
             </select></label>
@@ -139,7 +139,7 @@ export function ScheduleEditor({ action, cancel, item, date, places, initialPlac
           <label className="form-field"><span>일정 유형</span><select className="plan-input" name="kind" value={values.kind}
             onChange={(event) => set("kind", event.target.value)}>
             <option value="NOTE">메모</option><option value="PLACE">장소 방문</option><option value="MOVE">이동</option>
-            {values.booking_id && <option value="BOOKING_REF">예약 참조</option>}
+            {values.booking_id && <option value="BOOKING_REF">예약과 연결</option>}
           </select></label>
           {places.length > 0 && <label className="form-field"><span>연결할 장소</span><select className="plan-input" name="place_id" value={values.place_id}
               onChange={(event) => { setExternal(undefined); set("place_id", event.target.value); }}>

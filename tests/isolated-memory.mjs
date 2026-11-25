@@ -126,13 +126,16 @@ async function verifyMemory({ owner, visitor, path, tripId, date }) {
   await page.goto(path + "/budget");
   await page.getByLabel("총예산 (원)").fill("500000");
   await page.getByLabel("기본 환율 (1엔당 원)").fill("9.1234");
-  await page.getByLabel("정산 별칭 (한 줄에 한 명)").fill("가\n나\n다");
+  await page.getByLabel("동행자 이름 (한 줄에 한 명)").fill("가\n나\n다");
   await page.getByRole("button", { name: "예산 저장" }).click();
   const expense = page.locator("#new-expense");
+  await expense.getByText("지출 상세 설정", { exact: true }).click();
   await expense.getByLabel("지출명").fill("가상 사전 결제 내역");
   await expense.getByLabel("결제 시점").selectOption("prepaid");
   await expense.getByLabel("연결 예약").selectOption({ label: "가상 Sapporo Hotel by Granbell · 예약 완료" });
   await expense.getByLabel("선택한 예약의 금액과 통화로 기록").check();
+  await expense.getByLabel("결제자").selectOption("1");
+  for (const alias of ["가", "나", "다"]) await expense.getByRole("checkbox", { name: alias, exact: true }).check();
   await expense.getByRole("button", { name: "지출 등록" }).click();
   await expect(page.getByText("나 → 가 · 33,452원")).toBeVisible();
   await page.goto(path + "/memory?date=" + date + "&write=1");
@@ -144,6 +147,9 @@ async function verifyMemory({ owner, visitor, path, tripId, date }) {
   async function upload(title, bytes, name = "fixture.jpg", mimeType = "image/jpeg") {
     await page.locator("#add-photo summary").click();
     await page.getByLabel("사진 파일").setInputFiles({ name, mimeType, buffer: bytes });
+    if (title === "가상 사진 한 장") {
+      await expect(page.getByRole("img", { name: "선택한 사진 미리보기" })).toBeVisible();
+    }
     await page.getByLabel("사진 제목").fill(title);
     await page.getByLabel("연결 일기").selectOption({ label: date + " · 시험용 겨울 일기" });
     await page.getByRole("button", { name: "사진 저장", exact: true }).click();
@@ -162,9 +168,11 @@ async function verifyMemory({ owner, visitor, path, tripId, date }) {
   await upload("잘못된 사진", Buffer.from("invalid test bytes"));
   await expect(page.locator("#add-photo").getByRole("alert")).toContainText("3.8MB");
   await page.goto(path + "/memory?date=" + date);
-  const jpg = await sharp({ create: { width: 1600, height: 1000, channels: 3, background: "#768677" } })
-    .withExif({ IFD0: { Artist: "TEST_GPS_REMOVAL" }, IFD3: { GPSLatitudeRef: "N" } }).jpeg().toBuffer();
-  await upload("가상 사진 한 장", jpg);
+  const jpg = await sharp({ create: { width: 1600, height: 1000, channels: 3, background: "#768677" } }).jpeg().toBuffer();
+  const largePhoto = await sharp(randomBytes(1600 * 1000 * 3), { raw: { width: 1600, height: 1000, channels: 3 } })
+    .withExif({ IFD0: { Artist: "TEST_GPS_REMOVAL" } }).png().toBuffer();
+  assert.ok(largePhoto.length > 3_800_000);
+  await upload("가상 사진 한 장", largePhoto, "large-fixture.png", "image/png");
   const photo = page.getByRole("img", { name: "가상 사진 한 장", exact: true });
   await expect(photo).toBeVisible();
   const imagePath = await photo.getAttribute("src");
@@ -192,6 +200,12 @@ async function verifyMemory({ owner, visitor, path, tripId, date }) {
   await expect(gallery.getByText("· 대표 사진", { exact: true })).toBeVisible();
   await page.goto(path);
   await expect(page.getByRole("img", { name: "가상 사진 한 장" })).toBeVisible();
+  await page.goto("/trips");
+  await expect(page.getByRole("img", { name: "가상 사진 한 장" })).toBeVisible();
+  await page.goto(path + "/edit");
+  await expect(page.getByRole("region", { name: "여행 표지" }).getByRole("img", { name: "가상 사진 한 장" })).toBeVisible();
+  await page.getByRole("button", { name: "기본 표지로 되돌리기" }).click();
+  await expect(page.getByText("기본 표지를 사용 중이에요.")).toBeVisible();
   await page.goto(path + "/offline");
   await page.getByRole("button", { name: "오프라인 수첩 저장" }).click();
   await expect(page.getByText("이 기기에 수첩을 저장했어요.")).toBeVisible();

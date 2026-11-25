@@ -98,6 +98,10 @@ export async function verifyM13Visual({ app, user, enter, must }) {
         const response = await page.goto(href, { waitUntil: "domcontentloaded" });
         assert.ok(response?.ok() || (name === "album" && response === null), name + " rendered");
         await page.locator("main").first().waitFor({ state: "visible" });
+        if (name === "offline") await page.getByText(/시계탑에서 만남/).first().waitFor();
+        if (name === "home" && await page.getByText("최신 여부 확인 중…", { exact: false }).count()) {
+          await page.getByText("최신 여부 확인 중…", { exact: false }).waitFor({ state: "hidden" });
+        }
         if (interaction === "map" && width < 840) await page.getByRole("button", { name: "지도", exact: true }).click();
         if (name === "map") {
           await page.getByRole("button", { name: "지도 핀: 가상 시계탑" }).waitFor({ timeout: 12000 });
@@ -133,6 +137,17 @@ export async function verifyM13Visual({ app, user, enter, must }) {
       await owner.goto(path + "/map?view=map");
       await owner.getByRole("link", { name: "날짜별", exact: true }).click();
       await expect(owner.getByRole("button", { name: "지도", exact: true })).toHaveAttribute("aria-pressed", "true");
+      if (process.env.KIOKU_V11_VISUAL) {
+        await owner.goto(path + "/map?view=map&filter=date&date=2027-02-12&route=1");
+        const route = owner.getByRole("region", { name: "날짜별 방문 순서" });
+        await route.waitFor();
+        await route.scrollIntoViewIfNeeded();
+        await owner.screenshot({ path: directory + "/390-route.png" });
+        await owner.goto(path + "/budget");
+        await owner.getByRole("heading", { name: "지출 추가" }).scrollIntoViewIfNeeded();
+        await owner.screenshot({ path: directory + "/390-quick-expense.png" });
+        await owner.goto(path + "/map?view=map&filter=date&date=2027-02-12");
+      }
       await owner.getByRole("navigation", { name: "표시할 장소" }).getByRole("link", { name: "후보 장소" }).click();
       await expect(owner.getByRole("button", { name: "지도", exact: true })).toHaveAttribute("aria-pressed", "true");
     }

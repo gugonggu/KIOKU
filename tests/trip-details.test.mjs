@@ -44,3 +44,10 @@ test("trip status changes at midnight in Japan and includes both endpoints", () 
   assert.equal(durationLabel("2027-03-01", "2027-03-01"), "당일치기");
   assert.equal(durationLabel("2027-02-27", "2027-03-02"), "3박 4일");
 });
+
+test("new or changed traveler counts are capped, while a saved count can remain unchanged", () => {
+  assert.equal(parseTripDetails(form({ traveler_count: "50" })).fields.traveler_count, 50);
+  assert.ok(parseTripDetails(form({ traveler_count: "51" })).errors.traveler_count);
+  assert.equal(parseTripDetails(form({ traveler_count: "100" }), 100).fields.traveler_count, 100);
+  assert.ok(parseTripDetails(form({ traveler_count: "99" }), 100).errors.traveler_count);
+});

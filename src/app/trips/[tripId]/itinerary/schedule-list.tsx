@@ -3,9 +3,10 @@
 import { EllipsisVertical, Footprints, MapPin, NotebookPen, Pencil, ChevronUp, ChevronDown, GripVertical, Ticket } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { dateLabel } from "@/lib/trip-details";
 import { scheduleGroup, sortSchedule } from "@/lib/trip-plan";
+import { visitStatuses, type VisitStatus } from "@/lib/trip-memory";
 import type { PlanSchedule } from "@/lib/trip-plan-data";
 import type { BookingSummary } from "@/lib/trip-booking-data";
 import { timeLabel } from "../editorial";
@@ -13,14 +14,27 @@ import { BookingBadge } from "../bookings/booking-card";
 import { mapHref } from "../map/links";
 import { bookingsHref } from "../bookings/links";
 import { changePlacement, reorderItinerary } from "./actions";
+import { saveVisit } from "../memory/actions";
 import { ArchiveButton } from "./forms";
 import { itineraryHref } from "./links";
 
 type Place = { id: string; name: string; address: string | null };
 const versionOf = (item: PlanSchedule) => ({ id: item.id, revision: item.revision });
 
-export function ScheduleList({ items, tripId, date, places, bookings, candidate = false, showDates = false }: {
-  items: PlanSchedule[]; tripId: string; date: string | null; places: Place[]; bookings: BookingSummary[]; candidate?: boolean; showDates?: boolean;
+function ScheduleVisit({ tripId, item, status }: { tripId: string; item: PlanSchedule; status: VisitStatus }) {
+  const [message, submit, pending] = useActionState(saveVisit.bind(null, tripId, item.id), "");
+  return <details className="schedule-visit" data-visited={status === "visited" || undefined}>
+    <summary className="quiet-link" aria-label={item.title + " 방문 상태: " + visitStatuses[status]}>{visitStatuses[status]}</summary>
+    <form className="suite-row" action={submit}>
+      {(["planned", "visited", "missed"] as const).map((value) => <button key={value} type="submit" className="quiet-link"
+        name="status" value={value} aria-pressed={value === status} disabled={pending}>{visitStatuses[value]}</button>)}
+    </form>
+    {message && <p className="notice notice-error" role="alert">{message}</p>}
+  </details>;
+}
+
+export function ScheduleList({ items, tripId, date, places, bookings, visits, candidate = false, showDates = false }: {
+  items: PlanSchedule[]; tripId: string; date: string | null; places: Place[]; bookings: BookingSummary[]; visits?: Record<string, VisitStatus> | null; candidate?: boolean; showDates?: boolean;
 }) {
   const router = useRouter();
   const [pending, transition] = useTransition();
@@ -95,6 +109,8 @@ export function ScheduleList({ items, tripId, date, places, bookings, candidate 
                 </Link>
                 <BookingBadge status={booking.status} />
               </div>}
+              {visits && !candidate && item.kind !== "MOVE" && (item.kind === "PLACE" || place) &&
+                <ScheduleVisit key={visits[item.id] ?? "planned"} tripId={tripId} item={item} status={visits[item.id] ?? "planned"} />}
               {item.private_note && <p className="plan-notes">개인 메모 · {item.private_note}</p>}
               {item.shared_note && <p className="plan-notes">공유용 메모 · {item.shared_note}</p>}
             </div>

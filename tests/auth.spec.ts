@@ -264,6 +264,7 @@ test("suite offline saves an owner snapshot, reloads disconnected and clears on 
   const trip = await seedFiveDayTrip("가상 오프라인 삿포로");
   const tripId = trip.split("/").at(-1)!;
   const endpoint = "/api/offline/" + tripId;
+  expect((await (await request.get("/manifest.webmanifest")).json()).start_url).toBe("/trips");
   expect((await request.get(endpoint)).status()).toBe(401);
   await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
   await page.goto(trip + "/offline");
@@ -278,11 +279,24 @@ test("suite offline saves an owner snapshot, reloads disconnected and clears on 
     return resources.flat();
   });
   expect(cached).toContain("/offline.html");
-  expect(cached.every((path) => !path.startsWith("/api/") && !path.startsWith("/trips/"))).toBe(true);
+  expect(cached.every((path) => !path.startsWith("/api/") && !path.startsWith("/trips"))).toBe(true);
 
+  await page.goto(trip);
+  await expect(page.getByText("저장한 수첩이 최신이에요.")).toBeVisible();
+  await asUser(database, ownerA, async (tx) => {
+    await tx.query("insert into public.itinerary_items(trip_id,title,local_date) values ($1,'가상 변경 일정','2027-02-17')", [tripId]);
+  });
+  await page.reload();
+  await expect(page.getByText("저장 이후 수첩 내용이 바뀌었어요.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "최신 수첩으로 갱신하기" })).toHaveAttribute("href", trip + "/offline");
+
+  await page.goto("/trips");
+  await expect(page.getByRole("heading", { name: "내 여행" })).toBeVisible();
   await context.setOffline(true);
   const offline = await context.newPage();
-  await offline.goto("/offline.html?trip=" + tripId);
+  await offline.goto("/trips");
+  await expect(offline.getByRole("heading", { name: "오프라인 여행 수첩" })).toBeVisible();
+  await offline.getByRole("link", { name: "가상 오프라인 삿포로" }).click();
   await expect(offline.getByRole("heading", { name: "가상 오프라인 삿포로" })).toBeVisible();
   await offline.reload();
   await expect(offline.getByText("인터넷 연결 없이 보고 있습니다.")).toBeVisible();
@@ -290,6 +304,8 @@ test("suite offline saves an owner snapshot, reloads disconnected and clears on 
   await context.setOffline(false);
   await page.goto("/trips");
   await page.getByRole("button", { name: "로그아웃" }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await page.goto("/trips");
   await expect(page).toHaveURL(/\/login$/);
   await expect(offline.getByText("이 기기에 저장된 수첩이 없습니다.")).toBeVisible();
   await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
@@ -304,6 +320,21 @@ test("suite offline saves an owner snapshot, reloads disconnected and clears on 
   const denied = await page.request.get(endpoint);
   expect(denied.status()).toBe(404);
   expect(denied.headers()["cache-control"]).toContain("no-store");
+
+  await context.clearCookies();
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  await page.goto(trip + "/offline");
+  await page.getByRole("button", { name: "오프라인 수첩 저장" }).click();
+  await expect(page.getByText("이 기기에 수첩을 저장했어요.")).toBeVisible();
+  await asUser(database, ownerA, async (tx) => {
+    await tx.query("delete from public.trips where id=$1", [tripId]);
+  });
+  await offline.goto("/offline.html");
+  await expect(offline.getByText("이 기기에 저장된 수첩이 없습니다.")).toBeVisible();
+  await context.setOffline(true);
+  await offline.reload();
+  await expect(offline.getByText("이 기기에 저장된 수첩이 없습니다.")).toBeVisible();
+  await context.setOffline(false);
 });
 
 test("suite budget settles a three-person trip with prepayment and a local yen refund", async ({ page, browser }) => {
@@ -313,23 +344,28 @@ test("suite budget settles a three-person trip with prepayment and a local yen r
   await page.goto(trip + "/budget");
   await page.getByLabel("총예산 (원)").fill("500000");
   await page.getByLabel("기본 환율 (1엔당 원)").fill("9.1234");
-  await page.getByLabel("정산 별칭 (한 줄에 한 명)").fill("가\n나\n다");
+  await page.getByLabel("동행자 이름 (한 줄에 한 명)").fill("가\n나\n다");
   await page.getByRole("button", { name: "예산 저장" }).click();
   await expect(page.getByRole("heading", { name: "예산 현황" })).toBeVisible();
   const form = page.locator("#new-expense");
+  await form.getByText("지출 상세 설정", { exact: true }).click();
   await form.getByLabel("지출명").fill("가상 숙소비");
   await form.getByLabel("원래 결제액").fill("300000");
   await form.locator('select[name="currency"]').selectOption("KRW");
   await form.getByLabel("결제 시점").selectOption("prepaid");
   await form.getByLabel("카테고리").selectOption("stay");
+  await form.getByLabel("결제자").selectOption("1");
+  for (const alias of ["가", "나", "다"]) await form.getByRole("checkbox", { name: alias, exact: true }).check();
   await form.getByRole("button", { name: "지출 등록" }).click();
   await expect(page.getByText("나 → 가 · 100,000원", { exact: true })).toBeVisible();
+  await form.getByText("지출 상세 설정", { exact: true }).click();
   await form.getByLabel("지출명").fill("가상 현지 교통");
   await form.getByLabel("원래 결제액").fill("105");
   await form.getByLabel("누적 환불액 (같은 통화)").fill("5");
   await form.locator('select[name="currency"]').selectOption("JPY");
   await form.getByLabel("결제 시점").selectOption("local");
   await form.getByLabel("결제자").selectOption("2");
+  for (const alias of ["가", "나", "다"]) await form.getByRole("checkbox", { name: alias, exact: true }).check();
   await form.getByRole("button", { name: "지출 등록" }).click();
   await expect(page.getByText("나 → 가 · 99,392원", { exact: true })).toBeVisible();
   await expect(page.getByText("다 → 가 · 100,304원", { exact: true })).toBeVisible();
@@ -345,6 +381,39 @@ test("suite budget settles a three-person trip with prepayment and a local yen r
   } finally {
     await visitor.close();
   }
+});
+
+test("quick expense keeps the amount on validation and offline errors and saves without budget amount", async ({ page }) => {
+  const trip = await seedFiveDayTrip("가상 빠른 경비");
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  await page.goto(trip + "/budget");
+  await page.getByLabel("기본 환율 (1엔당 원)").fill("9.1234");
+  await page.getByLabel("동행자 이름 (한 줄에 한 명)").fill("가\n나");
+  await page.getByRole("button", { name: "예산 저장" }).click();
+  await expect(page.getByText("미설정", { exact: true })).toBeVisible();
+  const form = page.locator("#new-expense");
+  await expect(form.getByLabel("지출명")).toBeHidden();
+  await form.getByLabel("원래 결제액").fill("500");
+  await form.getByLabel("카테고리").selectOption("food");
+  await expect(form.getByLabel("결제자")).toHaveValue("");
+  await form.getByLabel("결제자").selectOption("2");
+  const submit = form.getByRole("button", { name: "지출 등록" });
+  await submit.click();
+  await expect(form.getByRole("alert")).toContainText("분담 대상을 선택해 주세요");
+  await expect(form.getByLabel("원래 결제액")).toHaveValue("500");
+  await form.getByRole("checkbox", { name: "나", exact: true }).check();
+  await page.context().setOffline(true);
+  try {
+    await submit.click();
+    await expect(form.getByRole("alert")).toContainText("입력한 내용은 그대로예요");
+    await expect(form.getByLabel("원래 결제액")).toHaveValue("500");
+  } finally {
+    await page.context().setOffline(false);
+  }
+  await submit.click();
+  await expect(page.locator("summary").filter({ hasText: "식비 · 4,562원" })).toBeVisible();
+  await expect(page.getByText("설정한 예산을 초과했어요.")).toHaveCount(0);
+  await expect(form.getByLabel("원래 결제액")).toHaveValue("");
 });
 
 test("suite guide prints a private-field-free A4 Sapporo notebook and applies output options", async ({ page, browserName }, testInfo) => {
@@ -375,10 +444,13 @@ test("suite guide prints a private-field-free A4 Sapporo notebook and applies ou
   await page.getByRole("button", { name: "여권 유효기간 확인 완료", exact: true }).click();
   await page.goto(trip + "/budget");
   const expense = page.locator("#new-expense");
+  await expense.getByText("지출 상세 설정", { exact: true }).click();
   await expense.getByLabel("지출명").fill("가상 숙박 사전 결제");
   await expense.getByLabel("결제 시점").selectOption("prepaid");
   await expense.getByLabel("연결 예약").selectOption({ label: "가상 숙소 · Sapporo Hotel by Granbell · 예약 완료" });
   await expense.getByLabel("선택한 예약의 금액과 통화로 기록").check();
+  await expense.getByLabel("결제자").selectOption("1");
+  for (const alias of ["가", "나", "다"]) await expense.getByRole("checkbox", { name: alias, exact: true }).check();
   await expense.getByRole("button", { name: "지출 등록" }).click();
   await expect(page.getByText("나 → 가 · 33,452원")).toBeVisible();
   await page.goto(trip + "/offline");
@@ -411,7 +483,7 @@ test("suite guide prints a private-field-free A4 Sapporo notebook and applies ou
   await page.getByLabel("특정 날짜만 인쇄 (비우면 전체)").fill("2027-02-19");
   await page.getByLabel("장소 정보", { exact: true }).uncheck();
   await page.getByLabel("경비 요약 (소유자용)").check();
-  await page.getByRole("button", { name: "출력 범위 적용" }).click();
+  await page.getByRole("button", { name: "미리보기 갱신" }).click();
   await expect(preview.getByText("삿포로 시내", { exact: true })).toHaveCount(0);
   await expect(preview.getByText(/小樽運河/)).toHaveCount(0);
   await expect(preview.getByText("오타루 산책", { exact: false })).toBeVisible();
@@ -421,7 +493,7 @@ test("suite guide prints a private-field-free A4 Sapporo notebook and applies ou
 test("memory archive saves a standalone private diary and manual visit status", async ({ page, request }) => {
   const trip = await seedFiveDayTrip("겨울 기록 테스트");
   const tripId = trip.split("/").at(-1)!;
-  await asUser(database, ownerA, (tx) => tx.query("insert into public.itinerary_items(trip_id,title,local_date) values ($1,'오타루 가상 방문','2027-02-19')", [tripId]));
+  await asUser(database, ownerA, (tx) => tx.query("insert into public.itinerary_items(trip_id,title,local_date,kind) values ($1,'오타루 가상 방문','2027-02-19','PLACE')", [tripId]));
   await page.setViewportSize({ width: 320, height: 844 });
   await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
   await page.goto(trip + "/memory?date=2027-02-19&write=1");
@@ -430,9 +502,11 @@ test("memory archive saves a standalone private diary and manual visit status", 
   await page.getByRole("button", { name: "일기 저장", exact: true }).click();
   await expect(page.getByRole("heading", { name: "첫 가상 기억" })).toBeVisible();
   await expect(page.getByLabel("방문 상태", { exact: false })).toHaveValue("planned");
-  await page.getByLabel("방문 상태", { exact: false }).selectOption("visited");
-  await page.getByRole("button", { name: "방문 상태 저장" }).click();
-  await page.reload();
+  await page.goto(trip + "/itinerary?date=2027-02-19");
+  await page.getByLabel("오타루 가상 방문 방문 상태: 방문 예정").click();
+  await page.getByRole("button", { name: "방문 완료", exact: true }).click();
+  await expect(page.getByLabel("오타루 가상 방문 방문 상태: 방문 완료")).toBeVisible();
+  await page.goto(trip + "/memory?date=2027-02-19");
   await expect(page.getByLabel("방문 상태", { exact: false })).toHaveValue("visited");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const guest = await request.get("/api/memory/" + tripId + "/" + randomUUID());
@@ -449,7 +523,8 @@ test("product polish groups travel tools and adds, copies and continues imported
   const tools = page.getByRole("navigation", { name: "여행 도구" });
   await expect(tools.getByRole("region", { name: "여행 준비" }).getByRole("link", { name: /준비 목록/ })).toBeVisible();
   await expect(tools.getByRole("region", { name: "여행 기록" }).getByRole("link", { name: /여행 기억/ })).toBeVisible();
-  await tools.getByRole("link", { name: /여행 일정/ }).click();
+  await expect(tools.getByRole("link", { name: /여행 일정/ })).toHaveCount(0);
+  await page.getByRole("navigation", { name: "여행 바로가기" }).getByRole("link", { name: "일정", exact: true }).click();
   await page.getByRole("link", { name: "JSON 일정 가져오기" }).click();
   const data = [
     { title: "가상 오타루 산책", date: "2027-02-19", time: "14:00" },
@@ -1000,7 +1075,7 @@ test("travel-day home opens the next timed place and the selected day's map on m
   await page.route(mapStyle, (route) => route.fulfill({ json: testStyle, headers: { "access-control-allow-origin": "*" } }));
   await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
   await page.goto(`/trips/${trip}`);
-  const next = page.getByRole("region", { name: "다음 정시 일정" });
+  const next = page.getByRole("region", { name: "다음 일정" });
   await expect(next).toBeInViewport();
   await expect(next.getByText("23:59")).toBeVisible();
   const todayBooking = page.getByRole("region", { name: "오늘 확인할 예약" });
@@ -1027,6 +1102,13 @@ test("travel-day home opens the next timed place and the selected day's map on m
   await page.goto(`/trips/${trip}`);
   await expect(next.getByRole("link", { name: /짐 찾기/ })).toHaveAttribute("href", /#schedule-[0-9a-f-]+$/);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(1440);
+
+  await page.clock.install({ time: new Date(`${today}T12:34:20+09:00`) });
+  await page.reload();
+  const localClock = page.locator("p", { hasText: "일본 현지" }).locator("time");
+  await expect(localClock).toHaveText("12:34");
+  await page.clock.fastForward(40_000);
+  await expect(localClock).toHaveText("12:35");
 });
 
 test("release trip adds a saved candidate to the flexible day and preserves its itinerary link", async ({ page }) => {
@@ -1082,7 +1164,7 @@ test("release trip home labels upcoming, empty active, and finished trips withou
   await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
   await page.goto(`/trips/${id("가상 출발 전")}`);
   await expect(page.getByText("출발까지 D-2")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "다음 정시 일정" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "다음 일정" })).toHaveCount(0);
   await page.goto(`/trips/${id("가상 여행 중")}`);
   const phase = page.locator(".editorial-kicker");
   await expect(phase).toContainText("Day 2 · 일본 현지");
@@ -1093,7 +1175,7 @@ test("release trip home labels upcoming, empty active, and finished trips withou
   await expect(phase).toHaveText("여행 종료");
   await expect(page.getByRole("region", { name: "여행의 기억" }).getByRole("link", { name: "여행 가이드 내보내기" })).toBeVisible();
   await expect(page.getByRole("link", { name: "예약 전체 보기" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "다음 정시 일정" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "다음 일정" })).toHaveCount(0);
 });
 
 test("M2 sorts five Japan travel days with three time modes on mobile and desktop", async ({ page }) => {
@@ -1118,7 +1200,7 @@ test("M2 sorts five Japan travel days with three time modes on mobile and deskto
     if (time || period) {
       await page.getByText("일정 상세 설정", { exact: true }).click();
       await expect(page.getByLabel("일정 날짜", { exact: true })).toHaveValue("2027-02-19");
-      await page.getByLabel("시간 방식").selectOption(time ? "FIXED" : "PERIOD");
+      await page.getByLabel("일정 시간").selectOption(time ? "FIXED" : "PERIOD");
       if (time) await page.getByLabel("일본 현지 시각").fill(time);
       if (period) await page.getByLabel("시간대", { exact: true }).selectOption(period);
     }
@@ -1134,13 +1216,13 @@ test("M2 sorts five Japan travel days with three time modes on mobile and deskto
   await add("오전 시장", undefined, "MORNING");
   await add("시간 미정 카페");
   const entries = page.getByRole("region", { name: "날짜별 일정" }).locator("ol").getByRole("heading");
-  await expect(entries).toHaveText(["아침 산책", "아침 사진", "늦은 출발", "오전 시장", "오후 운하", "저녁 약속", "시간 미정 카페"]);
+  await expect(entries).toHaveText(["오전 시장", "아침 산책", "아침 사진", "늦은 출발", "오후 운하", "저녁 약속", "시간 미정 카페"]);
   await expect(page.getByRole("button", { name: "늦은 출발 위로" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "오후 운하 위로" })).toHaveCount(0);
   const up = page.getByRole("button", { name: "아침 사진 위로" });
   expect((await up.boundingBox())?.height).toBeGreaterThanOrEqual(44);
   await up.click();
-  await expect(entries).toHaveText(["아침 사진", "아침 산책", "늦은 출발", "오전 시장", "오후 운하", "저녁 약속", "시간 미정 카페"]);
+  await expect(entries).toHaveText(["오전 시장", "아침 사진", "아침 산책", "늦은 출발", "오후 운하", "저녁 약속", "시간 미정 카페"]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
 
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -1149,9 +1231,9 @@ test("M2 sorts five Japan travel days with three time modes on mobile and deskto
   const handle = photo.locator("[draggable=true]");
   await expect(handle).toBeVisible();
   await handle.dragTo(walk.getByRole("heading"));
-  await expect(entries).toHaveText(["아침 산책", "아침 사진", "늦은 출발", "오전 시장", "오후 운하", "저녁 약속", "시간 미정 카페"]);
+  await expect(entries).toHaveText(["오전 시장", "아침 산책", "아침 사진", "늦은 출발", "오후 운하", "저녁 약속", "시간 미정 카페"]);
   await page.reload();
-  await expect(entries).toHaveText(["아침 산책", "아침 사진", "늦은 출발", "오전 시장", "오후 운하", "저녁 약속", "시간 미정 카페"]);
+  await expect(entries).toHaveText(["오전 시장", "아침 산책", "아침 사진", "늦은 출발", "오후 운하", "저녁 약속", "시간 미정 카페"]);
   await calendar.getByText("날짜 직접 이동").click();
   await page.getByRole("link", { name: "다음 날짜" }).click();
   await calendar.getByText("날짜 직접 이동").click();
@@ -1303,6 +1385,8 @@ test("M3 manually saves a Japanese place, shows a map pin and links or detaches 
   const detail = page.getByRole("article", { name:"선택한 장소" });
   await expect(detail.getByText("北海道札幌市中央区")).toBeVisible();
   await expect(detail.getByText(/札幌のテスト地点.*Sapporo test location/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "목록", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await detail.getByRole("button", { name: "지도에서 보기" }).click();
   const pin = page.getByRole("button", { name:"지도 핀: 삿포로 테스트 장소" });
   await expect(pin).toBeVisible({ timeout:12000 });
   await pin.click();
@@ -1552,9 +1636,11 @@ test("editorial places workspace keeps list, map and selection in sync on deskto
       ($1,'수프카레 가게 후보',null,null,null,null,null) returning id, display_name`, [tripId]);
     const id = (name: string) => rows.find((row) => row.display_name === name)!.id;
     await tx.query(`insert into public.itinerary_items (trip_id,title,kind,local_date,time_mode,period,place_id) values
-      ($1,'오도리 공원 산책','PLACE','2027-02-17','PERIOD','AFTERNOON',$2),
+      ($1,'오도리 공원 아침 산책','PLACE','2027-02-17','PERIOD','MORNING',$2),
+      ($1,'점심 후보','PLACE','2027-02-17','PERIOD','AFTERNOON',$5),
       ($1,'TV 타워 야경','PLACE','2027-02-17','PERIOD','EVENING',$3),
-      ($1,'오타루 당일치기','PLACE','2027-02-19','UNSCHEDULED',null,$4)`, [tripId, id("오도리 공원"), id("삿포로 TV 타워"), id("오타루 운하")]);
+      ($1,'오도리 공원 재방문','PLACE','2027-02-17','UNSCHEDULED',null,$2),
+      ($1,'오타루 당일치기','PLACE','2027-02-19','UNSCHEDULED',null,$4)`, [tripId, id("오도리 공원"), id("삿포로 TV 타워"), id("오타루 운하"), id("수프카레 가게 후보")]);
   });
   if (process.env.PLAYWRIGHT_LIVE_MAP !== "1") {
     await page.route(mapStyle, (route) => route.fulfill({ json: testStyle, headers: { "access-control-allow-origin": "*" } }));
@@ -1592,7 +1678,18 @@ test("editorial places workspace keeps list, map and selection in sync on deskto
   await page.goto(`${trip}/itinerary?date=2027-02-17`);
   await page.getByRole("navigation", { name: "일정 분류" }).getByRole("link", { name: "장소와 지도" }).click();
   await expect(page).toHaveURL(/map\?date=2027-02-17&filter=date$/);
-  await expect(list.getByRole("button")).toHaveCount(2);
+  await expect(list.getByRole("button")).toHaveCount(3);
+  await page.getByRole("checkbox", { name: "여행 동선 표시" }).check();
+  const route = page.getByRole("region", { name: "날짜별 방문 순서" });
+  await expect(route.getByRole("listitem")).toHaveText([
+    /오도리 공원 아침 산책/, /점심 후보.*지도 핀 없음/, /TV 타워 야경/, /오도리 공원 재방문/,
+  ]);
+  await expect(route.getByText("4회 · 장소 3곳")).toBeVisible();
+  await expect(pin("오도리 공원")).toHaveText("1", { timeout: 12000 });
+  await expect(pin("삿포로 TV 타워")).toHaveText("3");
+  await capture("places-day-route-1440");
+  await page.getByRole("checkbox", { name: "여행 동선 표시" }).uncheck();
+  await expect(route).toHaveCount(0);
   await list.getByRole("link", { name: "전체" }).click();
   await expect(list.getByRole("button")).toHaveCount(5);
   const unpinnedPlace = list.getByRole("button", { name: /수프카레 가게 후보/ });
@@ -1616,6 +1713,13 @@ test("editorial places workspace keeps list, map and selection in sync on deskto
   await expect(detail.getByRole("heading", { name: "오도리 공원" })).toBeVisible();
   await page.getByRole("searchbox", { name: "저장된 장소 찾기" }).fill("운하");
   await expect(list.getByRole("button")).toHaveCount(1);
+  await expect(page.locator("button.kioku-map-pin")).toHaveCount(1);
+  await expect(pin("오타루 운하")).toBeVisible();
+  await expect(detail).toHaveCount(0);
+  await page.getByRole("searchbox", { name: "저장된 장소 찾기" }).fill("없는 장소");
+  await expect(page.locator("button.kioku-map-pin")).toHaveCount(0);
+  await expect(list.getByText("찾는 장소가 없어요.")).toBeVisible();
+  await page.getByRole("searchbox", { name: "저장된 장소 찾기" }).fill("운하");
   await list.getByRole("button", { name: /오타루 운하/ }).click();
   await detail.getByRole("link", { name: "일정에 추가" }).click();
   const quick = page.getByRole("dialog", { name: "일정 추가" });
@@ -1634,7 +1738,20 @@ test("editorial places workspace keeps list, map and selection in sync on deskto
   await capture("place-search-failed-1440");
   await add.getByRole("button", { name: /직접 등록으로 계속/ }).click();
   await expect(add.getByLabel("장소 이름", { exact: true })).toHaveValue("검색 장애");
-  await add.getByRole("button", { name: "닫기" }).click();
+  await add.getByRole("button", { name: "지도에서 위치 선택" }).click();
+  const picker = add.getByRole("region", { name: "위치 선택 지도" });
+  await expect(picker.locator('[data-map-state="ready"]')).toBeVisible({ timeout: 12000 });
+  await picker.locator("canvas").click();
+  await expect(picker.locator(".kioku-map-location")).toBeVisible();
+  await add.getByText("Google Maps 링크에서 좌표 입력", { exact: true }).click();
+  await add.getByRole("textbox", { name: "Google Maps 링크" }).fill("https://maps.app.goo.gl/test-link");
+  await add.getByRole("button", { name: "좌표 적용" }).click();
+  await expect(add.getByRole("alert")).toContainText("단축 링크");
+  await add.getByRole("textbox", { name: "Google Maps 링크" }).fill("https://www.google.com/maps/search/?api=1&query=43.06%2C141.35");
+  await add.getByRole("button", { name: "좌표 적용" }).click();
+  await expect(add.getByText("위도 43.06 · 경도 141.35")).toBeVisible();
+  await capture("place-location-picker-1440");
+  await add.getByRole("button", { name: "닫기", exact: true }).click();
   await expect(add).toHaveCount(0);
 
   for (const width of [390, 320]) {
@@ -1667,6 +1784,25 @@ test("editorial places workspace keeps list, map and selection in sync on deskto
   }
 
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${trip}/map?date=2027-02-17&filter=date&view=map`);
+  await page.getByRole("searchbox", { name: "저장된 장소 찾기" }).fill("타워");
+  await expect(page.locator("button.kioku-map-pin")).toHaveCount(1, { timeout: 12000 });
+  await pin("삿포로 TV 타워").click();
+  await detail.getByRole("link", { name: "장소 수정" }).click();
+  const edit = page.getByRole("dialog", { name: "장소 수정" });
+  await edit.getByRole("button", { name: "장소 저장" }).click();
+  await expect(edit).toHaveCount(0);
+  await expect(page).toHaveURL(/date=2027-02-17&filter=date.*view=map&q=%ED%83%80%EC%9B%8C/);
+  await expect(pin("삿포로 TV 타워")).toHaveAttribute("aria-pressed", "true");
+  await capture("places-filtered-map-390");
+  await page.getByRole("button", { name: "목록", exact: true }).click();
+  await expect(list).toBeVisible();
+  await page.goBack();
+  await expect(list).toBeHidden();
+  await expect(page.getByRole("searchbox", { name: "저장된 장소 찾기" })).toHaveValue("타워");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${trip}/map?date=2027-02-17&view=map`);
   await page.getByRole("link", { name: "장소 추가" }).click();
   await add.getByRole("searchbox", { name: "일본 장소 검색" }).fill("시계탑");
   await add.getByRole("button", { name: /삿포로 시계탑/ }).click();
@@ -1864,7 +2000,7 @@ test("M4 links and detaches schedules without overwriting the itinerary or delet
   await expect(dialog.getByText("연결된 예약 · 가상 투어")).toBeVisible();
   await dialog.getByLabel("일정 이름").fill("투어 전 만남");
   await dialog.getByText("일정 상세 설정").click();
-  await dialog.getByLabel("시간 방식").selectOption("FIXED");
+  await dialog.getByLabel("일정 시간").selectOption("FIXED");
   await dialog.getByLabel("일본 현지 시각").fill("08:30");
   await dialog.getByRole("button", { name: "일정 저장" }).click();
   const entry = page.locator("[data-schedule-id]").filter({ hasText: "투어 전 만남" });

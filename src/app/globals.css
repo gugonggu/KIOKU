@@ -262,7 +262,9 @@ h2 { font-weight: 700; line-height: 1.35; letter-spacing: -.035em; }
   font-size: .82rem;
   font-weight: 700;
 }
-.trips-content > .danger-link { margin-top: 10px; color: #813f36; }
+.trip-management { margin-top: 2rem; padding-block: 1rem; border-block-start: 1px solid var(--ed-line); }
+.trip-management h2 { font-size: 1.05rem; }
+.trip-management .danger-link, .trips-content > .danger-link { margin-top: 10px; color: #813f36; }
 
 .trip-form, .delete-trip {
   display: grid;
@@ -406,3 +408,5 @@ h2 { font-weight: 700; line-height: 1.35; letter-spacing: -.035em; }
 .suite-page .budget-shares input, .suite-page .budget-check input { min-height: 0; width: 1.15rem; height: 1.15rem; }
 .suite-expense { padding-block: .5rem; border-top: 1px solid var(--color-line); }
 .suite-expense form { margin-block: 1rem; }
+
+.trip-card-photo img { object-fit: cover; }

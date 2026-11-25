@@ -25,3 +25,7 @@
 @media (min-width: 840px) {
   .places-mobile-tools { display: none; }
 }
+
+@media (max-width: 374px) {
+  .places-map-filters .places-filters a { padding-inline: 8px; }
+}

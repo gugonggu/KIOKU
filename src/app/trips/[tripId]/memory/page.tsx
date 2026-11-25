@@ -43,8 +43,8 @@ function PhotoFields({ day, plan, entries, photo }: { day: string; plan: TripPla
     {!photo && <>
       <label>사진 파일<input type="file" name="photo" accept="image/jpeg,image/png,image/webp" /></label>
       <label>카메라로 촬영<input type="file" name="camera" accept="image/jpeg" capture="environment" /></label>
-      <p className="plan-meta">JPEG·PNG·WebP, 원본 3.8MB 이하. 위치 등 사진 메타데이터는 저장 전에 제거해요.</p>
-      <p className="plan-meta">HEIC·HEIF 사진은 JPEG로 내보내고, 3.8MB를 넘는 사진은 크기를 줄인 뒤 첨부해 주세요.</p>
+      <p className="plan-meta">JPEG·PNG·WebP를 올릴 수 있어요. 위치 등 사진 메타데이터는 저장 전에 제거해요.</p>
+      <p className="plan-meta">큰 사진은 이 기기에서 먼저 줄여요. HEIC·HEIF 사진은 JPEG로 내보낸 뒤 첨부해 주세요.</p>
     </>}
     <label>사진 날짜<input type="date" required name="day" defaultValue={photo?.day ?? day} /></label>
     <label>사진 제목<input required name="title" maxLength={100} defaultValue={photo?.title} /></label>

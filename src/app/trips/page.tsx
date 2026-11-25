@@ -1,19 +1,26 @@
 import { ArrowUpRight, Ellipsis, Plus } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { Cover } from "@/components/cover";
+import { OfflineLibraryCleanup } from "@/components/offline-controls";
+import { requireUser } from "@/lib/auth";
 import { japanDate, tripStatus, tripStatuses, type Trip } from "@/lib/trip-details";
+import { memoryPhotoHref } from "@/lib/trip-memory";
+import { loadMemoryCovers } from "@/lib/trip-memory-data";
 import { listTrips } from "@/lib/trips";
 import { TripLoadError } from "./trip-load-error";
 import { TripSummary } from "./trip-summary";
 
 export const metadata = { title: "내 여행" };
 
-function TripCard({ trip }: { trip: Trip }) {
+function TripCard({ trip, cover }: { trip: Trip; cover?: { id: string; title: string } }) {
   const href = `/trips/${trip.id}`;
   return (
     <article className="trip-card">
       <Link className="trip-card-link" href={href} aria-labelledby={`trip-title-${trip.id}`}>
-        <Cover compact label="산과 해가 그려진 기본 여행 표지" />
+        {cover ? <div className="cover cover-compact trip-card-photo"><Image unoptimized fill
+          src={memoryPhotoHref(trip.id, cover.id)} alt={cover.title} sizes="(max-width: 600px) 100vw, 340px" /></div>
+          : <Cover compact label="산과 해가 그려진 기본 여행 표지" />}
         <div className="trip-card-body">
           <h3 id={`trip-title-${trip.id}`}>{trip.title}</h3>
           <TripSummary trip={trip} />
@@ -34,10 +41,12 @@ function TripCard({ trip }: { trip: Trip }) {
 export default async function TripsPage() {
   const { data: trips, error } = await listTrips();
   if (error) return <TripLoadError />;
+  const owner = await requireUser();
 
   if (!trips.length) {
     return (
       <>
+        <OfflineLibraryCleanup owner={owner} />
         <h1>내 여행</h1>
         <section className="empty-trips" aria-labelledby="empty-heading">
           <Cover compact />
@@ -51,6 +60,7 @@ export default async function TripsPage() {
     );
   }
 
+  const covers = await loadMemoryCovers(trips.map(({ id }) => id));
   const today = japanDate();
   const groups: Record<keyof typeof tripStatuses, Trip[]> = { active: [], upcoming: [], unscheduled: [], past: [] };
   for (const trip of trips) groups[tripStatus(trip, today)].push(trip);
@@ -60,6 +70,7 @@ export default async function TripsPage() {
 
   return (
     <>
+      <OfflineLibraryCleanup owner={owner} />
       <div className="trips-heading">
         <h1>내 여행</h1>
         <Link href="/trips/new" className="primary-button"><Plus size={18} aria-hidden="true" />새 여행 만들기</Link>
@@ -68,7 +79,7 @@ export default async function TripsPage() {
         <section key={status} className="trip-group" aria-labelledby={`trips-${status}`}>
           <h2 id={`trips-${status}`}>{tripStatuses[status].section}</h2>
           <div className="trip-card-grid">
-            {groups[status].map((trip) => <TripCard key={trip.id} trip={trip} />)}
+            {groups[status].map((trip) => <TripCard key={trip.id} trip={trip} cover={covers.get(trip.id)} />)}
           </div>
         </section>
       ))}

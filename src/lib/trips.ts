@@ -20,11 +20,11 @@ export async function listTrips() {
     .order("created_at", { ascending: false }).order("id");
 }
 
-export async function getTrip(tripId: string) {
+export async function getTrip(tripId: string, { allowMissing = false } = {}) {
   const { client, ownerId } = await requireTripClient();
   if (!isTripId(tripId)) notFound();
   const result = await client.from("trips").select(tripColumns)
     .eq("owner_id", ownerId).eq("id", tripId).maybeSingle();
-  if (!result.error && !result.data) notFound();
+  if (!result.error && !result.data && !allowMissing) notFound();
   return result;
 }

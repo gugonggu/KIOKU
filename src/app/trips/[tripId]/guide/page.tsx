@@ -81,7 +81,7 @@ export default async function Page({ params, searchParams }: PageProps<"/trips/[
         <label><input type="checkbox" name="preparation" value="1" defaultChecked={options.preparation} />준비 체크리스트 요약</label>
         <label><input type="checkbox" name="budget" value="1" defaultChecked={options.budget} />경비 요약 (소유자용)</label>
       </fieldset>
-      <div className="suite-row"><button type="submit" className="quiet-link">출력 범위 적용</button>{available && <PrintButton budget={options.budget} />}</div>
+      <div className="suite-row"><button type="submit" className="quiet-link">미리보기 갱신</button>{available && <PrintButton budget={options.budget} />}</div>
       {!available && <p role="alert">선택한 일부 정보를 불러오지 못했어요. 다시 시도하거나 해당 항목을 해제해 주세요.</p>}
       {options.budget && <p role="status">이번 출력에 여행 전체의 소유자용 경비 요약이 포함돼요. 공유하기 전에 확인하세요.</p>}
     </form>
@@ -117,7 +117,7 @@ export default async function Page({ params, searchParams }: PageProps<"/trips/[
       </section>}
       {readiness && <section className="guide-block"><h3>여행 준비</h3><p>{readiness.total}개 중 {readiness.done}개 완료 · {readiness.percent}%</p></section>}
       {options.budget && <section className="guide-block"><h3>경비 요약 (소유자용)</h3>
-        {totals && ledger?.budget ? <p>예산 {wonLabel(ledger.budget.budget_krw)} · 지출 {wonLabel(totals.total)} · 사전 결제 {wonLabel(totals.prepaid)}</p> : <p>표시할 경비가 없어요.</p>}
+        {totals && ledger?.budget ? <p>예산 {ledger.budget.budget_krw ? wonLabel(ledger.budget.budget_krw) : "미설정"} · 지출 {wonLabel(totals.total)} · 사전 결제 {wonLabel(totals.prepaid)}</p> : <p>표시할 경비가 없어요.</p>}
       </section>}
     </article>
     <TripTabs href={href} active="more" />

@@ -20,7 +20,7 @@ export function parseSchedule(data: FormData): ScheduleFields | string {
   if (!title || title.length > planLimits.title) return "일정 이름을 1~100자로 입력해 주세요.";
   if (privateNote.length > planLimits.notes || sharedNote.length > planLimits.notes) return "메모는 각각 1,500자까지 입력할 수 있어요.";
   if (kind !== "NOTE" && kind !== "MOVE" && kind !== "PLACE" && kind !== "BOOKING_REF") return "일정 유형을 다시 선택해 주세요.";
-  if (mode !== "FIXED" && mode !== "PERIOD" && mode !== "UNSCHEDULED") return "시간 방식을 선택해 주세요.";
+  if (mode !== "FIXED" && mode !== "PERIOD" && mode !== "UNSCHEDULED") return "일정 시간을 선택해 주세요.";
   if (place && !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(place)) return "연결할 장소를 다시 선택해 주세요.";
   if (booking && !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(booking)) return "연결할 예약을 다시 선택해 주세요.";
   const date = read(data, "local_date");
@@ -62,10 +62,16 @@ export const periods = { MORNING: "오전", AFTERNOON: "오후", EVENING: "저�
 
 type GroupFields = Pick<ScheduleFields, "time_mode" | "fixed_local_time" | "period">;
 
+const periodStarts = { MORNING: "00:00", AFTERNOON: "12:00", EVENING: "18:00" } as const;
+
+export function scheduleTimeKey(time: string | null, period: SchedulePeriod | null) {
+  if (time) return time.slice(0, 5) + ":1";
+  if (period) return periodStarts[period] + ":0";
+  return "24:00";
+}
+
 export function scheduleGroup(item: GroupFields) {
-  if (item.time_mode === "FIXED") return `0:${item.fixed_local_time?.slice(0, 5)}`;
-  if (item.time_mode === "PERIOD") return `1:${Object.keys(periods).indexOf(item.period ?? "")}`;
-  return "2";
+  return scheduleTimeKey(item.fixed_local_time, item.period);
 }
 
 export function sortSchedule<Item extends GroupFields & Pick<ScheduleRow, "id" | "sort_order">>(items: Item[]) {

@@ -14,8 +14,19 @@ function readOrigin(value: string | undefined) {
   }
 }
 
+export function getAppOrigin(env = process.env) {
+  if (env.VERCEL_ENV === "preview") {
+    for (const hostname of [env.VERCEL_BRANCH_URL, env.VERCEL_URL]) {
+      if (hostname && /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.vercel\.app$/i.test(hostname)) {
+        return "https://" + hostname.toLowerCase();
+      }
+    }
+  }
+  return readOrigin(env.APP_URL?.trim());
+}
+
 export function getAuthConfig() {
-  const appUrl = readOrigin(process.env.APP_URL?.trim());
+  const appUrl = getAppOrigin();
   const supabaseUrl = readOrigin(process.env.SUPABASE_URL?.trim());
   const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY?.trim();
 

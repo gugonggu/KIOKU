@@ -3,6 +3,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { Blossom } from "@/components/brand";
 import { Cover } from "@/components/cover";
+import { OfflineHomeStatus } from "@/components/offline-controls";
+import { requireUser } from "@/lib/auth";
 import { loadBookings, loadBookingSummaries } from "@/lib/trip-booking-data";
 import { bookingKinds, bookingOccursOn } from "@/lib/trip-bookings";
 import { dateLabel } from "@/lib/trip-details";
@@ -22,12 +24,9 @@ import { itineraryEntryHref, itineraryHref } from "./itinerary/links";
 import { mapHref } from "./map/links";
 import { BookingBadge, BookingKindLabel } from "./bookings/booking-card";
 import { bookingsHref } from "./bookings/links";
-import { TripClock } from "./trip-clock";
+import { JapanLocalTime, TripClock } from "./trip-clock";
 
 export const metadata = { title: "여행 수첩" };
-const localTime = new Intl.DateTimeFormat("ko-KR", {
-  hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Asia/Tokyo",
-});
 
 export default async function TripPage({ params }: PageProps<"/trips/[tripId]">) {
   const { tripId } = await params;
@@ -36,8 +35,9 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
   const now = new Date();
   const { today, date, status, offset } = tripHomeDay(trip, now);
   const active = status === "active";
-  const [plan, dailyBookings, bookingSummaries, preparation, budget, cover] = await Promise.all([
+  const [plan, dailyBookings, bookingSummaries, preparation, budget, cover, owner] = await Promise.all([
     loadTripPlan(trip.id), active ? loadBookings(trip.id) : null, active ? null : loadBookingSummaries(trip.id), loadPreparation(trip.id), loadBudget(trip.id), loadMemoryCover(trip.id),
+    requireUser(),
   ]);
   const readiness = preparation && preparationProgress(preparation);
   const bookings = active ? dailyBookings : bookingSummaries;
@@ -93,7 +93,7 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
       </div>
       <div className="editorial-hero-content">
         {status === "upcoming" && <p className="editorial-kicker">출발까지 D-{offset}</p>}
-        {active && <p className="editorial-kicker">Day {offset} · 일본 현지 <time dateTime={now.toISOString()}>{localTime.format(now)}</time></p>}
+        {active && <p className="editorial-kicker">Day {offset} · 일본 현지 <JapanLocalTime initialAt={now.getTime()} /></p>}
         {status === "past" && <p className="editorial-kicker">여행 종료</p>}
         <h1>{trip.title}</h1>
         <TripSummary trip={trip} showTravelers={!plan} />
@@ -137,7 +137,7 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
       <Link className="quiet-link" href={href + "/itinerary/import"}>JSON 일정 가져오기</Link>
     </section>}
     {active && plan && <section className="editorial-paper editorial-up-next" aria-labelledby="trip-next-heading">
-      <h2 id="trip-next-heading">다음 정시 일정</h2>
+      <h2 id="trip-next-heading">다음 일정</h2>
       {nextItem ? <Link className="quiet-link" href={itineraryEntryHref(trip.id, nextItem, date)}>
         <span className="editorial-time">{timeLabel(nextItem)}</span><strong>{nextItem.title}</strong>
         <ChevronRight size={16} aria-hidden />
@@ -156,6 +156,7 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
         </Link>
       </li>)}</ul> : <p className="plan-meta">{todayBookings ? "오늘 확인할 예약이 없어요." : "오늘 예약을 불러오지 못했어요."}</p>}
     </section>}
+    <OfflineHomeStatus owner={owner} tripId={trip.id} upcoming={status === "upcoming"} />
     {plan ? <dl className="editorial-stats" aria-label="여행 요약">
       <div><CalendarDays aria-hidden /><dt>일정</dt><dd>{plan.schedule.length}개</dd></div>
       <div><MapPin aria-hidden /><dt>저장한 장소</dt><dd>{plan.places.length}개</dd></div>
@@ -209,7 +210,6 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
       </section>
     </div>
     {status !== "upcoming" && reservationSummary}
-    <Link href={`${href}/delete`} className="quiet-link danger-link editorial-delete">여행 삭제</Link>
     <TripTabs href={href} active="home" date={date} />
   </div>;
 }

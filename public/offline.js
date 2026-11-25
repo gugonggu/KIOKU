@@ -1,4 +1,4 @@
-import { CHANGE, activateOfflineOwner, deleteOffline, offlineRevision, offlineSignoutPending, readOffline } from "./offline-store.js";
+import { CHANGE, activateOfflineOwner, checkOfflineTrip, deleteOffline, offlineRevision, offlineSignoutPending, readOffline } from "./offline-store.js";
 
 const content = document.querySelector("#offline-content");
 const status = document.querySelector("#offline-status");
@@ -21,14 +21,27 @@ function placeDetails(place, parent) {
   element("a", "외부 지도에서 열기 (인터넷 필요)", parent).href = url.href;
 }
 
-function showTrip(entry) {
+function scheduleTime(item) {
+  return item.fixed_local_time?.slice(0, 5)
+    ?? ({ MORNING: "00:00", AFTERNOON: "12:00", EVENING: "18:00" }[item.period] ?? "24:00");
+}
+
+function showTrip(entry, freshness) {
   const trip = entry.snapshot;
   element("h2", trip.title, content);
   element("p", [trip.destination, trip.startDate, trip.endDate].filter(Boolean).join(" · "), content);
   element("p", "마지막 저장 " + new Date(entry.savedAt).toLocaleString("ko-KR"), content);
+  if (freshness === "stale") element("p", "저장 이후 수첩 내용이 바뀌었어요.", content);
+  if (freshness === "current") element("p", "저장한 수첩이 최신이에요.", content);
+  if (freshness === "unknown") element("p", "최신 여부를 확인하지 못했어요.", content);
+  if (freshness === "stale" || freshness === "current") {
+    element("a", "최신 수첩으로 갱신하기", content).href = "/trips/" + encodeURIComponent(entry.tripId) + "/offline";
+  }
   let currentDate;
   let day;
-  for (const item of trip.schedule) {
+  const schedule = [...trip.schedule].sort((first, second) =>
+    first.date.localeCompare(second.date) || scheduleTime(first).localeCompare(scheduleTime(second)));
+  for (const item of schedule) {
     if (item.date !== currentDate) {
       currentDate = item.date;
       day = element("section", null, content);
@@ -87,7 +100,7 @@ async function render() {
         cache: "no-store", signal: AbortSignal.timeout(4000),
       }).catch(() => null);
       if (version !== renderVersion) return;
-      if (response) {
+      if (response && response.status < 500) {
         if (!response.ok && response.status !== 401) throw new Error("Identity unavailable");
         verifiedOwner = response.ok ? (await response.json()).owner : null;
         await activateOfflineOwner(verifiedOwner, revision);
@@ -99,13 +112,38 @@ async function render() {
       status.textContent = "이 기기에 저장된 수첩이 없습니다.";
       return;
     }
-    status.textContent = verifiedOwner ? "이 기기에 저장된 여행" : "인터넷 연결 없이 보고 있습니다.";
     const id = new URLSearchParams(location.search).get("trip");
-    const selected = entries.find((entry) => entry.tripId === id);
+    const saved = [];
+    let checkedSelected;
+    if (verifiedOwner) {
+      const revision = offlineRevision();
+      const signal = AbortSignal.timeout(4000);
+      const checked = await Promise.all(entries.map(async (entry) =>
+        [entry, await checkOfflineTrip(entry, signal, entry.tripId !== id)]));
+      if (version !== renderVersion || offlineRevision() !== revision || offlineSignoutPending()) return;
+      if (checked.some(([, result]) => result === "unverified")) {
+        status.textContent = "로그인 상태를 확인하지 못했어요. 다시 연결해 주세요.";
+        return;
+      }
+      for (const [entry, result] of checked) {
+        if (result === "missing") await deleteOffline(entry.tripId, verifiedOwner, entry.savedAt);
+        else {
+          saved.push(entry);
+          if (entry.tripId === id) checkedSelected = result;
+        }
+      }
+    } else saved.push(...entries);
+    if (version !== renderVersion || offlineSignoutPending()) return;
+    if (!saved.length) {
+      status.textContent = "이 기기에 저장된 수첩이 없습니다.";
+      return;
+    }
+    status.textContent = verifiedOwner ? "이 기기에 저장된 여행" : "인터넷 연결 없이 보고 있습니다.";
+    const selected = saved.find((entry) => entry.tripId === id);
     if (selected) {
       element("a", "저장된 여행 모두 보기", content).href = "/offline.html";
-      showTrip(selected);
-    } else for (const entry of entries) {
+      showTrip(selected, checkedSelected);
+    } else for (const entry of saved) {
       const row = element("p", null, content);
       element("a", entry.snapshot.title, row).href = "/offline.html?" + new URLSearchParams({ trip: entry.tripId });
     }
