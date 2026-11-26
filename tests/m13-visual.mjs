@@ -54,10 +54,6 @@ export async function verifyM13Visual({ app, user, enter, must }) {
     await owner.getByText("여행 준비 템플릿", { exact: true }).click();
     await owner.getByRole("button", { name: "겨울 여행 템플릿" }).click();
     await owner.getByRole("button", { name: "방한복 완료", exact: true }).click();
-    await owner.goto(path + "/budget");
-    await owner.getByLabel("총예산 (원)").fill("500000");
-    await owner.getByLabel("기본 환율 (1엔당 원)").fill("9.5");
-    await owner.getByRole("button", { name: "예산 저장" }).click();
     await owner.goto(memory + "&write=1");
     await owner.getByLabel("일기 제목").fill("눈이 내리던 가상의 오후");
     await owner.getByLabel("일기 본문").fill("운하 옆 골목을 천천히 걷고 따뜻한 차를 마셨다.");
@@ -65,7 +61,7 @@ export async function verifyM13Visual({ app, user, enter, must }) {
     await expect(owner.getByRole("heading", { name: "눈이 내리던 가상의 오후" })).toBeVisible();
     await owner.locator("#add-photo summary").click();
     await owner.getByLabel("사진 파일").setInputFiles("public/kioku-winter-cover.webp");
-    await owner.getByLabel("사진 제목").fill("가상 여행 표지");
+    await owner.getByLabel("사진 제목 1", { exact: true }).fill("가상 여행 표지");
     await owner.getByRole("button", { name: "사진 저장", exact: true }).click();
     await expect(owner.getByText("가상 여행 표지", { exact: true }).first()).toBeVisible();
     await owner.goto(path + "/share");
@@ -86,7 +82,7 @@ export async function verifyM13Visual({ app, user, enter, must }) {
       ["home", path], ["itinerary", path + "/itinerary?view=all"], ["day", path + "/itinerary?date=2027-02-12"],
       ["add", path + "/itinerary?date=2027-02-12&mode=add"], ["edit", path + "/itinerary?date=2027-02-12&mode=edit&id=" + editId],
       ["import", path + "/itinerary/import"], ["places", path + "/map"], ["map", path + "/map", owner, "map"],
-      ["bookings", path + "/bookings"], ["preparation", path + "/preparation"], ["budget", path + "/budget"],
+      ["bookings", path + "/bookings"], ["preparation", path + "/preparation"],
       ["memory", memory], ["album", memory + "#memory-timeline"], ["share", path + "/share"],
       ["companion", guestPath, guest], ["guide", path + "/guide"], ["more", path + "/more"],
       ["offline", offlinePath], ["empty", "/trips/" + empty],
@@ -145,8 +141,6 @@ export async function verifyM13Visual({ app, user, enter, must }) {
         await owner.getByText("지도를 불러오는 중이에요.", { exact: true }).waitFor({ state: "hidden" });
         await route.scrollIntoViewIfNeeded();
         await owner.screenshot({ path: directory + "/390-route.png" });
-        await owner.goto(path + "/budget");
-        await owner.locator("#new-expense").screenshot({ path: directory + "/390-quick-expense.png" });
         await owner.goto(path + "/map?view=map&filter=date&date=2027-02-12");
       }
       const filters = owner.getByRole("navigation", { name: "표시할 장소" });

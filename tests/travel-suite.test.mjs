@@ -2,13 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { preparationProgress, preparationTemplate } from "../src/lib/trip-preparation.ts";
 import { travelSnapshot } from "../src/lib/travel-snapshot.ts";
-import { expenseTotals, parseRate, settleExpenses } from "../src/lib/trip-budget.ts";
 import { guideDays, guideOptions, guideScope } from "../src/lib/travel-guide.ts";
 
 test("guide output includes privacy-safe defaults and filters by the selected date", () => {
   const defaults = guideOptions({});
-  assert.deepEqual(defaults, { date: "", places: true, bookings: true, preparation: true, budget: false });
-  const options = guideOptions({ options: "1", date: "2027-02-19", bookings: "1", budget: ["1", "0"] });
+  assert.deepEqual(defaults, { date: "", places: true, bookings: true, preparation: true });
+  const options = guideOptions({ options: "1", date: "2027-02-19", bookings: "1", budget: "1" });
+  assert.deepEqual(options, { date: "2027-02-19", places: false, bookings: true, preparation: false });
   const place = { name: "小樽運河" };
   const result = guideScope({
     schedule: [{ date: "2027-02-18", place }, { date: "2027-02-19", place }],
@@ -23,44 +23,8 @@ test("guide output includes privacy-safe defaults and filters by the selected da
   assert.equal(result.places.length, 0);
   assert.equal(result.bookings.length, 2);
   assert.equal(result.bookings[1].detail.length, 1);
-  assert.equal(options.budget, false);
   assert.deepEqual(guideDays({ schedule: [], startDate: "2027-02-17", endDate: "2027-02-21" }, ""),
     ["2027-02-17", "2027-02-18", "2027-02-19", "2027-02-20", "2027-02-21"]);
-});
-
-test("fixed point conversion and settlement conserve won after refunds and remainder splits", () => {
-  assert.equal(parseRate("9.1234"), 91234);
-  assert.equal(parseRate("9.12345"), null);
-  const expenses = [
-    { amount: 300000, refund: 0, currency: "KRW", rate: 10000, payer: 1, shares: [1, 2, 3], prepaid: true, category: "stay" },
-    { amount: 105, refund: 5, currency: "JPY", rate: 91234, payer: 2, shares: [3, 2, 1], prepaid: false, category: "food" },
-  ];
-  const totals = expenseTotals(expenses);
-  assert.equal(totals.total, BigInt(300912));
-  assert.equal(totals.jpy, BigInt(100));
-  const settlement = settleExpenses(3, expenses);
-  assert.deepEqual(settlement.people.map(({ due }) => due), [100304, 100304, 100304].map(BigInt));
-  assert.deepEqual(settlement.people.map(({ yenDue }) => yenDue), [34, 33, 33].map(BigInt));
-  assert.deepEqual(settlement.transfers.map(({ from, to, amount }) => [from, to, Number(amount)]), [[2, 1, 99392], [3, 1, 100304]]);
-  const remainder = settleExpenses(3, [{ ...expenses[0], amount: 2, shares: [3, 2, 1] }]);
-  assert.deepEqual(remainder.people.map(({ due }) => Number(due)), [1, 1, 0]);
-});
-
-test("unknown JPY rates keep original currency totals and are excluded from won settlement", () => {
-  const known = {amount:1000,refund:0,currency:"KRW",rate:10000,payer:1,shares:[1,2],prepaid:false,category:"food"};
-  const pending = {...known,amount:500,refund:100,currency:"JPY",rate:null,payer:2};
-  const totals = expenseTotals([known,pending]);
-  assert.equal(totals.total,1000n);
-  assert.equal(totals.jpy,400n);
-  assert.equal(totals.pendingJpy,400n);
-  assert.equal(totals.pendingCount,1);
-  assert.equal(totals.complete,false);
-  const settlement=settleExpenses(2,[known,pending]);
-  assert.deepEqual(settlement.transfers,[{from:2,to:1,amount:500n}]);
-  assert.equal(settlement.excludedCount,1);
-  const later=expenseTotals([known,{...pending,rate:90000}]);
-  assert.equal(later.total,4600n);
-  assert.equal(later.complete,true);
 });
 
 test("preparation templates are opt-in and each item has a stable source key", () => {

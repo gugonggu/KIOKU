@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookImage, CalendarCheck, Compass, Settings } from "lucide-react";
+import { BookImage, CalendarCheck, Settings } from "lucide-react";
 import { getTrip } from "@/lib/trips";
 import { TripLoadError } from "../../trip-load-error";
 import { TripTabs } from "../editorial";
@@ -14,21 +14,18 @@ export default async function Page({ params }: PageProps<"/trips/[tripId]/more">
   const groups = [
     { label: "여행 준비", icon: CalendarCheck, links: [
       { path: "/preparation", title: "준비 목록", detail: "체크리스트와 일본 여행 템플릿" },
+      { path: "/share", title: "동행자 공유", detail: "링크와 공개 범위" },
       { path: "/bookings", title: "예약", detail: "항공·숙소·투어 일정" },
-    ] },
-    { label: "여행 중", icon: Compass, links: [
       { path: "/itinerary", title: "여행 일정", detail: "날짜별 일정과 후보함" },
       { path: "/map", title: "장소와 지도", detail: "저장한 장소와 길찾기" },
-      { path: "/budget", title: "예산과 경비", detail: "지출 기록과 정산" },
-      { path: "/offline", title: "오프라인 수첩", detail: "이 기기에 일정과 장소 저장" },
     ] },
-    { label: "여행 기록", icon: BookImage, links: [
+    { label: "여행 수첩", icon: BookImage, links: [
+      { path: "/offline", title: "오프라인 수첩", detail: "이 기기에 일정과 장소 저장" },
       { path: "/memory", title: "여행 기억", detail: "일기·사진·방문 기록" },
       { path: "/guide", title: "여행 가이드 내보내기", detail: "인쇄 또는 PDF 저장" },
     ] },
-    { label: "여행 관리", icon: Settings, links: [
+    { label: "관리", icon: Settings, links: [
       { path: "/edit", title: "여행 설정", detail: "여행 정보와 관리" },
-      { path: "/share", title: "동행자 공유", detail: "링크와 공개 범위" },
     ] },
   ];
   return <div className="editorial-page suite-page">

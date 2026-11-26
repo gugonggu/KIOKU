@@ -20,6 +20,7 @@ let googleChallenge: string | undefined;
 let refreshedGoogleSession = false;
 let sharedReadFailure: "rpc" | "connection" | undefined;
 let sharedReads = 0;
+let legacyLedgerRequests = 0;
 
 test.beforeAll(async () => {
   const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
@@ -33,6 +34,7 @@ test.beforeAll(async () => {
 
   provider = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", providerUrl);
+    if (/\/rest\/v1\/(?:trip_budgets|trip_expenses|rpc\/save_trip_budget)$/.test(url.pathname)) legacyLedgerRequests++;
     const send = (status: number, payload: object | boolean | string | null) => {
       response.writeHead(status, { "Content-Type": "application/json" }).end(JSON.stringify(payload));
     };
@@ -194,7 +196,6 @@ test.beforeAll(async () => {
       "/rest/v1/stay_details", "/rest/v1/tour_details", "/rest/v1/booking_private_details",
       "/rest/v1/rpc/read_shared_trip", "/rest/v1/rpc/read_share_settings", "/rest/v1/rpc/write_share_settings",
       "/rest/v1/trip_preparation", "/rest/v1/rpc/apply_preparation_template", "/rest/v1/rpc/move_preparation",
-      "/rest/v1/trip_budgets", "/rest/v1/trip_expenses", "/rest/v1/rpc/save_trip_budget",
       "/rest/v1/trip_memory_entries", "/rest/v1/trip_memory_photos", "/rest/v1/trip_visit_marks", "/rest/v1/rpc/set_trip_visit",
       "/rest/v1/rpc/import_trip_schedule",
       "/rest/v1/rpc/save_booking", "/rest/v1/rpc/delete_booking", "/rest/v1/rpc/save_trip_place", "/rest/v1/rpc/delete_trip_place",
@@ -216,6 +217,7 @@ test.beforeAll(async () => {
 });
 
 test.beforeEach(async () => {
+  legacyLedgerRequests = 0;
   failNextTripRead = false;
   sharedReadFailure = undefined;
   sharedReads = 0;
@@ -337,90 +339,7 @@ test("suite offline saves an owner snapshot, reloads disconnected and clears on 
   await context.setOffline(false);
 });
 
-test("suite budget settles a three-person trip with prepayment and a local yen refund", async ({ page, browser }) => {
-  const trip = await seedFiveDayTrip("가상 홋카이도 3인 경비");
-  await page.setViewportSize({ width: 375, height: 812 });
-  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
-  await page.goto(trip + "/budget");
-  await page.getByText("예산과 정산 인원 설정",{exact:true}).click();
-  await page.getByLabel("총예산 (원)").fill("500000");
-  await page.getByLabel("기본 환율 (1엔당 원)").fill("9.1234");
-  await page.getByLabel("동행자 이름 (한 줄에 한 명)").fill("가\n나\n다");
-  await page.getByRole("button", { name: "예산 저장" }).click();
-  await expect(page.getByText("예산과 정산 인원 편집",{exact:true})).toBeVisible();
-  await expect(page.getByRole("heading", { name: "예산 현황" })).toBeVisible();
-  const form = page.locator("#new-expense");
-  await form.getByText("지출 상세 설정", { exact: true }).click();
-  await form.getByLabel("지출명").fill("가상 숙소비");
-  await form.getByLabel("원래 결제액").fill("300000");
-  await form.locator('select[name="currency"]').selectOption("KRW");
-  await form.getByLabel("결제 시점").selectOption("prepaid");
-  await form.getByLabel("카테고리").selectOption("stay");
-  await form.getByLabel("결제자").selectOption("1");
-  for (const alias of ["가", "나", "다"]) await form.getByRole("checkbox", { name: alias, exact: true }).check();
-  await form.getByRole("button", { name: "지출 등록" }).click();
-  await expect(page.getByText("나 → 가 · 100,000원", { exact: true })).toBeVisible();
-  await form.getByText("지출 상세 설정", { exact: true }).click();
-  await form.getByLabel("지출명").fill("가상 현지 교통");
-  await form.getByLabel("원래 결제액").fill("105");
-  await form.getByLabel("누적 환불액 (같은 통화)").fill("5");
-  await form.locator('select[name="currency"]').selectOption("JPY");
-  await form.getByLabel("결제 시점").selectOption("local");
-  await form.getByLabel("결제자").selectOption("2");
-  for (const alias of ["가", "나", "다"]) await form.getByRole("checkbox", { name: alias, exact: true }).check();
-  await form.getByRole("button", { name: "지출 등록" }).click();
-  await expect(page.getByText("나 → 가 · 99,392원", { exact: true })).toBeVisible();
-  await expect(page.getByText("다 → 가 · 100,304원", { exact: true })).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth === innerWidth)).toBe(true);
-  const visitor = await browser.newContext({ baseURL: appUrl });
-  try {
-    const other = await visitor.newPage();
-    await other.goto("/auth/confirm?type=email&token_hash=local-fixture-second");
-    await expect(other).toHaveURL(/\/trips$/);
-    await other.goto(trip + "/budget");
-    await expect(other.getByRole("heading", { name: "여행을 찾을 수 없어요" })).toBeVisible();
-    await expect(other.getByText("가상 숙소비")).toHaveCount(0);
-  } finally {
-    await visitor.close();
-  }
-});
-
-test("quick expense keeps the amount on validation and offline errors and saves without budget amount", async ({ page }) => {
-  const trip = await seedFiveDayTrip("가상 빠른 경비");
-  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
-  await page.goto(trip + "/budget");
-  await page.getByText("예산과 정산 인원 설정",{exact:true}).click();
-  await page.getByLabel("기본 환율 (1엔당 원)").fill("9.1234");
-  await page.getByLabel("동행자 이름 (한 줄에 한 명)").fill("가\n나");
-  await page.getByRole("button", { name: "예산 저장" }).click();
-  await expect(page.getByText("예산과 정산 인원 편집",{exact:true})).toBeVisible();
-  await expect(page.getByText("미설정", { exact: true })).toBeVisible();
-  const form = page.locator("#new-expense");
-  await expect(form.getByLabel("지출명")).toBeHidden();
-  await form.getByLabel("원래 결제액").fill("500");
-  await form.getByLabel("카테고리").selectOption("food");
-  await expect(form.getByLabel("결제자")).toHaveValue("");
-  await form.getByLabel("결제자").selectOption("2");
-  const submit = form.getByRole("button", { name: "지출 등록" });
-  await submit.click();
-  await expect(form.getByRole("alert")).toContainText("분담 대상을 선택해 주세요");
-  await expect(form.getByLabel("원래 결제액")).toHaveValue("500");
-  await form.getByRole("checkbox", { name: "나", exact: true }).check();
-  await page.context().setOffline(true);
-  try {
-    await submit.click();
-    await expect(form.getByRole("alert")).toContainText("입력한 내용은 그대로예요");
-    await expect(form.getByLabel("원래 결제액")).toHaveValue("500");
-  } finally {
-    await page.context().setOffline(false);
-  }
-  await submit.click();
-  await expect(page.locator("summary").filter({ hasText: "식비 · 4,562원" })).toBeVisible();
-  await expect(page.getByText("설정한 예산을 초과했어요.")).toHaveCount(0);
-  await expect(form.getByLabel("원래 결제액")).toHaveValue("");
-});
-
-test("suite guide prints a private-field-free A4 Sapporo notebook and applies output options", async ({ page, browserName }, testInfo) => {
+test("suite guide prints a private-field-free A4 Sapporo notebook and applies output options", async ({ page, browser, browserName }, testInfo) => {
   const trip = await seedFiveDayTrip("삿포로 수첩 · 札幌の旅");
   const tripId = trip.split("/").at(-1)!;
   await asUser(database, ownerA, async (tx) => {
@@ -439,24 +358,26 @@ test("suite guide prints a private-field-free A4 Sapporo notebook and applies ou
       private: { confirmation_reference: "FIXTURE_ONLY_PRIVATE_GUIDE", amount: 11000, currency: "JPY" },
     }]);
     await tx.query("select public.save_trip_budget($1,500000,91234,array['가','나','다'])", [tripId]);
+    await tx.query("insert into public.trip_expenses(id,trip_id,title,amount,currency,rate,spent_on,category,payer,shares,prepaid) values ($1,$2,'가상 숙박 사전 결제',11000,'JPY',91234,'2027-02-17','stay',1,array[1,2,3],true)", [randomUUID(),tripId]);
   });
   await page.setViewportSize({ width: 320, height: 844 });
   await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  await page.goto(trip + "/budget");
+  await expect(page).toHaveURL(new URL(trip, appUrl).href);
+  await expect(page.getByRole("main")).not.toContainText(/예산|경비|정산/);
+  await page.goto(trip + "/more");
+  await expect(page.getByRole("main")).not.toContainText(/예산|경비|정산/);
+  const visitor = await browser.newContext({ baseURL: appUrl });
+  try {
+    const other = await visitor.newPage();
+    await other.goto("/auth/confirm?type=email&token_hash=local-fixture-second");
+    await other.goto(trip + "/budget");
+    await expect(other.getByRole("heading", { name: /찾을 수 없어요/ })).toBeVisible();
+  } finally { await visitor.close(); }
   await page.goto(trip + "/preparation");
   await page.getByText("여행 준비 템플릿", { exact: true }).click();
   await page.getByRole("button", { name: "일본 기본 템플릿" }).click();
   await page.getByRole("button", { name: "여권 유효기간 확인 완료", exact: true }).click();
-  await page.goto(trip + "/budget");
-  const expense = page.locator("#new-expense");
-  await expense.getByText("지출 상세 설정", { exact: true }).click();
-  await expense.getByLabel("지출명").fill("가상 숙박 사전 결제");
-  await expense.getByLabel("결제 시점").selectOption("prepaid");
-  await expense.getByLabel("연결 예약").selectOption({ label: "가상 숙소 · Sapporo Hotel by Granbell · 예약 완료" });
-  await expense.getByLabel("선택한 예약의 금액과 통화로 기록").check();
-  await expense.getByLabel("결제자").selectOption("1");
-  for (const alias of ["가", "나", "다"]) await expense.getByRole("checkbox", { name: alias, exact: true }).check();
-  await expense.getByRole("button", { name: "지출 등록" }).click();
-  await expect(page.getByText("나 → 가 · 33,452원")).toBeVisible();
   await page.goto(trip + "/offline");
   await page.getByRole("button", { name: "오프라인 수첩 저장" }).click();
   await expect(page.getByText("이 기기에 수첩을 저장했어요.")).toBeVisible();
@@ -466,7 +387,7 @@ test("suite guide prints a private-field-free A4 Sapporo notebook and applies ou
   await expect(page.getByText(/小樽運河/).first()).toBeVisible();
   await expect(page.getByText(/가상 숙박 사전 결제/)).toHaveCount(0);
   await page.context().setOffline(false);
-  await page.goto(trip + "/guide");
+  await page.goto(trip + "/guide?budget=1");
   const preview = page.getByRole("article", { name: "인쇄 미리보기" });
   await expect(preview.getByText("삿포로 수첩 · 札幌の旅")).toBeVisible();
   await expect(preview.getByText(/小樽運河/).first()).toBeVisible();
@@ -475,6 +396,7 @@ test("suite guide prints a private-field-free A4 Sapporo notebook and applies ou
   const html = await page.content();
   expect(html).not.toContain("FIXTURE_ONLY_PRIVATE_GUIDE");
   expect(html).not.toContain("500,000원");
+  expect(html).not.toContain("11,000");
   expect(await page.evaluate(() => document.documentElement.scrollWidth === innerWidth)).toBe(true);
   await page.emulateMedia({ media: "print" });
   await expect(page.getByRole("navigation", { name: "여행 바로가기" })).toHaveCount(0);
@@ -486,12 +408,12 @@ test("suite guide prints a private-field-free A4 Sapporo notebook and applies ou
   await page.emulateMedia({ media: "screen" });
   await page.getByLabel("특정 날짜만 인쇄 (비우면 전체)").fill("2027-02-19");
   await page.getByLabel("장소 정보", { exact: true }).uncheck();
-  await page.getByLabel("경비 요약 (소유자용)").check();
   await page.getByRole("button", { name: "미리보기 갱신" }).click();
   await expect(preview.getByText("삿포로 시내", { exact: true })).toHaveCount(0);
   await expect(preview.getByText(/小樽運河/)).toHaveCount(0);
   await expect(preview.getByText("오타루 산책", { exact: false })).toBeVisible();
-  await expect(preview.getByText(/500,000원/)).toBeVisible();
+  await expect(preview.getByText(/500,000원|경비 요약/)).toHaveCount(0);
+  expect(legacyLedgerRequests).toBe(0);
 });
 
 test("memory archive saves a standalone private diary and manual visit status", async ({ page, request }) => {
@@ -526,7 +448,7 @@ test("product polish groups travel tools and adds, copies and continues imported
   await page.goto(trip + "/more");
   const tools = page.getByRole("navigation", { name: "여행 도구" });
   await expect(tools.getByRole("region", { name: "여행 준비" }).getByRole("link", { name: /준비 목록/ })).toBeVisible();
-  await expect(tools.getByRole("region", { name: "여행 기록" }).getByRole("link", { name: /여행 기억/ })).toBeVisible();
+  await expect(tools.getByRole("region", { name: "여행 수첩" }).getByRole("link", { name: /여행 기억/ })).toBeVisible();
   await expect(tools.getByRole("link", { name: /여행 일정/ })).toHaveCount(0);
   await page.getByRole("navigation", { name: "여행 바로가기" }).getByRole("link", { name: "일정", exact: true }).click();
   await page.getByRole("link", { name: "JSON 일정 가져오기" }).click();
@@ -1124,7 +1046,7 @@ test("travel-day home opens the next timed place and the selected day's map on m
   await expect(page).toHaveURL(/\/itinerary\?date=\d{4}-\d{2}-\d{2}$/);
   const day = new URL(page.url()).searchParams.get("date");
   await expect(page.getByRole("heading", { name: "짐 찾기" })).toBeVisible();
-  await page.getByRole("navigation", { name: "여행 바로가기" }).getByRole("link", { name: "장소", exact: true }).click();
+  await page.getByRole("navigation", { name: "여행 바로가기" }).getByRole("link", { name: "지도", exact: true }).click();
   await expect(page).toHaveURL(`/trips/${trip}/map?date=${day}&filter=date`);
   await expect(page.getByText("가상 시내 짐 보관소", { exact: true })).toBeVisible();
   await expect(page.getByText("다른 날 후보 장소", { exact: true })).toHaveCount(0);

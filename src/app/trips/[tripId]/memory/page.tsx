@@ -2,8 +2,6 @@ import { randomUUID } from "node:crypto";
 import Image from "next/image";
 import Link from "next/link";
 import { Blossom } from "@/components/brand";
-import { expenseTotalLabel } from "@/lib/trip-budget";
-import { loadBudget } from "@/lib/trip-budget-data";
 import { dateLabel, isCalendarDate, japanDate } from "@/lib/trip-details";
 import { loadTripMemory } from "@/lib/trip-memory-data";
 import { memoryPhotoHref, tripMemoryDays, visitStatuses, type MemoryEntry, type MemoryPhoto } from "@/lib/trip-memory";
@@ -69,7 +67,7 @@ export default async function Page({ params, searchParams }: PageProps<"/trips/[
   const [{ tripId }, query] = await Promise.all([params, searchParams]);
   const { data: trip, error } = await getTrip(tripId);
   if (!trip || error) return <TripLoadError />;
-  const [memory, plan, ledger] = await Promise.all([loadTripMemory(tripId), loadTripPlan(tripId), loadBudget(tripId)]);
+  const [memory, plan] = await Promise.all([loadTripMemory(tripId), loadTripPlan(tripId)]);
   const href = "/trips/" + tripId;
   if (!memory || !plan) return <div className="editorial-page suite-page"><TripLoadError /><TripTabs href={href} active="more" /></div>;
   const date = typeof query.date === "string" && isCalendarDate(query.date) ? query.date : "";
@@ -113,7 +111,7 @@ export default async function Page({ params, searchParams }: PageProps<"/trips/[
           <EntryFields day={day} plan={plan} />
         </MemoryForm>
       </details>
-      <details id="add-photo">
+      <details id="add-photo" open={query.photo === "1" || undefined}>
         <summary className="quiet-link">새 사진</summary>
         {canUpload ? <>
           <p>소유자만 볼 수 있어요. 여행당 24장, 계정당 120장까지 보관할 수 있어요.</p>
@@ -190,8 +188,6 @@ export default async function Page({ params, searchParams }: PageProps<"/trips/[
       </li>)}</ul> : <p>이 범위에 방문 상태를 기록할 일정이 없어요.</p>}
     </section>
     <footer className="editorial-paper suite-row">
-      {ledger?.budget && <p>총지출 {expenseTotalLabel(ledger.expenses)}</p>}
-      <Link className="quiet-link" href={href + "/budget"}>경비와 정산</Link>
       <Link className="quiet-link" href={href + "/itinerary"}>여행 일정</Link>
       <Link className="quiet-link" href={href + "/guide"}>여행 가이드 출력</Link>
     </footer>

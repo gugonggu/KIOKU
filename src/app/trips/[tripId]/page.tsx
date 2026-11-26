@@ -1,4 +1,4 @@
-import { ArrowLeft, CalendarDays, ChevronRight, Download, MapPin, PencilLine, Plus, Share2, UsersRound, Wallet } from "lucide-react";
+import { ArrowLeft, CalendarDays, Camera, ChevronRight, Download, MapPin, PencilLine, Plus, Share2, UsersRound } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { Blossom } from "@/components/brand";
@@ -13,8 +13,6 @@ import { loadTripPlan } from "@/lib/trip-plan-data";
 import { getTrip } from "@/lib/trips";
 import { loadPreparation } from "@/lib/trip-preparation-data";
 import { preparationProgress } from "@/lib/trip-preparation";
-import { expenseTotals, wonLabel } from "@/lib/trip-budget";
-import { loadBudget } from "@/lib/trip-budget-data";
 import { loadMemoryCover } from "@/lib/trip-memory-data";
 import { memoryPhotoHref } from "@/lib/trip-memory";
 import { TripLoadError } from "../trip-load-error";
@@ -35,8 +33,8 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
   const now = new Date();
   const { today, date, status, offset } = tripHomeDay(trip, now);
   const active = status === "active";
-  const [plan, dailyBookings, bookingSummaries, preparation, budget, cover, owner] = await Promise.all([
-    loadTripPlan(trip.id), active ? loadBookings(trip.id) : null, active ? null : loadBookingSummaries(trip.id), loadPreparation(trip.id), loadBudget(trip.id), loadMemoryCover(trip.id),
+  const [plan, dailyBookings, bookingSummaries, preparation, cover, owner] = await Promise.all([
+    loadTripPlan(trip.id), active ? loadBookings(trip.id) : null, active ? null : loadBookingSummaries(trip.id), loadPreparation(trip.id), loadMemoryCover(trip.id),
     requireUser(),
   ]);
   const readiness = preparation && preparationProgress(preparation);
@@ -104,8 +102,8 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
     </article>
     {active && <nav className="trip-home-actions" aria-label="여행 중 바로가기">
       <Link className="quiet-link" href={mapHref(trip.id, { date: today, filter: "date" })}><MapPin size={17} aria-hidden />오늘 장소</Link>
-      <Link className="quiet-link" href={href + "/budget" + (budget?.budget ? "#new-expense" : "")}><Wallet size={17} aria-hidden />지출 기록</Link>
       <Link className="quiet-link" href={href + "/memory?date=" + today + "&write=1#write-memory"}><PencilLine size={17} aria-hidden />오늘 여행 기록하기</Link>
+      <Link className="quiet-link" href={href + "/memory?date=" + today + "&photo=1#add-photo"}><Camera size={17} aria-hidden />사진 추가</Link>
       <Link className="quiet-link" href={href + "/offline"}><Download size={17} aria-hidden />오프라인 수첩</Link>
     </nav>}
     {status === "upcoming" && <div className="trip-home-spread">
@@ -125,7 +123,6 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
       <h2 id="home-memory-title">여행의 기억</h2>
       <p>사진과 일기, 다녀온 장소를 날짜별로 모아 보세요.</p>
       <Link className="quiet-link" href={href + "/memory"}>여행 기억 열기</Link>
-      <Link className="quiet-link" href={href + "/budget"}>경비와 정산</Link>
       <Link className="quiet-link" href={href + "/guide"}>여행 가이드 내보내기</Link>
     </section>}
     {status !== "past" && !active && plan && !plan.schedule.length && <section className="editorial-paper editorial-preview" aria-labelledby="home-first-steps">
@@ -177,17 +174,6 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
       <p>{readiness.total}개 중 {readiness.done}개 완료 · {readiness.percent}%</p>
       <Link className="quiet-link" href={href + "/preparation"}>준비 목록 열기</Link>
     </section>}
-    <section className="editorial-paper editorial-preview">
-      <h2>예산과 경비</h2>
-      {budget?.budget && <p>{status === "upcoming"
-        ? "사전 결제 " + wonLabel(expenseTotals(budget.expenses).prepaid)
-        : "총지출 " + wonLabel(expenseTotals(budget.expenses).total)}</p>}
-      {budget && !expenseTotals(budget.expenses).complete && <p>일부 환산 · 환율 미확정 {expenseTotals(budget.expenses).pendingJpy.toLocaleString("ko-KR")}엔 제외</p>}
-      <Link className="quiet-link" href={href + "/budget" + (active && budget?.budget ? "#new-expense" : "")}>
-        {active && budget?.budget ? "빠른 지출 등록" : status === "past" ? "지출과 정산 보기" : "예산 열기"}
-      </Link>
-      {!active && status !== "past" && <Link className="quiet-link" href={href + "/guide"}>여행 가이드 내보내기</Link>}
-    </section>
     <div className="editorial-overview-bottom">
       <section className="editorial-paper editorial-preview" aria-labelledby="trip-preview-heading">
         <Blossom className="editorial-sprig" />

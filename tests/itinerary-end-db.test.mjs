@@ -3,18 +3,29 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { asUser, createTripsDatabase, ownerA, ownerB } from "./support/trips-db.mjs";
 
-const legacyTrip = randomUUID(), legacyItem = randomUUID();
+const legacyTrip = randomUUID(), legacyItem = randomUUID(), legacyPlace = randomUUID(), legacyBooking = randomUUID();
 const db = await createTripsDatabase({ beforeMigration: async (database, file) => {
-  if (file !== "20261125090002_preserve_settlement_participants.sql") return;
+  if (file !== "20261126000750_itinerary_end_time.sql") return;
   await asUser(database,ownerA,async tx => {
     await tx.query("insert into public.trips(id,title,destination_label) values ($1,'Legacy fixture','Tokyo')",[legacyTrip]);
-    await tx.query("insert into public.itinerary_items(id,trip_id,title,local_date,time_mode,fixed_local_time) values ($1,$2,'Legacy walk','2027-02-17','FIXED','09:00')",[legacyItem,legacyTrip]);
+    await tx.query("insert into public.trip_places(id,trip_id,display_name) values ($1,$2,'Legacy park')", [legacyPlace, legacyTrip]);
+    await tx.query("select public.save_booking($1,$2,null,$3)", [legacyTrip, legacyBooking, {
+      kind: "STAY", title: "Legacy stay", status: "CONFIRMED", detail: { check_in_local_date: "2027-02-17" },
+      private: { amount: 11000, currency: "JPY" },
+    }]);
+    await tx.query("insert into public.itinerary_items(id,trip_id,title,local_date,time_mode,fixed_local_time,place_id,booking_id) values ($1,$2,'Legacy walk','2027-02-17','FIXED','09:00',$3,$4)", [legacyItem,legacyTrip,legacyPlace,legacyBooking]);
+    await tx.query("select public.save_trip_budget($1,500000,91234,array['A','B'])", [legacyTrip]);
+    await tx.query("insert into public.trip_expenses(id,trip_id,title,amount,refund,currency,rate,spent_on,category,payer,shares,prepaid,booking_id) values ($1,$2,'Legacy expense',11000,100,'JPY',91234,'2027-02-17','stay',1,array[1,2],true,$3)", [randomUUID(),legacyTrip,legacyBooking]);
   });
 }});
 test.after(() => db.close());
 test("v1.0 data survives incremental migrations without an invented end time", async () => {
-  const {rows} = await asUser(db,ownerA,tx => tx.query("select title,fixed_local_time::text,end_local_time::text from public.itinerary_items where id=$1",[legacyItem]));
-  assert.deepEqual(rows,[{title:"Legacy walk",fixed_local_time:"09:00:00",end_local_time:null}]);
+  await asUser(db, ownerA, async tx => {
+    const { rows } = await tx.query("select i.title,i.fixed_local_time::text,i.end_local_time::text,p.display_name,b.amount::float8,b.currency from public.itinerary_items i join public.trip_places p on p.id=i.place_id join public.booking_private_details b on b.booking_id=i.booking_id where i.id=$1", [legacyItem]);
+    assert.deepEqual(rows, [{title:"Legacy walk",fixed_local_time:"09:00:00",end_local_time:null,display_name:"Legacy park",amount:11000,currency:"JPY"}]);
+    const ledger = await tx.query("select e.amount,e.refund,e.rate,e.payer,e.shares,e.booking_id,b.budget_krw,b.people from public.trip_expenses e join public.trip_budgets b using(trip_id) where trip_id=$1", [legacyTrip]);
+    assert.deepEqual(ledger.rows, [{amount:11000,refund:100,rate:91234,payer:1,shares:[1,2],booking_id:legacyBooking,budget_krw:500000,people:["A","B"]}]);
+  });
 });
 test("end time survives legacy writes, move, archive and restore with owner isolation", async () => {
   const trip = randomUUID(), item = randomUUID();

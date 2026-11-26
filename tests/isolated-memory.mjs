@@ -7,7 +7,6 @@ import { createClient } from "@supabase/supabase-js";
 import sharp from "sharp";
 import { verifyReleaseMobile } from "./release-mobile.mjs";
 import { verifyM13Visual } from "./m13-visual.mjs";
-import { verifyOptionalBudget } from "./optional-budget-browser.mjs";
 
 const fixture = JSON.parse(process.env.KIOKU_LOCAL_SUPABASE || "{}");
 const hosted = new URL(fixture.API_URL);
@@ -107,6 +106,9 @@ async function verifyIsolatedMemoryScenario() {
   for (const booking of bookings) {
     must(await owner.client.rpc("save_booking", { p_trip: tripId, p_id: randomUUID(), p_version: null, p_fields: booking }), "sample bookings");
   }
+  must(await owner.client.rpc("save_trip_budget", {p_trip:tripId,p_amount:500000,p_rate:91234,p_people:["가","나","다"]}), "legacy ledger fixture");
+  must(await owner.client.from("trip_expenses").insert({id:randomUUID(),trip_id:tripId,title:"가상 이전 원장",amount:11000,
+    currency:"JPY",rate:91234,spent_on:"2027-02-17",category:"stay",payer:1,shares:[1,2,3],prepaid:true}), "legacy expense fixture");
   const path = "/trips/" + tripId;
   const date = "2027-02-20";
   if (process.env.KIOKU_RELEASE_MOBILE === "1" || process.env.KIOKU_RELEASE_MOBILE === "android") {
@@ -121,32 +123,35 @@ async function verifyMemory({ owner, visitor, path, tripId, date }) {
   const context = await browser.newContext({ baseURL: app, viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
   await enter(page, owner.email);
-  await verifyOptionalBudget({page,app,owner,must});
-  if (process.env.KIOKU_OPTIONAL_BUDGET_ONLY === "1") {
-    console.log("Isolated Supabase + Chrome passed: optional budget, pending JPY, deferred FX and settlement preservation.");
-    return;
+  const scopeScreens = process.env.KIOKU_SCOPE_SCREENSHOTS;
+  const capture = async (name) => {
+    if (scopeScreens) await page.screenshot({path: `${scopeScreens}/${name}.png`, fullPage: true, animations: "disabled"});
+  };
+  const checkWidth = async () => assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  await page.goto(path + "/budget");
+  await expect(page).toHaveURL(app + path);
+  for (const width of [360, 390, 1440]) {
+    await page.setViewportSize({width,height:844});
+    for (const [name,suffix] of [["home",""],["more","/more"],["bookings","/bookings"],["settings","/edit"],["offline","/offline"]]) {
+      await page.goto(path + suffix);
+      await expect(page.getByRole("main")).not.toContainText(/예산|경비|정산/);
+      await checkWidth();
+      await capture(`${width}-${name}`);
+    }
   }
+  await page.setViewportSize({width:390,height:844});
+  const booking = must(await owner.client.from("bookings").select("id").eq("trip_id",tripId).eq("kind","STAY").single(), "fixture stay");
+  await page.goto(`${path}/bookings?mode=view&id=${booking.id}`);
+  await page.getByText("비공개 정보", {exact:true}).click();
+  await expect(page.getByText("11,000 JPY", {exact:true})).toBeVisible();
+  // The private value is present in the owner-scoped table and excluded from portable output.
+  const price = must(await owner.client.from("booking_private_details").select("amount,currency").eq("booking_id",booking.id).single(), "owner booking price");
+  assert.deepEqual(price,{amount:11000,currency:"JPY"});
   await page.goto(path + "/preparation");
   await page.getByText("여행 준비 템플릿", { exact: true }).click();
   await page.getByRole("button", { name: "겨울 여행 템플릿" }).click();
   await page.getByRole("button", { name: "방한복 완료", exact: true }).click();
-  await page.goto(path + "/budget");
-  await page.getByText("예산과 정산 인원 설정",{exact:true}).click();
-  await page.getByLabel("총예산 (원)").fill("500000");
-  await page.getByLabel("기본 환율 (1엔당 원)").fill("9.1234");
-  await page.getByLabel("동행자 이름 (한 줄에 한 명)").fill("가\n나\n다");
-  await page.getByRole("button", { name: "예산 저장" }).click();
-  await expect(page.getByText("예산과 정산 인원 편집",{exact:true})).toBeVisible();
-  const expense = page.locator("#new-expense");
-  await expense.getByText("지출 상세 설정", { exact: true }).click();
-  await expense.getByLabel("지출명").fill("가상 사전 결제 내역");
-  await expense.getByLabel("결제 시점").selectOption("prepaid");
-  await expense.getByLabel("연결 예약").selectOption({ label: "가상 Sapporo Hotel by Granbell · 예약 완료" });
-  await expense.getByLabel("선택한 예약의 금액과 통화로 기록").check();
-  await expense.getByLabel("결제자").selectOption("1");
-  for (const alias of ["가", "나", "다"]) await expense.getByRole("checkbox", { name: alias, exact: true }).check();
-  await expense.getByRole("button", { name: "지출 등록" }).click();
-  await expect(page.getByText("나 → 가 · 33,452원")).toBeVisible();
+  await capture("390-preparation");
   await page.goto(path + "/memory?date=" + date + "&write=1");
   await page.getByLabel("일기 제목").fill("시험용 겨울 일기");
   await page.getByLabel("일기 본문").fill("오프라인과 가이드에서 숨길 가상 내용");
@@ -239,11 +244,21 @@ async function verifyMemory({ owner, visitor, path, tripId, date }) {
   await page.goto(path + "/offline");
   await page.getByRole("button", { name: "오프라인 수첩 저장" }).click();
   await expect(page.getByText("이 기기에 수첩을 저장했어요.")).toBeVisible();
+  await page.evaluate(async (id) => {
+    const store = await import("/offline-store.js");
+    const {entries} = await store.readOffline();
+    const entry = entries.find(row => row.tripId === id);
+    for (const item of entry.snapshot.schedule) delete item.end_local_time;
+    entry.snapshot.budget = {title:"가상 이전 원장"};
+    await store.saveOffline(entry);
+  }, tripId);
   await context.setOffline(true);
   await page.goto("/offline.html?trip=" + tripId);
   await expect(page.getByText(/오타루 운하/)).toBeVisible();
   await expect(page.getByText(/가상 운하 위치/).first()).toBeVisible();
+  await capture("390-saved-offline");
   await expect(page.getByText(privateMemo)).toHaveCount(0);
+  await expect(page.getByText("가상 이전 원장")).toHaveCount(0);
   await context.setOffline(false);
   await page.goto(path + "/guide");
   await expect(page.getByText(/가상 Sapporo Hotel by Granbell/)).toBeVisible();
@@ -284,6 +299,9 @@ async function verifyMemory({ owner, visitor, path, tripId, date }) {
   assert.equal(savedBatch.length,2);
   assert.ok(savedBatch.every(photo => photo.phase === "ready"));
   await page.screenshot({path:"test-results/kq04-mobile.png",fullPage:true});
+  await capture("390-memory");
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth));
-  console.log("Isolated Supabase + Chrome passed: five days, prep, bookings, settlement, offline, A4 PDF and private memory photo.");
+  const legacy = must(await owner.client.from("trip_expenses").select("amount,rate").eq("trip_id",tripId).single(), "untouched legacy expense");
+  assert.deepEqual(legacy,{amount:11000,rate:91234});
+  console.log("Isolated Supabase + Chrome passed: five days, prep, bookings, offline, A4 PDF and private memory photo.");
 }

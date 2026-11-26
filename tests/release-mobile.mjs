@@ -20,7 +20,7 @@ async function verifyViewportRoutes({ app, path, signIn }) {
     for (const width of [360, 390, 430, 768, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       for (const route of ["", "/itinerary?date=2027-02-19", "/map", "/bookings", "/more",
-        "/preparation", "/budget", "/share", "/memory?date=2027-02-19", "/offline", "/guide"]) {
+        "/preparation", "/share", "/memory?date=2027-02-19", "/offline", "/guide"]) {
         const response = await page.goto(app + path + route);
         assert.equal(response?.status(), 200, `${width}px ${route}`);
         assert.equal(new URL(page.url()).pathname, new URL(app + path + route).pathname, `${width}px ${route} stays signed in`);
