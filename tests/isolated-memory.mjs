@@ -48,9 +48,10 @@ const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start
   env: { ...process.env, APP_URL: app, SUPABASE_URL: hosted.origin, SUPABASE_PUBLISHABLE_KEY: fixture.PUBLISHABLE_KEY,
     SUPABASE_STORAGE_SECRET_KEY: fixture.SECRET_KEY, GEOAPIFY_API_KEY: "",
     KIOKU_SHARE_ENCRYPTION_KEY: randomBytes(32).toString("base64url") },
-  stdio: "ignore",
+  stdio: ["ignore", "ignore", "pipe"],
   windowsHide: true,
 });
+child.stderr.on("data", chunk => process.stderr.write(chunk));
 const stopped = once(child, "exit");
 let browser;
 try {
@@ -207,6 +208,25 @@ async function verifyMemory({ owner, visitor, path, tripId, date }) {
   await page.goto(path + "/edit");
   await expect(page.getByRole("region", { name: "여행 표지" }).getByRole("img", { name: "가상 사진 한 장" })).toBeVisible();
   await page.getByRole("button", { name: "기본 표지로 되돌리기" }).click();
+  await expect(page.getByText("기본 표지를 사용 중이에요.")).toBeVisible();
+  await page.getByLabel("表紙 · 여행 표지 선택").selectOption("theme:sea");
+  await expect(page.locator(".cover-editor-preview [data-theme=sea]")).toBeVisible();
+  await page.getByRole("button",{name:"표지 저장",exact:true}).click();
+  await expect(page.getByRole("status")).toContainText("표지를 저장했어요.");
+  await page.screenshot({path:"test-results/kq08-cover-editor.png",fullPage:true});
+  await page.goto(path);
+  await expect(page.locator(".editorial-cover [data-theme=sea]")).toBeVisible();
+  await page.goto("/trips");
+  await expect(page.locator(".trip-card").filter({hasText:"가상 삿포로 기억 수첩"}).locator("[data-theme=sea]")).toBeVisible();
+  await page.goto(path + "/edit");
+  const photoOption = await page.getByLabel("表紙 · 여행 표지 선택").locator("optgroup[label='여행 사진'] option").first().getAttribute("value");
+  await page.getByLabel("表紙 · 여행 표지 선택").selectOption(photoOption);
+  await page.getByRole("button",{name:"표지 저장",exact:true}).click();
+  await expect(page.getByRole("status")).toContainText("표지를 저장했어요.");
+  await page.goto(path);
+  await expect(page.getByRole("img",{name:"가상 사진 한 장"})).toBeVisible();
+  await page.goto(path + "/edit");
+  await page.getByRole("button",{name:"기본 표지로 되돌리기"}).click();
   await expect(page.getByText("기본 표지를 사용 중이에요.")).toBeVisible();
   await page.goto(path + "/offline");
   await page.getByRole("button", { name: "오프라인 수첩 저장" }).click();

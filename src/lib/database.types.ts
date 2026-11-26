@@ -14,6 +14,7 @@ export type TripRow = TripFields & {
   country_code: "JP";
   timezone: "Asia/Tokyo";
   cover_photo_id: string | null;
+  cover_theme: import("./trip-cover").CoverTheme;
   content_version: number;
   created_at: string;
   updated_at: string;
@@ -179,6 +180,7 @@ export type Database = {
     };
     Views: Record<never, never>;
     Functions: {
+      set_trip_cover: { Args: { p_trip: string; p_version: number; p_theme: string; p_photo: string | null }; Returns: boolean };
       read_shared_trip: { Args: { p_proof: string }; Returns: SharedTrip | null };
       apply_preparation_template: { Args: { p_trip: string; p_items: { title: string; category: string; source: string }[] }; Returns: undefined };
       move_preparation: { Args: { p_trip: string; p_id: string; p_direction: number }; Returns: undefined };

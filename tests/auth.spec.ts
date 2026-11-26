@@ -148,7 +148,7 @@ test.beforeAll(async () => {
             return send(400, { message: "fixture data unavailable" });
           }
           const result = await asUser(database, userId, (tx) => tx.query(
-            `select id, title, destination_label, start_date::text, end_date::text, traveler_count, content_version, created_at
+            `select id, title, destination_label, start_date::text, end_date::text, traveler_count, content_version, cover_theme, created_at
              from public.trips ${where} order by created_at desc, id`, filters,
           ));
           return send(200, result.rows);

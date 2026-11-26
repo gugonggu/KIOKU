@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { createAuthClient, requireUser } from "./auth";
 
-const tripColumns = "id,title,destination_label,start_date,end_date,traveler_count,content_version";
+const tripColumns = "id,title,destination_label,start_date,end_date,traveler_count,content_version,cover_theme";
 
 export function isTripId(value: string) {
   return /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value);

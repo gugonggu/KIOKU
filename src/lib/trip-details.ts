@@ -1,6 +1,6 @@
 import type { TripFields, TripRow } from "./database.types";
 
-export type Trip = TripFields & Pick<TripRow, "id" | "content_version">;
+export type Trip = TripFields & Pick<TripRow, "id" | "content_version"> & Partial<Pick<TripRow,"cover_theme">>;
 export type TripFormValues = Record<keyof TripFields, string>;
 export type TripFieldErrors = Partial<Record<keyof TripFields, string>>;
 

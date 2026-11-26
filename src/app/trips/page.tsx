@@ -1,7 +1,7 @@
 import { ArrowUpRight, Ellipsis, Plus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { Cover } from "@/components/cover";
+import { Cover, DefaultTripCover } from "@/components/cover";
 import { OfflineLibraryCleanup } from "@/components/offline-controls";
 import { requireUser } from "@/lib/auth";
 import { japanDate, tripStatus, tripStatuses, type Trip } from "@/lib/trip-details";
@@ -20,7 +20,7 @@ function TripCard({ trip, cover }: { trip: Trip; cover?: { id: string; title: st
       <Link className="trip-card-link" href={href} aria-labelledby={`trip-title-${trip.id}`}>
         {cover ? <div className="cover cover-compact trip-card-photo"><Image unoptimized fill
           src={memoryPhotoHref(trip.id, cover.id)} alt={cover.title} sizes="(max-width: 600px) 100vw, 340px" /></div>
-          : <Cover compact label="산과 해가 그려진 기본 여행 표지" />}
+          : <DefaultTripCover compact theme={trip.cover_theme} destination={trip.destination_label} />}
         <div className="trip-card-body">
           <h3 id={`trip-title-${trip.id}`}>{trip.title}</h3>
           <TripSummary trip={trip} />

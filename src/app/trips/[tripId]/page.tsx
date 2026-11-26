@@ -2,7 +2,7 @@ import { ArrowLeft, CalendarDays, ChevronRight, Download, MapPin, PencilLine, Pl
 import Link from "next/link";
 import Image from "next/image";
 import { Blossom } from "@/components/brand";
-import { Cover } from "@/components/cover";
+import { DefaultTripCover } from "@/components/cover";
 import { OfflineHomeStatus } from "@/components/offline-controls";
 import { requireUser } from "@/lib/auth";
 import { loadBookings, loadBookingSummaries } from "@/lib/trip-booking-data";
@@ -54,7 +54,6 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
   const todayBookings = dailyBookings?.filter((booking) => bookingOccursOn(booking, today, linkedBookings.has(booking.id)));
   const refreshAt = active || status === "upcoming" ? nextHomeRefresh(today, nextItem?.fixed_local_time) : null;
   const candidateCount = plan?.schedule.filter((item) => !item.local_date).length;
-  const winterCover = /삿포로|홋카이도|札幌|北海道|sapporo|hokkaido/i.test(trip.destination_label);
 
   const reservationSummary = <section className="editorial-paper booking-home" aria-labelledby="booking-home-heading">
       <div className="editorial-section-heading">
@@ -86,10 +85,10 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
       </div>
     </div>
     <article className="editorial-hero">
-      <div role="img" aria-label={cover?.title ?? (winterCover ? "겨울 거리의 기본 여행 표지" : "산 풍경의 기본 여행 표지")}
-        className={`editorial-cover${winterCover ? "" : " editorial-cover-neutral"}`}>
+      <div role="img" aria-label={cover?.title ?? "기본 여행 표지"}
+        className="editorial-cover editorial-cover-neutral">
         {cover ? <Image unoptimized fill className="memory-hero-photo" src={memoryPhotoHref(trip.id, cover.id)} alt="" sizes="(max-width: 767px) 100vw, 500px" />
-          : !winterCover && <Cover />}
+          : <DefaultTripCover theme={trip.cover_theme} destination={trip.destination_label} />}
       </div>
       <div className="editorial-hero-content">
         {status === "upcoming" && <p className="editorial-kicker">출발까지 D-{offset}</p>}
