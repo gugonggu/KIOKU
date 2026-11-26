@@ -1,14 +1,18 @@
 # KIOKU 모바일 릴리스 검증
 
+## v1.1.0 운영 브라우저 스모크 · 2026-11-26
+
+운영 가상 여행으로 가로 넘침이 없는 390px 더보기와 경비 메뉴 제거, 예약 가격, 사진 두 장 미리보기·업로드, 표지, Chromium PDF 출력, 저장된 오프라인 수첩을 확인했습니다. 이전 셸을 쓰는 브라우저에서 ‘새 앱 버전 적용’ 후 저장본이 유지되고 종료 시각과 소요 시간이 표시됐습니다. Google 로그인은 제공자 화면까지 확인했고 이후 기능 검증에는 기존 인증 세션을 사용했습니다. 실제 iPhone Safari와 Android Chrome의 카메라, 홈 화면 설치 후 재실행, 비행기 모드 및 PDF 저장 검증이 남아 있습니다.
+
 2026-11-26 후속 기능은 격리 Supabase+Chrome 390px에서 사진 다중 선택/미리보기/제거/순차 업로드/응답 유실 재시도, 표지 테마/앨범 선택/복원을 확인했습니다. 종료 시각은 360px 가져오기·복사 및 PDF/오프라인 데이터에서 확인했습니다. 실제 iPhone Safari·Android 카메라·설치 앱·모바일 메모리/PDF 저장 검증을 대체하지 않습니다. 종료 시각은 같은 날만 지원하며 기존 오프라인 사본은 최신 앱에서 다시 저장합니다.
 
 M13의 360·390·430·768·1440px 브라우저 비교와 재실행 방법은 [UI/UX 개선 기록](UX_IMPROVEMENTS.md)에 있습니다. 아래 실기기 체크리스트는 M13에서도 적용됩니다.
 
-모든 쓰기 검증은 가상 여행, 생성한 테스트 계정과 격리 Supabase를 이용합니다. Android 자동화는 선택 실행이며 일반 GitHub Actions에는 포함하지 않습니다.
+일반 개발 쓰기 검증은 가상 여행, 테스트 계정과 격리 Supabase를 이용합니다. 승인된 운영 스모크에서는 구분한 가상 여행으로 검증하고 생성한 데이터를 정리합니다. Android 자동화는 선택 실행이며 일반 GitHub Actions에는 포함하지 않습니다.
 
 ## Windows에서 재실행
 
-1. Node.js 24로 `npm ci`, `npm run build`를 실행합니다. 임시 로컬 Supabase 프로젝트에 [마이그레이션 9건](supabase/README.md)을 적용합니다. 상태 JSON은 값을 출력하지 않고 `KIOKU_LOCAL_SUPABASE`에 전달합니다. `KIOKU_RELEASE_MOBILE=1`을 설정하고 `node tests/isolated-memory.mjs`를 실행하면 360·390·430·768·1440px에서 11개 보호 경로를 검사합니다. Windows에 설치된 Chrome을 쓰려면 `PLAYWRIGHT_CHANNEL=chrome`을 지정합니다.
+1. Node.js 24로 `npm ci`, `npm run build`를 실행합니다. 임시 로컬 Supabase 프로젝트에 [현재 마이그레이션](supabase/README.md)을 적용합니다. 상태 JSON은 값을 출력하지 않고 `KIOKU_LOCAL_SUPABASE`에 전달합니다. `KIOKU_RELEASE_MOBILE=1`을 설정하고 `node tests/isolated-memory.mjs`를 실행하면 360·390·430·768·1440px에서 11개 보호 경로를 검사합니다. Windows에 설치된 Chrome을 쓰려면 `PLAYWRIGHT_CHANNEL=chrome`을 지정합니다.
 2. Android는 SDK Emulator의 `Pixel_10_Pro` AVD를 시작하고 `adb devices -l`, `adb shell getprop sys.boot_completed`로 연결과 부팅을 확인합니다. 앱 테스트 포트 기본값은 `5331`입니다. `adb reverse tcp:5331 tcp:5331`을 실행한 뒤 AVD Chrome에서 `http://127.0.0.1:5331`을 엽니다. 루프백을 보안 컨텍스트로 사용합니다.
 3. Chrome의 첫 실행 설정을 마친 후 `adb forward tcp:9225 localabstract:chrome_devtools_remote`를 실행합니다. `http://127.0.0.1:9225/json/version`에 Chrome이 응답하면 `KIOKU_ANDROID_CDP=http://127.0.0.1:9225`를 추가합니다. `KIOKU_RELEASE_MOBILE=android`로 실행하면 데스크톱 검사를 생략합니다. Android OS 회전과 비행기 모드 확인은 전용 AVD의 일련번호를 `KIOKU_ANDROID_EMULATOR`에 지정합니다. 홈 화면 설치, 카메라 및 인쇄 저장은 기기 UI에서 따로 확인합니다.
 4. 종료할 때 이 테스트에서 만든 `adb reverse --remove tcp:5331`과 `adb forward --remove tcp:9225` 연결을 해제하고 임시 Supabase와 AVD를 중지합니다. 테스트 계정과 여행은 임시 DB에만 생성됩니다.
