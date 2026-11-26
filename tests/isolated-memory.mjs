@@ -147,10 +147,11 @@ async function verifyMemory({ owner, visitor, path, tripId, date }) {
   async function upload(title, bytes, name = "fixture.jpg", mimeType = "image/jpeg") {
     await page.locator("#add-photo summary").click();
     await page.getByLabel("사진 파일").setInputFiles({ name, mimeType, buffer: bytes });
+    if (mimeType === "image/heic") return;
     if (title === "가상 사진 한 장") {
       await expect(page.getByRole("img", { name: "선택한 사진 미리보기" })).toBeVisible();
     }
-    await page.getByLabel("사진 제목").fill(title);
+    await page.locator("#add-photo").getByLabel("사진 제목 1", {exact:true}).fill(title);
     await page.getByLabel("연결 일기").selectOption({ label: date + " · 시험용 겨울 일기" });
     await page.getByRole("button", { name: "사진 저장", exact: true }).click();
   }
@@ -173,6 +174,7 @@ async function verifyMemory({ owner, visitor, path, tripId, date }) {
     .withExif({ IFD0: { Artist: "TEST_GPS_REMOVAL" } }).png().toBuffer();
   assert.ok(largePhoto.length > 3_800_000);
   await upload("가상 사진 한 장", largePhoto, "large-fixture.png", "image/png");
+  await expect(page.locator("#add-photo").getByRole("status")).toContainText("1/1장 저장");
   const photo = page.getByRole("img", { name: "가상 사진 한 장", exact: true });
   await expect(photo).toBeVisible();
   const imagePath = await photo.getAttribute("src");
@@ -225,5 +227,35 @@ async function verifyMemory({ owner, visitor, path, tripId, date }) {
   await expect(gallery).toHaveCount(0);
   assert.equal((await page.request.get(imagePath)).status(), 404);
   assert.ok((await admin.storage.from("trip-memory").download(filename)).error);
+  await page.goto(path + "/memory?date=" + date);
+  await page.locator("#add-photo summary").click();
+  const batch = page.locator("#add-photo");
+  const selected = ["batch-a.jpg","batch-b.jpg","batch-c.jpg"].map(name => ({name,mimeType:"image/jpeg",buffer:jpg}));
+  await batch.getByLabel("사진 파일").setInputFiles(selected);
+  await expect(batch.getByRole("listitem")).toHaveCount(3);
+  await batch.getByRole("button",{name:"사진 3 제거",exact:true}).click();
+  await batch.getByLabel("사진 파일").setInputFiles(selected[0]);
+  await expect(batch.getByRole("listitem")).toHaveCount(2);
+  let writes = 0;
+  await page.route("**" + path + "/memory*",async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    writes++;
+    if (writes === 2) {
+      // Commit the second photo, then lose its response. Retry must reuse its ID.
+      await route.fetch();
+      return route.abort("failed");
+    }
+    return route.continue();
+  });
+  await batch.getByRole("button",{name:"사진 저장",exact:true}).click();
+  await expect(batch.getByRole("status")).toContainText("1/2장 저장 · 실패 1장");
+  await batch.getByRole("button",{name:"사진 2 재시도",exact:true}).click();
+  await expect(batch.getByRole("status")).toContainText("2/2장 저장 · 실패 0장");
+  await page.unroute("**" + path + "/memory*");
+  const savedBatch = must(await owner.client.from("trip_memory_photos").select("id,phase").eq("trip_id",tripId),"batch records");
+  assert.equal(savedBatch.length,2);
+  assert.ok(savedBatch.every(photo => photo.phase === "ready"));
+  await page.screenshot({path:"test-results/kq04-mobile.png",fullPage:true});
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth));
   console.log("Isolated Supabase + Chrome passed: five days, prep, bookings, settlement, offline, A4 PDF and private memory photo.");
 }

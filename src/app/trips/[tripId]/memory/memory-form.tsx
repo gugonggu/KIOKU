@@ -6,7 +6,7 @@ import { maxMemoryUpload, memoryPhotoInputError, selectedMemoryPhotos } from "@/
 
 const localPhotoLimit = 16_000_000;
 
-async function shrinkPhoto(file: File) {
+export async function shrinkPhoto(file: File) {
   const image = await createImageBitmap(file);
   try {
     const scale = Math.min(1, 1440 / Math.max(image.width, image.height));

@@ -13,6 +13,8 @@ import { TripLoadError } from "../../trip-load-error";
 import { dayNumber, TripTabs } from "../editorial";
 import { deleteMemoryEntry, deleteMemoryPhoto, organizePhoto, saveMemoryEntry, saveMemoryPhoto, saveVisit, sweepMemoryPhotos } from "./actions";
 import { MemoryForm } from "./memory-form";
+import { PhotoQueueForm } from "./photo-queue-form";
+import { saveQueuedMemoryPhoto } from "./actions";
 
 export const metadata = { title: "여행 기억", robots: { index: false, follow: false } };
 const dateTime = new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Tokyo", dateStyle: "short", timeStyle: "short" });
@@ -38,16 +40,16 @@ function EntryFields({ day, plan, entry }: { day: string; plan: TripPlan; entry?
   </>;
 }
 
-function PhotoFields({ day, plan, entries, photo }: { day: string; plan: TripPlan; entries: MemoryEntry[]; photo?: MemoryPhoto }) {
+function PhotoFields({ day, plan, entries, photo, batch }: { day: string; plan: TripPlan; entries: MemoryEntry[]; photo?: MemoryPhoto; batch?: boolean }) {
   return <>
-    {!photo && <>
+    {!photo && !batch && <>
       <label>사진 파일<input type="file" name="photo" accept="image/jpeg,image/png,image/webp" /></label>
       <label>카메라로 촬영<input type="file" name="camera" accept="image/jpeg" capture="environment" /></label>
       <p className="plan-meta">JPEG·PNG·WebP를 올릴 수 있어요. 위치 등 사진 메타데이터는 저장 전에 제거해요.</p>
       <p className="plan-meta">큰 사진은 이 기기에서 먼저 줄여요. HEIC·HEIF 사진은 JPEG로 내보낸 뒤 첨부해 주세요.</p>
     </>}
     <label>사진 날짜<input type="date" required name="day" defaultValue={photo?.day ?? day} /></label>
-    <label>사진 제목<input required name="title" maxLength={100} defaultValue={photo?.title} /></label>
+    {!batch && <label>사진 제목<input required name="title" maxLength={100} defaultValue={photo?.title} /></label>}
     <label>사진 설명<textarea name="caption" rows={2} maxLength={500} defaultValue={photo?.caption ?? ""} /></label>
     <PlaceChoices plan={plan} value={photo?.place_id} />
     <label>연결 일기<select name="entry" defaultValue={photo?.entry_id ?? ""}>
@@ -115,9 +117,9 @@ export default async function Page({ params, searchParams }: PageProps<"/trips/[
         <summary className="quiet-link">새 사진</summary>
         {canUpload ? <>
           <p>소유자만 볼 수 있어요. 여행당 24장, 계정당 120장까지 보관할 수 있어요.</p>
-          <MemoryForm action={saveMemoryPhoto.bind(null, tripId, randomUUID(), false)} label="사진 저장" photoUpload>
-            <PhotoFields day={day} plan={plan} entries={entries} />
-          </MemoryForm>
+          <PhotoQueueForm action={saveQueuedMemoryPhoto.bind(null, tripId)} remaining={Math.max(0, 24 - memory.photos.length)}>
+            <PhotoFields day={day} plan={plan} entries={entries} batch />
+          </PhotoQueueForm>
         </> : <p className="plan-meta">사진 저장소가 준비되면 여기서 사진을 추가할 수 있어요.</p>}
       </details>
       {hasPending && <MemoryForm action={sweepMemoryPhotos.bind(null, tripId)} label="실패한 업로드와 삭제 정리" />}
