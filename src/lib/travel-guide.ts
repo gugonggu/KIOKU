@@ -9,7 +9,6 @@ export function guideOptions(query: Record<string, string | string[] | undefined
     places: defaults || query.places === "1",
     bookings: defaults || query.bookings === "1",
     preparation: defaults || query.preparation === "1",
-    budget: !defaults && query.budget === "1",
   };
 }
 

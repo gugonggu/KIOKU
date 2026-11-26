@@ -14,6 +14,7 @@ export type TripRow = TripFields & {
   country_code: "JP";
   timezone: "Asia/Tokyo";
   cover_photo_id: string | null;
+  cover_theme: import("./trip-cover").CoverTheme;
   content_version: number;
   created_at: string;
   updated_at: string;
@@ -29,6 +30,7 @@ export type ScheduleFields = {
   time_mode: ScheduleTiming;
   local_date: string | null;
   fixed_local_time: string | null;
+  end_local_time?: string | null;
   period: SchedulePeriod | null;
   place_id: string | null;
   booking_id?: string | null;
@@ -145,18 +147,6 @@ export type Database = {
         Update: Partial<Pick<import("./trip-preparation").PreparationRow, "title" | "category" | "due_date" | "note" | "done">>;
         Relationships: [];
       };
-      trip_budgets: {
-        Row: import("./trip-budget").Budget;
-        Insert: import("./trip-budget").Budget;
-        Update: Partial<Omit<import("./trip-budget").Budget, "trip_id">>;
-        Relationships: [];
-      };
-      trip_expenses: {
-        Row: import("./trip-budget").Expense;
-        Insert: Omit<import("./trip-budget").Expense, "revision">;
-        Update: Partial<import("./trip-budget").ExpenseFields>;
-        Relationships: [];
-      };
       trip_memory_entries: {
         Row: import("./trip-memory").MemoryEntry;
         Insert: Omit<import("./trip-memory").MemoryEntry, "created_at">;
@@ -178,10 +168,10 @@ export type Database = {
     };
     Views: Record<never, never>;
     Functions: {
+      set_trip_cover: { Args: { p_trip: string; p_version: number; p_theme: string; p_photo: string | null }; Returns: boolean };
       read_shared_trip: { Args: { p_proof: string }; Returns: SharedTrip | null };
       apply_preparation_template: { Args: { p_trip: string; p_items: { title: string; category: string; source: string }[] }; Returns: undefined };
       move_preparation: { Args: { p_trip: string; p_id: string; p_direction: number }; Returns: undefined };
-      save_trip_budget: { Args: { p_trip: string; p_amount: number; p_rate: number; p_people: string[] }; Returns: undefined };
       set_trip_visit: { Args: { p_trip: string; p_schedule: string; p_status: import("./trip-memory").VisitStatus }; Returns: undefined };
       organize_memory_photo: { Args: { p_trip: string; p_id: string; p_command: "earlier" | "later" | "cover" }; Returns: boolean };
       import_trip_schedule: { Args: { p_trip: string; p_version: number; p_rows: import("./trip-import").TripImportRow[] }; Returns: { inserted: number; skipped: number } | null };

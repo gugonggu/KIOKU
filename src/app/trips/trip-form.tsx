@@ -32,7 +32,7 @@ export function TripForm({ action, initial, cancelHref, submitLabel }: Props) {
           required={required}
           maxLength={type === "text" ? TRIP_TEXT_LIMIT : undefined}
           min={type === "date" ? "0001-01-01" : type === "number" ? 1 : undefined}
-          max={type === "date" ? "9999-12-31" : type === "number" ? MAX_TRAVELERS : undefined}
+          max={type === "date" ? "9999-12-31" : type === "number" ? Math.max(MAX_TRAVELERS, Number(initial.traveler_count)) : undefined}
           step={type === "number" ? 1 : undefined}
           inputMode={type === "number" ? "numeric" : undefined}
           value={values[name]}

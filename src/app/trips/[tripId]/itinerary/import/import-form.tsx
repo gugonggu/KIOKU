@@ -62,7 +62,7 @@ export function ScheduleImportForm({ action }: { action: (state: ScheduleImportS
       <h2>저장 전 확인</h2>
       <ul className="suite-stack">{preview.map((row, index) => <li className="suite-entry" key={index}>
         <strong>{row.title}</strong>
-        <p className="plan-meta">{row.local_date ?? "후보함"} · {row.fixed_local_time ?? (row.period ? periods[row.period] : "시간 미정")} · {label[row.status]}</p>
+        <p className="plan-meta">{row.local_date ?? "후보함"} · {row.fixed_local_time ?? (row.period ? periods[row.period] : "시간 미정")}{row.end_local_time && "–" + row.end_local_time} · {label[row.status]}</p>
       </li>)}</ul>
       {preview.some(({ status }) => status === "outside") && <p className="plan-meta">여행 기간 밖 날짜를 고친 뒤 다시 미리보기 해 주세요.</p>}
       {canSave && <button className="primary-button" type="submit" name="intent" value="apply" disabled={pending}>확인하고 일정 추가</button>}

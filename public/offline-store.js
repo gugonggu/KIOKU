@@ -80,12 +80,39 @@ export async function saveOffline(entry) {
   notifyChange();
 }
 
-export async function deleteOffline(tripId, owner) {
-  await withLibrary("readwrite", async (store) => {
-    if (await requestResult(store.get("owner")) !== owner) return;
-    store.delete("trip:" + tripId);
+/**
+ * @param {string} tripId
+ * @param {string} owner
+ * @param {string} [expectedSavedAt]
+ */
+export async function deleteOffline(tripId, owner, expectedSavedAt) {
+  const changed = await withLibrary("readwrite", async (store) => {
+    if (await requestResult(store.get("owner")) !== owner || offlineSignoutPending()) return false;
+    const key = "trip:" + tripId;
+    const entry = await requestResult(store.get(key));
+    if (!entry || (expectedSavedAt !== undefined && entry.savedAt !== expectedSavedAt)) return false;
+    store.delete(key);
+    return true;
   });
-  notifyChange();
+  if (changed) notifyChange();
+}
+
+export async function checkOfflineTrip(entry, signal, availabilityOnly = false) {
+  try {
+    const response = await fetch("/api/offline/" + encodeURIComponent(entry.tripId) + (availabilityOnly ? "?status=1" : ""), {
+      cache: "no-store", signal,
+    });
+    if (response.status === 401) return "unverified";
+    if (!response.ok && response.status !== 404) return "unknown";
+    const latest = await response.json();
+    if (latest.owner !== entry.owner) return "unverified";
+    if (latest.tripId !== entry.tripId) return "unknown";
+    if (response.status === 404) return "missing";
+    if (availabilityOnly) return "current";
+    return JSON.stringify(latest.snapshot) === JSON.stringify(entry.snapshot) ? "current" : "stale";
+  } catch {
+    return "unknown";
+  }
 }
 
 export { CHANGE };

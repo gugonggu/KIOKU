@@ -6,7 +6,7 @@ import { useActionState, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { suggestionFields, type PlaceSuggestion } from "@/lib/geoapify";
 import { dateLabel } from "@/lib/trip-details";
-import { periods, planCalendar as calendar, planLimits } from "@/lib/trip-plan";
+import { scheduleDuration, periods, planCalendar as calendar, planLimits } from "@/lib/trip-plan";
 import type { PlanSchedule } from "@/lib/trip-plan-data";
 import type { BookingSummary } from "@/lib/trip-booking-data";
 import { bookingKinds, bookingStatuses } from "@/lib/trip-bookings";
@@ -51,6 +51,7 @@ export function ScheduleEditor({ action, cancel, item, date, places, initialPlac
     title: item?.title ?? initialPlace?.name ?? initialBooking?.title ?? "",
     kind: item?.kind ?? (initialPlace ? "PLACE" : initialBooking ? "BOOKING_REF" : "NOTE"), local_date: item ? item.local_date ?? "" : date ?? "",
     time_mode: item?.time_mode ?? "UNSCHEDULED", fixed_local_time: item?.fixed_local_time?.slice(0, 5) ?? "",
+    end_local_time: item?.end_local_time?.slice(0, 5) ?? "",
     period: item?.period ?? "", place_id: item?.place_id ?? initialPlace?.id ?? "", booking_id: item?.booking_id ?? initialBooking?.id ?? "",
     private_note: item?.private_note ?? "", shared_note: item?.shared_note ?? "",
   });
@@ -125,12 +126,17 @@ export function ScheduleEditor({ action, cancel, item, date, places, initialPlac
         <div className="plan-fields itinerary-details">
           <div className="plan-pair">
             {field("local_date", "일정 날짜", { ...calendar, required: Boolean(item?.local_date || values.time_mode !== "UNSCHEDULED") })}
-            <label className="form-field"><span>시간 방식</span><select className="plan-input" name="time_mode" value={values.time_mode}
+            <label className="form-field"><span>일정 시간</span><select className="plan-input" name="time_mode" value={values.time_mode}
               onChange={(event) => set("time_mode", event.target.value)}>
               <option value="UNSCHEDULED">시간 미정</option><option value="FIXED">정확한 시각</option><option value="PERIOD">오전·오후·저녁</option>
             </select></label>
           </div>
-          {values.time_mode === "FIXED" && field("fixed_local_time", "일본 현지 시각", { type: "time", required: true })}
+          {values.time_mode === "FIXED" ? <>
+            <div className="plan-pair">{field("fixed_local_time", "일본 현지 시각", { type: "time", required: true })}
+              {field("end_local_time", "종료 시각 (선택)", { type: "time" })}</div>
+            <p className="plan-meta" role="status">{scheduleDuration(values.fixed_local_time, values.end_local_time)
+              ? "소요 시간 · " + scheduleDuration(values.fixed_local_time, values.end_local_time) + "분" : "종료 시각은 같은 날의 시작 시각보다 늦게 입력해 주세요."}</p>
+          </> : <input type="hidden" name="end_local_time" value="" />}
           {values.time_mode === "PERIOD" && <div className="form-field"><label htmlFor="itinerary-period">시간대</label><select id="itinerary-period" required className="plan-input" name="period"
             value={values.period} onChange={(event) => set("period", event.target.value)}>
             <option value="">시간대 선택</option>
@@ -139,7 +145,7 @@ export function ScheduleEditor({ action, cancel, item, date, places, initialPlac
           <label className="form-field"><span>일정 유형</span><select className="plan-input" name="kind" value={values.kind}
             onChange={(event) => set("kind", event.target.value)}>
             <option value="NOTE">메모</option><option value="PLACE">장소 방문</option><option value="MOVE">이동</option>
-            {values.booking_id && <option value="BOOKING_REF">예약 참조</option>}
+            {values.booking_id && <option value="BOOKING_REF">예약과 연결</option>}
           </select></label>
           {places.length > 0 && <label className="form-field"><span>연결할 장소</span><select className="plan-input" name="place_id" value={values.place_id}
               onChange={(event) => { setExternal(undefined); set("place_id", event.target.value); }}>

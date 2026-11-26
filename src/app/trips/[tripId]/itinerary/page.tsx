@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { dateLabel, isCalendarDate, japanDate, type Trip } from "@/lib/trip-details";
 import { outsideTrip, planCalendar as calendar, planDay, shiftDay, sortSchedule } from "@/lib/trip-plan";
 import { loadTripPlan, type PlanSchedule } from "@/lib/trip-plan-data";
+import { loadTripVisits } from "@/lib/trip-memory-data";
 import { getTrip } from "@/lib/trips";
 import { notFound } from "next/navigation";
 import { randomUUID } from "node:crypto";
@@ -53,7 +54,10 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
   const [{ tripId }, query] = await Promise.all([params, searchParams]);
   const { data: trip, error } = await getTrip(tripId);
   if (error || !trip) return <TripLoadError />;
-  const [plan, bookingRows] = await Promise.all([loadTripPlan(trip.id), loadBookingSummaries(trip.id)]);
+  const [plan, bookingRows, visitRows] = await Promise.all([
+    loadTripPlan(trip.id), loadBookingSummaries(trip.id), query.view === "candidates" ? null : loadTripVisits(trip.id),
+  ]);
+  const visitStatusesById = visitRows && Object.fromEntries(visitRows.map(({ schedule_id, status }) => [schedule_id, status]));
   const bookings = bookingRows ?? [];
   const today = japanDate();
   const date = planDay(trip, typeof query.date === "string" ? query.date : undefined, today);
@@ -96,7 +100,7 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
     const initialDate = initialPlace && typeof query.date === "string" && isCalendarDate(query.date) ? query.date : date;
     const target = candidates ? null : initialDate;
     const draft = copy && item ? { ...item, local_date: target, private_note: null, shared_note: null,
-      ...(target === null && { time_mode: "UNSCHEDULED" as const, fixed_local_time: null, period: null }) } : undefined;
+      ...(target === null && { time_mode: "UNSCHEDULED" as const, fixed_local_time: null, end_local_time: null, period: null }) } : undefined;
     const editorKey = entry?.id ?? draft?.id ?? (typeof query.next === "string" ? query.next : back);
     return <ScheduleEditor key={editorKey} action={saveItinerary.bind(null, trip.id, entry?.id ?? randomUUID(), entry?.revision ?? null, date)}
       cancel={back} item={entry ?? draft} date={target} initialPlace={initialPlace} places={plan.places}
@@ -181,7 +185,7 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
           </div>
           {candidates ? undated.length ? <ScheduleList key={back} items={undated} tripId={trip.id} date={date} places={plan.places} bookings={bookings} candidate /> :
             <p className="plan-empty">날짜를 아직 정하지 않은 일정이 없어요.</p>
-            : date ? onDay.length ? <ScheduleList key={back} items={onDay} tripId={trip.id} date={date} places={plan.places} bookings={bookings} /> :
+            : date ? onDay.length ? <ScheduleList key={back} items={onDay} tripId={trip.id} date={date} places={plan.places} bookings={bookings} visits={visitStatusesById} /> :
               <p className="plan-empty">이 날짜에 등록된 일정이 없어요.</p>
               : <p className="plan-empty">여행 기간을 정하면 날짜별로 일정을 볼 수 있어요. <Link href={`${homeHref}/edit#trip-dates`} className="quiet-link">여행 날짜 정하기</Link></p>}
           <Link href={add} scroll={false} className="editorial-add" data-itinerary-add>
@@ -192,7 +196,7 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
         {!candidates && otherDates.size > 0 && <section className="plan-section" aria-labelledby="outside-title">
           <h2 id="outside-title">{date ? "여행 기간 밖 일정" : "날짜가 정해진 일정"}</h2>
           {[...otherDates].sort(([first], [second]) => first.localeCompare(second)).map(([day, rows]) => (
-            <ScheduleList key={day} items={rows} tripId={trip.id} date={date} places={plan.places} bookings={bookings} showDates />
+            <ScheduleList key={day} items={rows} tripId={trip.id} date={date} places={plan.places} bookings={bookings} visits={visitStatusesById} showDates />
           ))}
         </section>}
       </div>

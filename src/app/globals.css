@@ -90,6 +90,18 @@ main:focus { outline: none; }
 }
 
 .cover-ridge { position: absolute; inset: 0; }
+.cover[data-theme="sea"] { background: linear-gradient(155deg,#e9f4ee,#a8d1d4); }
+.cover[data-theme="sea"] .ridge-distant { background: #85b9c3; }
+.cover[data-theme="sea"] .ridge-middle { background: #498a9a; }
+.cover[data-theme="sea"] .ridge-near { background: #285e70; }
+.cover[data-theme="dusk"] { background: linear-gradient(155deg,#f4d8c0,#d7958c); }
+.cover[data-theme="dusk"] .ridge-distant { background: #bc8e9b; }
+.cover[data-theme="dusk"] .ridge-middle { background: #986d83; }
+.cover[data-theme="dusk"] .ridge-near { background: #674b6a; }
+.cover[data-theme="winter"] { background: url('/kioku-winter-cover.webp') 65% 49% / cover no-repeat #e6e4df; }
+.cover[data-theme="winter"] > div { display: none; }
+.cover-editor-preview { width: 100%; max-width: 480px; }
+.cover-editor-preview > .memory-image { width: 100%; aspect-ratio: 2.15; object-fit: cover; }
 .ridge-distant {
   background: linear-gradient(165deg, var(--color-sage), #74867a);
   clip-path: polygon(0 75%, 12% 62%, 17% 57%, 22% 59%, 31% 46%, 40% 35%, 46% 38%, 55% 53%, 62% 59%, 66% 61%, 74% 57%, 82% 60%, 100% 74%, 100% 100%, 0 100%);
@@ -262,7 +274,9 @@ h2 { font-weight: 700; line-height: 1.35; letter-spacing: -.035em; }
   font-size: .82rem;
   font-weight: 700;
 }
-.trips-content > .danger-link { margin-top: 10px; color: #813f36; }
+.trip-management { margin-top: 2rem; padding-block: 1rem; border-block-start: 1px solid var(--ed-line); }
+.trip-management h2 { font-size: 1.05rem; }
+.trip-management .danger-link, .trips-content > .danger-link { margin-top: 10px; color: #813f36; }
 
 .trip-form, .delete-trip {
   display: grid;
@@ -398,11 +412,8 @@ h2 { font-weight: 700; line-height: 1.35; letter-spacing: -.035em; }
   .trips-content { padding-block-start: 42px; }
 }
 
-.budget-grid { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); }
-.budget-totals dt { color: var(--color-muted-ink); }
-.budget-totals dd { font-weight: 600; }
-.budget-shares { display: flex; gap: .5rem 1rem; flex-wrap: wrap; min-width: 0; }
-.suite-page .budget-shares label, .suite-page .budget-check { display: flex; flex-direction: row; align-items: center; gap: .5rem; min-height: 44px; }
-.suite-page .budget-shares input, .suite-page .budget-check input { min-height: 0; width: 1.15rem; height: 1.15rem; }
-.suite-expense { padding-block: .5rem; border-top: 1px solid var(--color-line); }
-.suite-expense form { margin-block: 1rem; }
+.guide-options { display: flex; gap: .5rem 1rem; flex-wrap: wrap; min-width: 0; }
+.suite-page .guide-options label { display: flex; flex-direction: row; align-items: center; gap: .5rem; min-height: 44px; }
+.suite-page .guide-options input { min-height: 0; width: 1.15rem; height: 1.15rem; }
+
+.trip-card-photo img { object-fit: cover; }

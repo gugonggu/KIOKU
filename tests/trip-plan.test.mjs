@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { nextFixedSchedule, nextHomeRefresh, parseSchedule, sortSchedule, outsideTrip, planDay, shiftDay, tripHomeDay } from "../src/lib/trip-plan.ts";
+import { scheduleDuration, scheduleTimeLabel, nextFixedSchedule, nextHomeRefresh, parseSchedule, sortSchedule, outsideTrip, planDay, shiftDay, tripHomeDay } from "../src/lib/trip-plan.ts";
 
 function form(fields) {
   const data = new FormData();
@@ -21,14 +21,25 @@ test("time modes distinguish a day, a clock time and a candidate", () => {
   assert.equal(parse({ time_mode: "PERIOD", local_date: "2028-02-29", period: "AFTERNOON" }).period, "AFTERNOON");
 });
 
+test("optional end time stays within the same day and needs a fixed start", () => {
+  const parse = (fields) => parseSchedule(form({ title: "산책", local_date: "2027-02-17", time_mode: "FIXED", fixed_local_time: "09:15", ...fields }));
+  assert.equal(parse({ end_local_time: "10:45" }).end_local_time, "10:45");
+  assert.equal(parse({ end_local_time: "" }).end_local_time, null);
+  for (const end of ["09:15", "08:00", "24:00", "10:45:01"]) assert.equal(typeof parse({ end_local_time: end }), "string");
+  assert.equal(typeof parse({ time_mode: "PERIOD", period: "MORNING", end_local_time: "10:45" }), "string");
+  assert.equal(scheduleDuration("09:15:00", "10:45:00"),90);
+  assert.equal(scheduleDuration("23:00", "01:00"),null);
+  assert.equal(scheduleTimeLabel({fixed_local_time:"09:15",end_local_time:"10:45",period:null}),"09:15–10:45 · 90분");
+});
+
 test("sort order is secondary to the fixed clock or period group", () => {
   const row = (id, sort_order, time_mode, fixed_local_time = null, period = null) => ({ id, sort_order, time_mode, fixed_local_time, period });
   const input = [
-    row("late", 1, "FIXED", "11:00"), row("unscheduled", 2, "UNSCHEDULED"),
+    row("late", 1, "FIXED", "11:00"), row("tower", 1, "FIXED", "15:00"), row("dinner", 1, "FIXED", "18:00"), row("unscheduled", 2, "UNSCHEDULED"),
     row("evening", 3, "PERIOD", null, "EVENING"), row("afternoon", 4, "PERIOD", null, "AFTERNOON"),
     row("morning", 5, "PERIOD", null, "MORNING"), row("early2", 7, "FIXED", "09:00"), row("early1", 6, "FIXED", "09:00"),
   ];
-  assert.deepEqual(sortSchedule(input).map(({ id }) => id), ["early1", "early2", "late", "morning", "afternoon", "evening", "unscheduled"]);
+  assert.deepEqual(sortSchedule(input).map(({ id }) => id), ["morning", "early1", "early2", "late", "afternoon", "tower", "evening", "dinner", "unscheduled"]);
 });
 
 test("Japan calendar navigation and period boundaries ignore undated candidates", () => {

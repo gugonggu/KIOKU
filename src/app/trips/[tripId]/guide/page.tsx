@@ -1,7 +1,6 @@
+import { scheduleTimeLabel } from "@/lib/trip-plan";
 import Link from "next/link";
 import { Blossom } from "@/components/brand";
-import { expenseTotals, wonLabel } from "@/lib/trip-budget";
-import { loadBudget } from "@/lib/trip-budget-data";
 import { bookingKinds, bookingStatuses } from "@/lib/trip-bookings";
 import { dateLabel } from "@/lib/trip-details";
 import { directionsUrl } from "@/lib/trip-places";
@@ -54,17 +53,15 @@ export default async function Page({ params, searchParams }: PageProps<"/trips/[
   const { data: trip, error } = await getTrip(tripId);
   if (!trip || error) return <TripLoadError />;
   const options = guideOptions(query);
-  const [snapshot, items, ledger] = await Promise.all([
-    loadTravelSnapshot(trip), options.preparation ? loadPreparation(tripId) : null, options.budget ? loadBudget(tripId) : null,
+  const [snapshot, items] = await Promise.all([
+    loadTravelSnapshot(trip), options.preparation ? loadPreparation(tripId) : null,
   ]);
   if (!snapshot) return <TripLoadError />;
   const { schedule, places, bookings } = guideScope(snapshot, options);
   const readiness = items && preparationProgress(items);
-  const totals = ledger?.budget && expenseTotals(ledger.expenses);
   const days = guideDays(snapshot, options.date);
   const href = "/trips/" + tripId;
-  const available = (!options.preparation || items !== null) && (!options.budget || ledger !== null);
-  const period = { MORNING: "오전", AFTERNOON: "오후", EVENING: "저녁" } as const;
+  const available = !options.preparation || items !== null;
 
   return <div className="editorial-page suite-page travel-guide">
     <header className="guide-controls">
@@ -75,15 +72,13 @@ export default async function Page({ params, searchParams }: PageProps<"/trips/[
     <form action={href + "/guide"} method="get" className="guide-controls editorial-paper suite-form">
       <input type="hidden" name="options" value="1" />
       <label>특정 날짜만 인쇄 (비우면 전체)<input name="date" type="date" defaultValue={options.date} /></label>
-      <fieldset className="budget-shares"><legend>출력에 포함할 정보</legend>
+      <fieldset className="guide-options"><legend>출력에 포함할 정보</legend>
         <label><input type="checkbox" name="places" value="1" defaultChecked={options.places} />장소 정보</label>
         <label><input type="checkbox" name="bookings" value="1" defaultChecked={options.bookings} />예약 일정</label>
         <label><input type="checkbox" name="preparation" value="1" defaultChecked={options.preparation} />준비 체크리스트 요약</label>
-        <label><input type="checkbox" name="budget" value="1" defaultChecked={options.budget} />경비 요약 (소유자용)</label>
       </fieldset>
-      <div className="suite-row"><button type="submit" className="quiet-link">출력 범위 적용</button>{available && <PrintButton budget={options.budget} />}</div>
+      <div className="suite-row"><button type="submit" className="quiet-link">미리보기 갱신</button>{available && <PrintButton />}</div>
       {!available && <p role="alert">선택한 일부 정보를 불러오지 못했어요. 다시 시도하거나 해당 항목을 해제해 주세요.</p>}
-      {options.budget && <p role="status">이번 출력에 여행 전체의 소유자용 경비 요약이 포함돼요. 공유하기 전에 확인하세요.</p>}
     </form>
     <article className="guide-paper editorial-paper" aria-label="인쇄 미리보기">
       <header className="guide-cover">
@@ -101,7 +96,7 @@ export default async function Page({ params, searchParams }: PageProps<"/trips/[
       {days.map((date) => <section className="guide-day" key={date}><h3>{dateLabel(date)}</h3>
         {schedule.some((item) => item.date === date) ? <ul>{schedule.filter((item) => item.date === date).map((item, index) =>
           <li className="guide-entry" key={index}>
-            <h4><span>{time(item.fixed_local_time) ?? (item.period ? period[item.period] : "시간 미정")}</span> {item.title}</h4>
+            <h4><span>{scheduleTimeLabel(item)}</span> {item.title}</h4>
             {options.places && item.place && <PlaceDetails place={item.place} />}
             {item.note && <p>{item.note}</p>}
           </li>)}</ul> : <p>이 날짜에 저장된 일정이 없어요.</p>}
@@ -116,9 +111,6 @@ export default async function Page({ params, searchParams }: PageProps<"/trips/[
         </li>)}</ul>
       </section>}
       {readiness && <section className="guide-block"><h3>여행 준비</h3><p>{readiness.total}개 중 {readiness.done}개 완료 · {readiness.percent}%</p></section>}
-      {options.budget && <section className="guide-block"><h3>경비 요약 (소유자용)</h3>
-        {totals && ledger?.budget ? <p>예산 {wonLabel(ledger.budget.budget_krw)} · 지출 {wonLabel(totals.total)} · 사전 결제 {wonLabel(totals.prepaid)}</p> : <p>표시할 경비가 없어요.</p>}
-      </section>}
     </article>
     <TripTabs href={href} active="more" />
   </div>;

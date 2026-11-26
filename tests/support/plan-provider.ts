@@ -32,24 +32,6 @@ export async function handlePlanRequest({ database, userId, method, url, readJso
     });
     return send(method === "POST" ? 201 : 200, rows[0] as Json ?? null);
   }
-  if (url.pathname === "/rest/v1/trip_expenses" && method !== "GET") {
-    const trip = url.searchParams.get("trip_id")?.slice(3);
-    const id = url.searchParams.get("id")?.slice(3);
-    const revision = url.searchParams.get("revision")?.slice(3);
-    const { rows } = await asUser(database, userId, async (tx) => {
-      if (method === "DELETE") return tx.query("delete from public.trip_expenses where trip_id=$1 and id=$2 and revision=$3 returning id", [trip, id, revision]);
-      const body = await readJson();
-      const keys = ["title", "amount", "refund", "currency", "rate", "spent_on", "category", "payer", "shares", "method", "prepaid", "note", "booking_id"];
-      const values = keys.map((key) => body[key]);
-      if (method === "POST") return tx.query(
-        "insert into public.trip_expenses(id,trip_id," + keys.join(",") + ") values (" +
-        Array.from({ length: values.length + 2 }, (_, i) => "$" + (i + 1)).join(",") + ") returning id",
-        [body.id, body.trip_id, ...values]);
-      return tx.query("update public.trip_expenses set " + keys.map((key, i) => key + "=$" + (i + 4)).join(",") +
-        " where trip_id=$1 and id=$2 and revision=$3 returning id", [trip, id, revision, ...values]);
-    });
-    return send(method === "POST" ? 201 : 200, rows);
-  }
   if (url.pathname === "/rest/v1/trip_preparation" && method !== "GET") {
     const trip = url.searchParams.get("trip_id")?.slice(3);
     const id = url.searchParams.get("id")?.slice(3);
@@ -76,6 +58,10 @@ export async function handlePlanRequest({ database, userId, method, url, readJso
     let query: string;
     let args: unknown[];
     switch (url.pathname) {
+      case "/rest/v1/rpc/set_trip_cover":
+        query = "select public.set_trip_cover($1,$2,$3,$4) as result";
+        args = [body.p_trip,body.p_version,body.p_theme,body.p_photo];
+        break;
       case "/rest/v1/rpc/import_trip_schedule":
         query = "select public.import_trip_schedule($1,$2,$3) as result";
         args = [body.p_trip,body.p_version,JSON.stringify(body.p_rows)];
@@ -83,10 +69,6 @@ export async function handlePlanRequest({ database, userId, method, url, readJso
       case "/rest/v1/rpc/set_trip_visit":
         query = "select public.set_trip_visit($1,$2,$3) as result";
         args = [body.p_trip,body.p_schedule,body.p_status];
-        break;
-      case "/rest/v1/rpc/save_trip_budget":
-        query = "select public.save_trip_budget($1,$2,$3,$4) as result";
-        args = [body.p_trip, body.p_amount, body.p_rate, body.p_people];
         break;
       case "/rest/v1/rpc/apply_preparation_template":
         query = "select public.apply_preparation_template($1,$2) as result";
@@ -170,13 +152,6 @@ export async function handlePlanRequest({ database, userId, method, url, readJso
     case "/rest/v1/trip_visit_marks":
       query = "select trip_id,schedule_id,status from public.trip_visit_marks where trip_id=$1 order by schedule_id";
       break;
-    case "/rest/v1/trip_budgets":
-      query = "select trip_id,budget_krw,rate,people from public.trip_budgets where trip_id=$1";
-      break;
-    case "/rest/v1/trip_expenses":
-      query = "select id,trip_id,title,amount,refund,currency,rate,spent_on::text,category,payer,shares,method,prepaid,note,booking_id,revision" +
-        " from public.trip_expenses where trip_id=$1 order by spent_on desc,id";
-      break;
     case "/rest/v1/trip_preparation":
       query = "select id,trip_id,title,category,done,due_date::text,note,sort_order::float8,source from public.trip_preparation where trip_id=$1 order by sort_order,id";
       break;
@@ -202,12 +177,12 @@ export async function handlePlanRequest({ database, userId, method, url, readJso
       query = "select confirmation_reference,amount::float8,currency,private_note from public.booking_private_details where trip_id=$1 and booking_id=$4";
       break;
     case "/rest/v1/itinerary_items":
-      if (booking) query = "select id,title,local_date::text,time_mode,fixed_local_time::text,period from public.itinerary_items" +
+      if (booking) query = "select id,title,local_date::text,time_mode,fixed_local_time::text,end_local_time::text,period from public.itinerary_items" +
         " where trip_id=$1 and booking_id=$4 order by local_date,id";
       else if (columns === "id,place_id,local_date,title,time_mode,fixed_local_time,period") query =
-        "select id,place_id,local_date::text,title,time_mode,fixed_local_time::text,period from public.itinerary_items" +
+        "select id,place_id,local_date::text,title,time_mode,fixed_local_time::text,end_local_time::text,period from public.itinerary_items" +
         " where trip_id=$1 and place_id is not null order by local_date,id";
-      else query = "select id,title,kind,time_mode,local_date::text,fixed_local_time::text,period,place_id,booking_id,private_note," +
+      else query = "select id,title,kind,time_mode,local_date::text,fixed_local_time::text,end_local_time::text,period,place_id,booking_id,private_note," +
         " shared_note,revision,sort_order::float8,archived_date::text from public.itinerary_items where trip_id=$1 order by local_date,id";
       break;
     default:

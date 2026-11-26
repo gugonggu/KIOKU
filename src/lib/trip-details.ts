@@ -1,11 +1,11 @@
 import type { TripFields, TripRow } from "./database.types";
 
-export type Trip = TripFields & Pick<TripRow, "id" | "content_version">;
+export type Trip = TripFields & Pick<TripRow, "id" | "content_version"> & Partial<Pick<TripRow,"cover_theme">>;
 export type TripFormValues = Record<keyof TripFields, string>;
 export type TripFieldErrors = Partial<Record<keyof TripFields, string>>;
 
 export const TRIP_TEXT_LIMIT = 80;
-export const MAX_TRAVELERS = 2_147_483_647;
+export const MAX_TRAVELERS = 50;
 
 export const emptyTripForm: TripFormValues = {
   title: "", destination_label: "", start_date: "", end_date: "", traveler_count: "",
@@ -27,7 +27,7 @@ export function isCalendarDate(value: string) {
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
-export function parseTripDetails(formData: FormData): { fields: TripFields } | { errors: TripFieldErrors } {
+export function parseTripDetails(formData: FormData, savedCount: number | null = null): { fields: TripFields } | { errors: TripFieldErrors } {
   const read = (key: keyof TripFields) => {
     const value = formData.get(key);
     return typeof value === "string" ? value.trim() : "";
@@ -48,8 +48,9 @@ export function parseTripDetails(formData: FormData): { fields: TripFields } | {
   if (startDate && endDate && !errors.start_date && !errors.end_date && endDate < startDate) {
     errors.end_date = "돌아오는 날은 출발일과 같거나 그 이후여야 해요.";
   }
-  if (count && (!/^\d+$/.test(count) || Number(count) < 1 || Number(count) > MAX_TRAVELERS)) {
-    errors.traveler_count = "여행 인원을 1 이상의 정수로 입력해 주세요.";
+  const travelerCount = Number(count);
+  if (count && (!/^\d+$/.test(count) || travelerCount < 1 || (travelerCount > MAX_TRAVELERS && travelerCount !== savedCount))) {
+    errors.traveler_count = "여행 인원을 1~" + MAX_TRAVELERS + "명으로 입력해 주세요.";
   }
 
   if (Object.keys(errors).length) return { errors };

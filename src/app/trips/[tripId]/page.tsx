@@ -1,8 +1,10 @@
-import { ArrowLeft, CalendarDays, ChevronRight, Download, MapPin, PencilLine, Plus, Share2, UsersRound, Wallet } from "lucide-react";
+import { ArrowLeft, CalendarDays, Camera, ChevronRight, Download, MapPin, PencilLine, Plus, Share2, UsersRound } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { Blossom } from "@/components/brand";
-import { Cover } from "@/components/cover";
+import { DefaultTripCover } from "@/components/cover";
+import { OfflineHomeStatus } from "@/components/offline-controls";
+import { requireUser } from "@/lib/auth";
 import { loadBookings, loadBookingSummaries } from "@/lib/trip-booking-data";
 import { bookingKinds, bookingOccursOn } from "@/lib/trip-bookings";
 import { dateLabel } from "@/lib/trip-details";
@@ -11,8 +13,6 @@ import { loadTripPlan } from "@/lib/trip-plan-data";
 import { getTrip } from "@/lib/trips";
 import { loadPreparation } from "@/lib/trip-preparation-data";
 import { preparationProgress } from "@/lib/trip-preparation";
-import { expenseTotals, wonLabel } from "@/lib/trip-budget";
-import { loadBudget } from "@/lib/trip-budget-data";
 import { loadMemoryCover } from "@/lib/trip-memory-data";
 import { memoryPhotoHref } from "@/lib/trip-memory";
 import { TripLoadError } from "../trip-load-error";
@@ -22,12 +22,9 @@ import { itineraryEntryHref, itineraryHref } from "./itinerary/links";
 import { mapHref } from "./map/links";
 import { BookingBadge, BookingKindLabel } from "./bookings/booking-card";
 import { bookingsHref } from "./bookings/links";
-import { TripClock } from "./trip-clock";
+import { JapanLocalTime, TripClock } from "./trip-clock";
 
 export const metadata = { title: "여행 수첩" };
-const localTime = new Intl.DateTimeFormat("ko-KR", {
-  hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Asia/Tokyo",
-});
 
 export default async function TripPage({ params }: PageProps<"/trips/[tripId]">) {
   const { tripId } = await params;
@@ -36,8 +33,9 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
   const now = new Date();
   const { today, date, status, offset } = tripHomeDay(trip, now);
   const active = status === "active";
-  const [plan, dailyBookings, bookingSummaries, preparation, budget, cover] = await Promise.all([
-    loadTripPlan(trip.id), active ? loadBookings(trip.id) : null, active ? null : loadBookingSummaries(trip.id), loadPreparation(trip.id), loadBudget(trip.id), loadMemoryCover(trip.id),
+  const [plan, dailyBookings, bookingSummaries, preparation, cover, owner] = await Promise.all([
+    loadTripPlan(trip.id), active ? loadBookings(trip.id) : null, active ? null : loadBookingSummaries(trip.id), loadPreparation(trip.id), loadMemoryCover(trip.id),
+    requireUser(),
   ]);
   const readiness = preparation && preparationProgress(preparation);
   const bookings = active ? dailyBookings : bookingSummaries;
@@ -54,7 +52,6 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
   const todayBookings = dailyBookings?.filter((booking) => bookingOccursOn(booking, today, linkedBookings.has(booking.id)));
   const refreshAt = active || status === "upcoming" ? nextHomeRefresh(today, nextItem?.fixed_local_time) : null;
   const candidateCount = plan?.schedule.filter((item) => !item.local_date).length;
-  const winterCover = /삿포로|홋카이도|札幌|北海道|sapporo|hokkaido/i.test(trip.destination_label);
 
   const reservationSummary = <section className="editorial-paper booking-home" aria-labelledby="booking-home-heading">
       <div className="editorial-section-heading">
@@ -86,14 +83,14 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
       </div>
     </div>
     <article className="editorial-hero">
-      <div role="img" aria-label={cover?.title ?? (winterCover ? "겨울 거리의 기본 여행 표지" : "산 풍경의 기본 여행 표지")}
-        className={`editorial-cover${winterCover ? "" : " editorial-cover-neutral"}`}>
+      <div role="img" aria-label={cover?.title ?? "기본 여행 표지"}
+        className="editorial-cover editorial-cover-neutral">
         {cover ? <Image unoptimized fill className="memory-hero-photo" src={memoryPhotoHref(trip.id, cover.id)} alt="" sizes="(max-width: 767px) 100vw, 500px" />
-          : !winterCover && <Cover />}
+          : <DefaultTripCover theme={trip.cover_theme} destination={trip.destination_label} />}
       </div>
       <div className="editorial-hero-content">
         {status === "upcoming" && <p className="editorial-kicker">출발까지 D-{offset}</p>}
-        {active && <p className="editorial-kicker">Day {offset} · 일본 현지 <time dateTime={now.toISOString()}>{localTime.format(now)}</time></p>}
+        {active && <p className="editorial-kicker">Day {offset} · 일본 현지 <JapanLocalTime initialAt={now.getTime()} /></p>}
         {status === "past" && <p className="editorial-kicker">여행 종료</p>}
         <h1>{trip.title}</h1>
         <TripSummary trip={trip} showTravelers={!plan} />
@@ -105,8 +102,8 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
     </article>
     {active && <nav className="trip-home-actions" aria-label="여행 중 바로가기">
       <Link className="quiet-link" href={mapHref(trip.id, { date: today, filter: "date" })}><MapPin size={17} aria-hidden />오늘 장소</Link>
-      <Link className="quiet-link" href={href + "/budget" + (budget?.budget ? "#new-expense" : "")}><Wallet size={17} aria-hidden />지출 기록</Link>
       <Link className="quiet-link" href={href + "/memory?date=" + today + "&write=1#write-memory"}><PencilLine size={17} aria-hidden />오늘 여행 기록하기</Link>
+      <Link className="quiet-link" href={href + "/memory?date=" + today + "&photo=1#add-photo"}><Camera size={17} aria-hidden />사진 추가</Link>
       <Link className="quiet-link" href={href + "/offline"}><Download size={17} aria-hidden />오프라인 수첩</Link>
     </nav>}
     {status === "upcoming" && <div className="trip-home-spread">
@@ -126,7 +123,6 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
       <h2 id="home-memory-title">여행의 기억</h2>
       <p>사진과 일기, 다녀온 장소를 날짜별로 모아 보세요.</p>
       <Link className="quiet-link" href={href + "/memory"}>여행 기억 열기</Link>
-      <Link className="quiet-link" href={href + "/budget"}>경비와 정산</Link>
       <Link className="quiet-link" href={href + "/guide"}>여행 가이드 내보내기</Link>
     </section>}
     {status !== "past" && !active && plan && !plan.schedule.length && <section className="editorial-paper editorial-preview" aria-labelledby="home-first-steps">
@@ -137,7 +133,7 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
       <Link className="quiet-link" href={href + "/itinerary/import"}>JSON 일정 가져오기</Link>
     </section>}
     {active && plan && <section className="editorial-paper editorial-up-next" aria-labelledby="trip-next-heading">
-      <h2 id="trip-next-heading">다음 정시 일정</h2>
+      <h2 id="trip-next-heading">다음 일정</h2>
       {nextItem ? <Link className="quiet-link" href={itineraryEntryHref(trip.id, nextItem, date)}>
         <span className="editorial-time">{timeLabel(nextItem)}</span><strong>{nextItem.title}</strong>
         <ChevronRight size={16} aria-hidden />
@@ -156,6 +152,7 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
         </Link>
       </li>)}</ul> : <p className="plan-meta">{todayBookings ? "오늘 확인할 예약이 없어요." : "오늘 예약을 불러오지 못했어요."}</p>}
     </section>}
+    <OfflineHomeStatus owner={owner} tripId={trip.id} upcoming={status === "upcoming"} />
     {plan ? <dl className="editorial-stats" aria-label="여행 요약">
       <div><CalendarDays aria-hidden /><dt>일정</dt><dd>{plan.schedule.length}개</dd></div>
       <div><MapPin aria-hidden /><dt>저장한 장소</dt><dd>{plan.places.length}개</dd></div>
@@ -177,16 +174,6 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
       <p>{readiness.total}개 중 {readiness.done}개 완료 · {readiness.percent}%</p>
       <Link className="quiet-link" href={href + "/preparation"}>준비 목록 열기</Link>
     </section>}
-    <section className="editorial-paper editorial-preview">
-      <h2>예산과 경비</h2>
-      {budget?.budget && <p>{status === "upcoming"
-        ? "사전 결제 " + wonLabel(expenseTotals(budget.expenses).prepaid)
-        : "총지출 " + wonLabel(expenseTotals(budget.expenses).total)}</p>}
-      <Link className="quiet-link" href={href + "/budget" + (active && budget?.budget ? "#new-expense" : "")}>
-        {active && budget?.budget ? "빠른 지출 등록" : status === "past" ? "지출과 정산 보기" : "예산 열기"}
-      </Link>
-      {!active && status !== "past" && <Link className="quiet-link" href={href + "/guide"}>여행 가이드 내보내기</Link>}
-    </section>
     <div className="editorial-overview-bottom">
       <section className="editorial-paper editorial-preview" aria-labelledby="trip-preview-heading">
         <Blossom className="editorial-sprig" />
@@ -209,7 +196,6 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
       </section>
     </div>
     {status !== "upcoming" && reservationSummary}
-    <Link href={`${href}/delete`} className="quiet-link danger-link editorial-delete">여행 삭제</Link>
     <TripTabs href={href} active="home" date={date} />
   </div>;
 }

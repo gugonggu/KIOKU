@@ -18,6 +18,6 @@ export function Brand() {
       <path d="M70 12 54 26l-9 4m14-8-2-7" stroke="#996956" strokeWidth="1.2" />
       <g fill="#e8a4ad"><circle cx="65" cy="14" r="3.2" /><circle cx="57" cy="15" r="2.8" /><circle cx="53" cy="24" r="2.8" /><circle cx="48" cy="28" r="2.2" /></g>
     </svg>
-    <span className="brand-type"><span className="brand-wordmark">KIOKU</span><span className="brand-subtitle">Japan Travel Planner</span></span>
+    <span className="brand-type"><span className="brand-wordmark">KIOKU</span><span className="brand-subtitle">Japan Travel Journal</span></span>
   </div>;
 }

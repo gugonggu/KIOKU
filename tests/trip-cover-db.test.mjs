@@ -1,0 +1,21 @@
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import test from "node:test";
+import { asUser, createTripsDatabase, ownerA, ownerB } from "./support/trips-db.mjs";
+const db = await createTripsDatabase();
+test.after(()=>db.close());
+test("cover changes check owner and version and never select another trip's photo",async()=>{
+  const trip=randomUUID(), other=randomUUID();
+  await asUser(db,ownerA,tx=>tx.query("insert into public.trips(id,title,destination_label) values ($1,'A','Tokyo'),($2,'B','Osaka')",[trip,other]));
+  const change=(user,version,theme,photo=null)=>asUser(db,user,tx=>tx.query("select public.set_trip_cover($1,$2,$3,$4) value",[trip,version,theme,photo]));
+  assert.equal((await change(ownerB,1,"sea")).rows[0].value,false);
+  assert.equal((await change(ownerA,1,"sea")).rows[0].value,true);
+  assert.equal((await change(ownerA,1,"dusk")).rows[0].value,false);
+  await assert.rejects(change(ownerA,2,"invalid"));
+  const photo=randomUUID();
+  await asUser(db,ownerA,tx=>tx.query("insert into public.trip_memory_photos(id,trip_id,day,title) values ($1,$2,'2027-02-17','Fixture')",[photo,other]));
+  await db.query("update public.trip_memory_photos set phase='ready',width=100,height=100,bytes=1000 where id=$1",[photo]);
+  assert.equal((await change(ownerA,2,"sea",photo)).rows[0].value,false);
+  const {rows} = await asUser(db,ownerA,tx=>tx.query("select cover_theme from public.trips where id=$1",[trip]));
+  assert.equal(rows[0].cover_theme,"sea");
+});

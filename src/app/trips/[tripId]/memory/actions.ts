@@ -13,7 +13,9 @@ const tooNew = "아직 다른 업로드가 진행 중일 수 있어요. 잠시 �
 const uploadDisabled = "사진 저장소가 준비되지 않았어요.";
 
 function refresh(trip: string) {
+  revalidatePath("/trips");
   revalidatePath("/trips/" + trip);
+  revalidatePath("/trips/" + trip + "/edit");
   revalidatePath("/trips/" + trip + "/memory");
 }
 
@@ -55,7 +57,7 @@ async function removeStoredPhoto(storage: NonNullable<ReturnType<typeof memorySt
   return !record.error;
 }
 
-export async function saveMemoryPhoto(trip: string, id: string, editing: boolean, _prior: string, form: FormData): Promise<string> {
+async function writeMemoryPhoto(trip: string, id: string, editing: boolean, form: FormData): Promise<string> {
   const { client } = await requireTripClient();
   if (!isTripId(id) || !(await getTrip(trip)).data) return failed;
   const fields = readMemoryPhoto(form);
@@ -64,10 +66,14 @@ export async function saveMemoryPhoto(trip: string, id: string, editing: boolean
     const result = await client.from("trip_memory_photos").update(fields)
       .eq("trip_id", trip).eq("id", id).eq("phase", "ready").select("id").maybeSingle();
     if (result.error || !result.data) return failed;
-    return goToDay(trip, fields.day);
+    return "";
   }
   const storage = memoryStorageWriter();
   if (!storage) return uploadDisabled;
+  const existing = await client.from("trip_memory_photos").select("phase").eq("trip_id", trip).eq("id", id).maybeSingle();
+  if (existing.error) return failed;
+  if (existing.data?.phase === "ready") return "";
+  if (existing.data) return tooNew;
   const selected = selectedMemoryPhotos(form);
   const inputError = memoryPhotoInputError(selected);
   if (inputError) return inputError;
@@ -94,7 +100,18 @@ export async function saveMemoryPhoto(trip: string, id: string, editing: boolean
     refresh(trip);
     return "사진을 처리하지 못했어요. 새로고침해 보관 여부를 확인해 주세요.";
   }
-  return goToDay(trip, fields.day);
+  return "";
+}
+
+export async function saveMemoryPhoto(trip: string, id: string, editing: boolean, _prior: string, form: FormData): Promise<string> {
+  const error = await writeMemoryPhoto(trip, id, editing, form);
+  return error || goToDay(trip, String(form.get("day")));
+}
+
+export async function saveQueuedMemoryPhoto(trip: string, id: string, form: FormData): Promise<string> {
+  const error = await writeMemoryPhoto(trip, id, false, form);
+  refresh(trip);
+  return error;
 }
 
 export async function deleteMemoryPhoto(trip: string, id: string): Promise<string> {
@@ -122,6 +139,16 @@ export async function organizePhoto(trip: string, id: string, command: "earlier"
   return "";
 }
 
+export async function resetMemoryCover(trip: string, id: string): Promise<string> {
+  const { client } = await requireTripClient();
+  if (!isTripId(id) || !(await getTrip(trip)).data) return failed;
+  const result = await client.from("trip_memory_photos").update({ is_cover: false })
+    .eq("trip_id", trip).eq("id", id).eq("phase", "ready").eq("is_cover", true).select("id").maybeSingle();
+  if (result.error || !result.data) return "표지가 바뀌었어요. 최신 사진을 확인해 주세요.";
+  refresh(trip);
+  return "";
+}
+
 export async function saveVisit(trip: string, id: string, _prior: string, form: FormData): Promise<string> {
   const status = String(form.get("status")) as VisitStatus;
   const { client } = await requireTripClient();
@@ -129,6 +156,7 @@ export async function saveVisit(trip: string, id: string, _prior: string, form: 
   const { error } = await client.rpc("set_trip_visit", { p_trip: trip, p_schedule: id, p_status: status });
   if (error) return failed;
   refresh(trip);
+  revalidatePath("/trips/" + trip + "/itinerary");
   return "";
 }
 

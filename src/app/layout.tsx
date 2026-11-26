@@ -6,7 +6,7 @@ import "./editorial.css";
 import "./travel-journal.css";
 
 export const metadata: Metadata = {
-  title: { default: "KIOKU — Japan Travel Planner", template: "%s | KIOKU" },
+  title: { default: "KIOKU · 記憶 — Japan Travel Journal", template: "%s | KIOKU" },
   description: "한국어로 쓰는 나만의 일본 여행 수첩.",
 };
 

@@ -56,14 +56,13 @@ export async function updateTrip(
 ): Promise<TripMutationState> {
   const { client, ownerId } = await requireTripClient();
   if (!isTripId(id) || !Number.isInteger(version) || version < 1) return { message: changedTrip, conflict: true };
-  const input = parseTripDetails(formData);
-  if ("errors" in input) return { message: "입력한 내용을 확인해 주세요.", errors: input.errors };
-
   const { data: current, error: currentError } = await client.from("trips")
-    .select("start_date,end_date,content_version").eq("owner_id", ownerId).eq("id", id).maybeSingle();
+    .select("start_date,end_date,traveler_count,content_version").eq("owner_id", ownerId).eq("id", id).maybeSingle();
   if (currentError) return { message: saveError };
   if (!current || current.content_version !== version) return { message: changedTrip, conflict: true };
 
+  const input = parseTripDetails(formData, current.traveler_count);
+  if ("errors" in input) return { message: "입력한 내용을 확인해 주세요.", errors: input.errors };
   const proposed = input.fields;
   if (current.start_date !== proposed.start_date || current.end_date !== proposed.end_date) {
     const key = (entries: PeriodImpact[]) => createHash("sha256")

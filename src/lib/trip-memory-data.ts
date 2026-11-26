@@ -16,6 +16,12 @@ export function memoryStorageWriter() {
   return createClient<Database>(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
+export async function loadTripVisits(tripId: string) {
+  const { client } = await requireTripClient();
+  return readRows((start, end) => client.from("trip_visit_marks").select("trip_id,schedule_id,status").eq("trip_id", tripId)
+      .order("schedule_id").range(start, end));
+}
+
 export async function loadTripMemory(tripId: string) {
   const { client } = await requireTripClient();
   const [entries, photos, visits] = await Promise.all([
@@ -23,8 +29,7 @@ export async function loadTripMemory(tripId: string) {
       .order("day").order("created_at").order("id").range(start, end)),
     readRows((start, end) => client.from("trip_memory_photos").select("*").eq("trip_id", tripId)
       .order("day").order("sort_order").order("id").range(start, end)),
-    readRows((start, end) => client.from("trip_visit_marks").select("trip_id,schedule_id,status").eq("trip_id", tripId)
-      .order("schedule_id").range(start, end)),
+    loadTripVisits(tripId),
   ]);
   return entries && photos && visits ? { entries, photos, visits } : null;
 }
@@ -34,4 +39,11 @@ export async function loadMemoryCover(tripId: string) {
   const { data } = await client.from("trip_memory_photos").select("id,title,width,height")
     .eq("trip_id", tripId).eq("phase", "ready").eq("is_cover", true).maybeSingle();
   return data;
+}
+
+export async function loadMemoryCovers(tripIds: string[]) {
+  const { client } = await requireTripClient();
+  const { data } = await client.from("trip_memory_photos").select("trip_id,id,title")
+    .in("trip_id", tripIds).eq("phase", "ready").eq("is_cover", true);
+  return new Map((data ?? []).map((photo) => [photo.trip_id, photo]));
 }

@@ -20,7 +20,7 @@ async function verifyViewportRoutes({ app, path, signIn }) {
     for (const width of [360, 390, 430, 768, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       for (const route of ["", "/itinerary?date=2027-02-19", "/map", "/bookings", "/more",
-        "/preparation", "/budget", "/share", "/memory?date=2027-02-19", "/offline", "/guide"]) {
+        "/preparation", "/share", "/memory?date=2027-02-19", "/offline", "/guide"]) {
         const response = await page.goto(app + path + route);
         assert.equal(response?.status(), 200, `${width}px ${route}`);
         assert.equal(new URL(page.url()).pathname, new URL(app + path + route).pathname, `${width}px ${route} stays signed in`);
@@ -56,12 +56,12 @@ async function verifyAndroid({ app, path, tripId, signIn }) {
     await page.goto(app + path + "/offline");
     const manifest = await page.evaluate(async () => (await fetch("/manifest.webmanifest")).json());
     assert.equal(manifest.display, "standalone");
-    assert.equal(manifest.start_url, "/offline.html");
+    assert.equal(manifest.start_url, "/trips");
     await page.getByRole("button", { name: "오프라인 수첩 저장" }).click();
     await expectAndroid(page.getByText("이 기기에 수첩을 저장했어요.")).toBeVisible();
     const shell = await page.evaluate(async () => {
       const worker = await navigator.serviceWorker.ready;
-      const cache = await caches.open("kioku-offline-shell-v1");
+      const cache = await caches.open((await caches.keys()).find(key => key.startsWith("kioku-offline-shell-")));
       return { secure: isSecureContext, script: new URL(worker.active.scriptURL).pathname,
         cached: (await cache.keys()).map((request) => new URL(request.url).pathname).sort() };
     });

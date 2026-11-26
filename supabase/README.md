@@ -100,3 +100,17 @@ M5는 M4 적용과 확인에 이어 별도 승인 후 적용합니다. 적용 �
 [Supabase 백업 안내](https://supabase.com/docs/guides/platform/backups) · [Supabase CLI 복원](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore) · [Geoapify Autocomplete](https://apidocs.geoapify.com/docs/geocoding/address-autocomplete/)
 
 [Supabase CLI의 로컬 개발](https://supabase.com/docs/guides/local-development) · [Supabase RLS](https://supabase.com/docs/guides/database/postgres/row-level-security)
+
+
+## v1.1 마이그레이션과 운영 승인
+
+2026-11-26 운영 읽기 전용 확인에서 v1.0 migration 9건, 예산 0행·지출 0행으로 집계했습니다. 조회 가능한 KIOKU Supabase 원격 프로젝트에는 기본 브랜치만 있었습니다. 기존 로컬 QA DB는 이전 후보를 적용한 이력이 있어 그대로 보존했고, 수정된 후보는 새 격리 DB에서 검증합니다.
+
+승인 후 운영 적용 후보는 두 건입니다.
+
+1. `20261126000750_itinerary_end_time.sql` — 같은 날 종료/후보 복원, 구버전 RPC 호환, JSON·공유 투영.
+2. `20261126002216_trip_cover_themes.sql` — 기본 테마 컬럼과 소유자·동일 여행 사진을 확인하는 표지 변경 RPC.
+
+기존 `20261124052204_trip_budget.sql` 및 테이블·RLS·데이터는 그대로 둡니다. 미적용 `20261125090002_preserve_settlement_participants.sql`, `20261126002814_optional_expense_exchange_rate.sql`은 의존하는 유지 migration이 없고 앱이 원장을 사용하지 않아 후보에서 제외했습니다. 이전 QA DB 또는 적용 여부를 알 수 없는 환경에서 이력을 수정하거나 초기화하지 않습니다. 여행 삭제 시 기존 FK 삭제 동작은 유지됩니다. 별도 내보내기·장기 보존·원장 폐기는 정책 검토와 승인 대상입니다.
+
+운영 반영 승인 후 스키마·데이터·이력 백업과 dry-run으로 두 건을 확인하고 DB → 앱 순서로 적용합니다. 장애 시 직전 Ready 앱으로 복구할 수 있도록 새 컬럼을 보존합니다. 기존 경비 스키마를 확장하지 않으므로 이번 후보가 NULL 환율 행을 만들지 않습니다. DB 보정은 데이터 삭제 대신 새 보정 migration을 사용합니다. 기존 Preview가 운영 DB에 연결되어 있다면 앱 스모크와 격리 DB 기능 검증을 구분합니다.

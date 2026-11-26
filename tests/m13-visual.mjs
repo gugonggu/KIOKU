@@ -54,10 +54,6 @@ export async function verifyM13Visual({ app, user, enter, must }) {
     await owner.getByText("여행 준비 템플릿", { exact: true }).click();
     await owner.getByRole("button", { name: "겨울 여행 템플릿" }).click();
     await owner.getByRole("button", { name: "방한복 완료", exact: true }).click();
-    await owner.goto(path + "/budget");
-    await owner.getByLabel("총예산 (원)").fill("500000");
-    await owner.getByLabel("기본 환율 (1엔당 원)").fill("9.5");
-    await owner.getByRole("button", { name: "예산 저장" }).click();
     await owner.goto(memory + "&write=1");
     await owner.getByLabel("일기 제목").fill("눈이 내리던 가상의 오후");
     await owner.getByLabel("일기 본문").fill("운하 옆 골목을 천천히 걷고 따뜻한 차를 마셨다.");
@@ -65,7 +61,7 @@ export async function verifyM13Visual({ app, user, enter, must }) {
     await expect(owner.getByRole("heading", { name: "눈이 내리던 가상의 오후" })).toBeVisible();
     await owner.locator("#add-photo summary").click();
     await owner.getByLabel("사진 파일").setInputFiles("public/kioku-winter-cover.webp");
-    await owner.getByLabel("사진 제목").fill("가상 여행 표지");
+    await owner.getByLabel("사진 제목 1", { exact: true }).fill("가상 여행 표지");
     await owner.getByRole("button", { name: "사진 저장", exact: true }).click();
     await expect(owner.getByText("가상 여행 표지", { exact: true }).first()).toBeVisible();
     await owner.goto(path + "/share");
@@ -86,7 +82,7 @@ export async function verifyM13Visual({ app, user, enter, must }) {
       ["home", path], ["itinerary", path + "/itinerary?view=all"], ["day", path + "/itinerary?date=2027-02-12"],
       ["add", path + "/itinerary?date=2027-02-12&mode=add"], ["edit", path + "/itinerary?date=2027-02-12&mode=edit&id=" + editId],
       ["import", path + "/itinerary/import"], ["places", path + "/map"], ["map", path + "/map", owner, "map"],
-      ["bookings", path + "/bookings"], ["preparation", path + "/preparation"], ["budget", path + "/budget"],
+      ["bookings", path + "/bookings"], ["preparation", path + "/preparation"],
       ["memory", memory], ["album", memory + "#memory-timeline"], ["share", path + "/share"],
       ["companion", guestPath, guest], ["guide", path + "/guide"], ["more", path + "/more"],
       ["offline", offlinePath], ["empty", "/trips/" + empty],
@@ -98,6 +94,10 @@ export async function verifyM13Visual({ app, user, enter, must }) {
         const response = await page.goto(href, { waitUntil: "domcontentloaded" });
         assert.ok(response?.ok() || (name === "album" && response === null), name + " rendered");
         await page.locator("main").first().waitFor({ state: "visible" });
+        if (name === "offline") await page.getByText(/시계탑에서 만남/).first().waitFor();
+        if (name === "home" && await page.getByText("최신 여부 확인 중…", { exact: false }).count()) {
+          await page.getByText("최신 여부 확인 중…", { exact: false }).waitFor({ state: "hidden" });
+        }
         if (interaction === "map" && width < 840) await page.getByRole("button", { name: "지도", exact: true }).click();
         if (name === "map") {
           await page.getByRole("button", { name: "지도 핀: 가상 시계탑" }).waitFor({ timeout: 12000 });
@@ -133,7 +133,21 @@ export async function verifyM13Visual({ app, user, enter, must }) {
       await owner.goto(path + "/map?view=map");
       await owner.getByRole("link", { name: "날짜별", exact: true }).click();
       await expect(owner.getByRole("button", { name: "지도", exact: true })).toHaveAttribute("aria-pressed", "true");
-      await owner.getByRole("navigation", { name: "표시할 장소" }).getByRole("link", { name: "후보 장소" }).click();
+      if (process.env.KIOKU_V11_VISUAL) {
+        await owner.goto(path + "/map?view=map&filter=date&date=2027-02-12&route=1");
+        const route = owner.getByRole("region", { name: "날짜별 방문 순서" });
+        await route.waitFor();
+        await owner.getByRole("button", { name: "지도 핀: 가상 운하" }).waitFor({ timeout: 12000 });
+        await owner.getByText("지도를 불러오는 중이에요.", { exact: true }).waitFor({ state: "hidden" });
+        await route.scrollIntoViewIfNeeded();
+        await owner.screenshot({ path: directory + "/390-route.png" });
+        await owner.goto(path + "/map?view=map&filter=date&date=2027-02-12");
+      }
+      const filters = owner.getByRole("navigation", { name: "표시할 장소" });
+      if (!(await filters.isVisible())) {
+        await owner.getByText(/필터와 동선$/, { exact: false }).click();
+      }
+      await filters.getByRole("link", { name: "후보 장소" }).click();
       await expect(owner.getByRole("button", { name: "지도", exact: true })).toHaveAttribute("aria-pressed", "true");
     }
     await owner.context().setOffline(true);
