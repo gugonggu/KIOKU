@@ -61,7 +61,7 @@ async function verifyAndroid({ app, path, tripId, signIn }) {
     await expectAndroid(page.getByText("이 기기에 수첩을 저장했어요.")).toBeVisible();
     const shell = await page.evaluate(async () => {
       const worker = await navigator.serviceWorker.ready;
-      const cache = await caches.open("kioku-offline-shell-v2");
+      const cache = await caches.open((await caches.keys()).find(key => key.startsWith("kioku-offline-shell-")));
       return { secure: isSecureContext, script: new URL(worker.active.scriptURL).pathname,
         cached: (await cache.keys()).map((request) => new URL(request.url).pathname).sort() };
     });

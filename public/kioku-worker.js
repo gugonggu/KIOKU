@@ -1,4 +1,4 @@
-const CACHE = "kioku-offline-shell-v2";
+const CACHE = "kioku-offline-shell-v3";
 const SHELL = ["/offline.html", "/offline.css", "/offline.js", "/offline-store.js",
   "/kioku-icon-192.png", "/kioku-icon-512.png", "/kioku-maskable-512.png", "/manifest.webmanifest"];
 

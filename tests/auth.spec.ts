@@ -569,6 +569,14 @@ test("product polish groups travel tools and adds, copies and continues imported
   expect((await snapshot.json()).snapshot.schedule.find((row: {title:string}) => row.title === "가상 오타루 산책 복사본").end_local_time).toBe("15:30:00");
   await page.goto(trip + "/guide");
   await expect(page.getByRole("main")).toContainText("14:00–15:30 · 90분");
+  await page.goto(trip + "/offline");
+  await page.getByRole("button",{name:"오프라인 수첩 저장",exact:true}).click();
+  await expect(page.getByText("이 기기에 수첩을 저장했어요.")).toBeVisible();
+  await page.context().setOffline(true);
+  try {
+    await page.goto("/offline.html?trip=" + tripId);
+    await expect(page.getByText("14:00–15:30 · 90분 · 가상 오타루 산책 복사본",{exact:true})).toBeVisible();
+  } finally { await page.context().setOffline(false); }
 });
 
 test("schedule import previews and saves multiline files and checks duplicates on reselection", async ({ page }) => {
@@ -799,7 +807,7 @@ test("an owner creates a trip with no dates, edits it and confirms deletion on m
   await page.getByRole("button", { name: "여행 만들기" }).click();
   await expect(page).toHaveURL(/\/trips\/[a-f0-9-]{36}$/);
   await expect(page.getByRole("heading", { name: "봄빛 여행" })).toBeVisible();
-  await expect(page.getByRole("img", { name: "산 풍경의 기본 여행 표지" })).toBeVisible();
+  await expect(page.locator(".editorial-cover [data-theme=mountain]")).toBeVisible();
   await expect(page.getByText("날짜 미정", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
   if (process.env.KIOKU_UI_SCREENSHOTS) await page.screenshot({ path: `${process.env.KIOKU_UI_SCREENSHOTS}/home-default-cover-320.png`, animations: "disabled" });
