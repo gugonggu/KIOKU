@@ -100,7 +100,7 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
     const initialDate = initialPlace && typeof query.date === "string" && isCalendarDate(query.date) ? query.date : date;
     const target = candidates ? null : initialDate;
     const draft = copy && item ? { ...item, local_date: target, private_note: null, shared_note: null,
-      ...(target === null && { time_mode: "UNSCHEDULED" as const, fixed_local_time: null, period: null }) } : undefined;
+      ...(target === null && { time_mode: "UNSCHEDULED" as const, fixed_local_time: null, end_local_time: null, period: null }) } : undefined;
     const editorKey = entry?.id ?? draft?.id ?? (typeof query.next === "string" ? query.next : back);
     return <ScheduleEditor key={editorKey} action={saveItinerary.bind(null, trip.id, entry?.id ?? randomUUID(), entry?.revision ?? null, date)}
       cancel={back} item={entry ?? draft} date={target} initialPlace={initialPlace} places={plan.places}

@@ -202,12 +202,12 @@ export async function handlePlanRequest({ database, userId, method, url, readJso
       query = "select confirmation_reference,amount::float8,currency,private_note from public.booking_private_details where trip_id=$1 and booking_id=$4";
       break;
     case "/rest/v1/itinerary_items":
-      if (booking) query = "select id,title,local_date::text,time_mode,fixed_local_time::text,period from public.itinerary_items" +
+      if (booking) query = "select id,title,local_date::text,time_mode,fixed_local_time::text,end_local_time::text,period from public.itinerary_items" +
         " where trip_id=$1 and booking_id=$4 order by local_date,id";
       else if (columns === "id,place_id,local_date,title,time_mode,fixed_local_time,period") query =
-        "select id,place_id,local_date::text,title,time_mode,fixed_local_time::text,period from public.itinerary_items" +
+        "select id,place_id,local_date::text,title,time_mode,fixed_local_time::text,end_local_time::text,period from public.itinerary_items" +
         " where trip_id=$1 and place_id is not null order by local_date,id";
-      else query = "select id,title,kind,time_mode,local_date::text,fixed_local_time::text,period,place_id,booking_id,private_note," +
+      else query = "select id,title,kind,time_mode,local_date::text,fixed_local_time::text,end_local_time::text,period,place_id,booking_id,private_note," +
         " shared_note,revision,sort_order::float8,archived_date::text from public.itinerary_items where trip_id=$1 order by local_date,id";
       break;
     default:

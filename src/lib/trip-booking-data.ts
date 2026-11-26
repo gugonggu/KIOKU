@@ -61,6 +61,6 @@ export async function loadPrivateBooking(tripId: string, id: string) {
 
 export async function loadBookingLinks(tripId: string, id: string) {
   const { client } = await requireTripClient();
-  return readRows((start, end) => client.from("itinerary_items").select("id,title,local_date,time_mode,fixed_local_time,period")
+  return readRows((start, end) => client.from("itinerary_items").select("id,title,local_date,time_mode,fixed_local_time,end_local_time,period")
     .eq("trip_id", tripId).eq("booking_id", id).order("local_date").order("id").range(start, end));
 }

@@ -1,3 +1,4 @@
+import { scheduleTimeLabel } from "@/lib/trip-plan";
 import Link from "next/link";
 import { Blossom } from "@/components/brand";
 import { expenseTotals, wonLabel } from "@/lib/trip-budget";
@@ -64,7 +65,6 @@ export default async function Page({ params, searchParams }: PageProps<"/trips/[
   const days = guideDays(snapshot, options.date);
   const href = "/trips/" + tripId;
   const available = (!options.preparation || items !== null) && (!options.budget || ledger !== null);
-  const period = { MORNING: "오전", AFTERNOON: "오후", EVENING: "저녁" } as const;
 
   return <div className="editorial-page suite-page travel-guide">
     <header className="guide-controls">
@@ -101,7 +101,7 @@ export default async function Page({ params, searchParams }: PageProps<"/trips/[
       {days.map((date) => <section className="guide-day" key={date}><h3>{dateLabel(date)}</h3>
         {schedule.some((item) => item.date === date) ? <ul>{schedule.filter((item) => item.date === date).map((item, index) =>
           <li className="guide-entry" key={index}>
-            <h4><span>{time(item.fixed_local_time) ?? (item.period ? period[item.period] : "시간 미정")}</span> {item.title}</h4>
+            <h4><span>{scheduleTimeLabel(item)}</span> {item.title}</h4>
             {options.places && item.place && <PlaceDetails place={item.place} />}
             {item.note && <p>{item.note}</p>}
           </li>)}</ul> : <p>이 날짜에 저장된 일정이 없어요.</p>}

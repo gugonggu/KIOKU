@@ -527,7 +527,7 @@ test("product polish groups travel tools and adds, copies and continues imported
   await page.getByRole("navigation", { name: "여행 바로가기" }).getByRole("link", { name: "일정", exact: true }).click();
   await page.getByRole("link", { name: "JSON 일정 가져오기" }).click();
   const data = [
-    { title: "가상 오타루 산책", date: "2027-02-19", time: "14:00" },
+    { title: "가상 오타루 산책", date: "2027-02-19", time: "14:00", endTime: "15:30" },
     { title: "가상 오타루 산책", date: "2027-02-19", time: "14:00" },
     { title: "날짜 미정 가상 후보" },
   ];
@@ -542,6 +542,8 @@ test("product polish groups travel tools and adds, copies and continues imported
   await page.getByRole("link", { name: "가상 오타루 산책 일정 복사" }).click();
   const copy = page.getByRole("dialog", { name: "일정 복사" });
   await expect(copy.getByLabel("일정 이름")).toHaveValue("가상 오타루 산책");
+  await expect(copy.getByLabel("종료 시각 (선택)")).toHaveValue("15:30");
+  await expect(copy.getByRole("status")).toContainText("소요 시간 · 90분");
   await copy.getByLabel("일정 이름").fill("가상 오타루 산책 복사본");
   await copy.getByLabel("일정 날짜").fill("2027-02-20");
   await copy.getByRole("button", { name: "저장하고 계속 추가" }).click();
@@ -551,7 +553,18 @@ test("product polish groups travel tools and adds, copies and continues imported
   await next.getByRole("button", { name: "일정 저장", exact: true }).click();
   await expect(page.getByRole("heading", { name: "유동적인 가상 Day 4" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "가상 오타루 산책 복사본" })).toBeVisible();
+  await expect(page.locator("[data-schedule-id]").filter({has:page.getByRole("heading",{name:"가상 오타루 산책 복사본"})})).toContainText("14:00–15:30 · 90분");
+  const rangeEntry = page.locator("[data-schedule-id]").filter({has:page.getByRole("heading",{name:"가상 오타루 산책 복사본"})});
+  const timeBox = await rangeEntry.locator(".editorial-time").boundingBox();
+  const cardBox = await rangeEntry.locator(".editorial-entry-card").boundingBox();
+  expect(timeBox!.x + timeBox!.width).toBeLessThanOrEqual(cardBox!.x);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({path:"test-results/kq09-mobile.png",fullPage:true});
+  const tripId = trip.split("/").at(-1);
+  const snapshot = await page.request.get("/api/offline/" + tripId);
+  expect((await snapshot.json()).snapshot.schedule.find((row: {title:string}) => row.title === "가상 오타루 산책 복사본").end_local_time).toBe("15:30:00");
+  await page.goto(trip + "/guide");
+  await expect(page.getByRole("main")).toContainText("14:00–15:30 · 90분");
 });
 
 test("schedule import previews and saves multiline files and checks duplicates on reselection", async ({ page }) => {

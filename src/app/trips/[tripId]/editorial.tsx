@@ -2,7 +2,7 @@ import { CalendarDays, Ellipsis, House, MapPinned, Ticket } from "lucide-react";
 import Link from "next/link";
 import { useId } from "react";
 import { dateLabel, type Trip } from "@/lib/trip-details";
-import { periods, shiftDay } from "@/lib/trip-plan";
+import { scheduleTimeLabel, shiftDay } from "@/lib/trip-plan";
 import type { PlanSchedule } from "@/lib/trip-plan-data";
 import { itineraryHref } from "./itinerary/links";
 
@@ -22,8 +22,8 @@ export function dayNumber(start: string, date: string) {
   return Math.round((Date.parse(date) - Date.parse(start)) / 86_400_000) + 1;
 }
 
-export function timeLabel(item: Pick<PlanSchedule, "fixed_local_time" | "period">) {
-  return item.fixed_local_time?.slice(0, 5) ?? (item.period ? periods[item.period] : "시간 미정");
+export function timeLabel(item: Pick<PlanSchedule, "fixed_local_time" | "end_local_time" | "period">) {
+  return scheduleTimeLabel(item);
 }
 
 const shortDay = new Intl.DateTimeFormat("ko-KR", { month: "numeric", day: "numeric", weekday: "short", timeZone: "Asia/Tokyo" });

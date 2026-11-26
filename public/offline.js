@@ -47,7 +47,10 @@ function showTrip(entry, freshness) {
       day = element("section", null, content);
       element("h3", currentDate, day);
     }
-    element("p", (item.fixed_local_time?.slice(0, 5) ?? ({ MORNING: "오전", AFTERNOON: "오후", EVENING: "저녁" }[item.period] ?? "시간 미정")) + " · " + item.title, day);
+    const range = item.fixed_local_time?.slice(0, 5) ?? ({ MORNING: "오전", AFTERNOON: "오후", EVENING: "저녁" }[item.period] ?? "시간 미정");
+    const minutes = value => Number(value.slice(0, 2)) * 60 + Number(value.slice(3, 5));
+    const duration = item.fixed_local_time && item.end_local_time ? minutes(item.end_local_time) - minutes(item.fixed_local_time) : 0;
+    element("p", range + (duration > 0 ? "–" + item.end_local_time.slice(0, 5) + " · " + duration + "분" : "") + " · " + item.title, day);
     placeDetails(item.place, day);
     if (item.note) element("p", item.note, day);
   }

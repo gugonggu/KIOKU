@@ -26,6 +26,10 @@ export function parseSchedule(data: FormData): ScheduleFields | string {
   const date = read(data, "local_date");
   if ((date || mode !== "UNSCHEDULED") && !isCalendarDate(date)) return "일정 날짜를 입력해 주세요.";
   const fixed = mode === "FIXED" ? read(data, "fixed_local_time") : "";
+  const end = read(data, "end_local_time");
+  if (end && (mode !== "FIXED" || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(end) || end <= fixed)) {
+    return "종료 시각은 같은 날의 시작 시각보다 늦게 입력해 주세요.";
+  }
   const period = mode === "PERIOD" ? read(data, "period") : "";
   if (mode === "FIXED" && !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(fixed)) return "일본 현지 시각을 입력해 주세요.";
   if (mode === "PERIOD" && period !== "MORNING" && period !== "AFTERNOON" && period !== "EVENING") return "오전, 오후 또는 저녁을 선택해 주세요.";
@@ -34,6 +38,7 @@ export function parseSchedule(data: FormData): ScheduleFields | string {
     time_mode: mode, place_id: place || null, local_date: date || null,
     ...(data.has("booking_id") && { booking_id: booking || null }),
     fixed_local_time: fixed || null, period: (period || null) as SchedulePeriod | null,
+    ...(data.has("end_local_time") && { end_local_time: end || null }),
     private_note: privateNote || null, shared_note: sharedNote || null,
   };
 }
@@ -59,6 +64,19 @@ export function outsideTrip(trip: DateRange, date: string | null) {
 }
 
 export const periods = { MORNING: "오전", AFTERNOON: "오후", EVENING: "저녁" } as const;
+
+export function scheduleDuration(start?: string | null, end?: string | null) {
+  const minutes = (value: string) => Number(value.slice(0, 2)) * 60 + Number(value.slice(3, 5));
+  if (!start || !end) return null;
+  const duration = minutes(end) - minutes(start);
+  return duration > 0 ? duration : null;
+}
+
+export function scheduleTimeLabel(item: { fixed_local_time: string | null; end_local_time?: string | null; period: SchedulePeriod | null }) {
+  const duration = scheduleDuration(item.fixed_local_time, item.end_local_time);
+  if (duration) return `${item.fixed_local_time!.slice(0, 5)}–${item.end_local_time!.slice(0, 5)} · ${duration}분`;
+  return item.fixed_local_time?.slice(0, 5) ?? (item.period ? periods[item.period] : "시간 미정");
+}
 
 type GroupFields = Pick<ScheduleFields, "time_mode" | "fixed_local_time" | "period">;
 

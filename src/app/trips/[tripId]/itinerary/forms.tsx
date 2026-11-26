@@ -6,7 +6,7 @@ import { useActionState, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { suggestionFields, type PlaceSuggestion } from "@/lib/geoapify";
 import { dateLabel } from "@/lib/trip-details";
-import { periods, planCalendar as calendar, planLimits } from "@/lib/trip-plan";
+import { scheduleDuration, periods, planCalendar as calendar, planLimits } from "@/lib/trip-plan";
 import type { PlanSchedule } from "@/lib/trip-plan-data";
 import type { BookingSummary } from "@/lib/trip-booking-data";
 import { bookingKinds, bookingStatuses } from "@/lib/trip-bookings";
@@ -51,6 +51,7 @@ export function ScheduleEditor({ action, cancel, item, date, places, initialPlac
     title: item?.title ?? initialPlace?.name ?? initialBooking?.title ?? "",
     kind: item?.kind ?? (initialPlace ? "PLACE" : initialBooking ? "BOOKING_REF" : "NOTE"), local_date: item ? item.local_date ?? "" : date ?? "",
     time_mode: item?.time_mode ?? "UNSCHEDULED", fixed_local_time: item?.fixed_local_time?.slice(0, 5) ?? "",
+    end_local_time: item?.end_local_time?.slice(0, 5) ?? "",
     period: item?.period ?? "", place_id: item?.place_id ?? initialPlace?.id ?? "", booking_id: item?.booking_id ?? initialBooking?.id ?? "",
     private_note: item?.private_note ?? "", shared_note: item?.shared_note ?? "",
   });
@@ -130,7 +131,12 @@ export function ScheduleEditor({ action, cancel, item, date, places, initialPlac
               <option value="UNSCHEDULED">시간 미정</option><option value="FIXED">정확한 시각</option><option value="PERIOD">오전·오후·저녁</option>
             </select></label>
           </div>
-          {values.time_mode === "FIXED" && field("fixed_local_time", "일본 현지 시각", { type: "time", required: true })}
+          {values.time_mode === "FIXED" ? <>
+            <div className="plan-pair">{field("fixed_local_time", "일본 현지 시각", { type: "time", required: true })}
+              {field("end_local_time", "종료 시각 (선택)", { type: "time" })}</div>
+            <p className="plan-meta" role="status">{scheduleDuration(values.fixed_local_time, values.end_local_time)
+              ? "소요 시간 · " + scheduleDuration(values.fixed_local_time, values.end_local_time) + "분" : "종료 시각은 같은 날의 시작 시각보다 늦게 입력해 주세요."}</p>
+          </> : <input type="hidden" name="end_local_time" value="" />}
           {values.time_mode === "PERIOD" && <div className="form-field"><label htmlFor="itinerary-period">시간대</label><select id="itinerary-period" required className="plan-input" name="period"
             value={values.period} onChange={(event) => set("period", event.target.value)}>
             <option value="">시간대 선택</option>

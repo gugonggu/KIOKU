@@ -23,6 +23,7 @@ export type SharedSchedule = {
   title: string;
   date: string;
   fixed_local_time: string | null;
+  end_local_time?: string | null;
   period: SchedulePeriod | null;
   place: SharedPlace | null;
   note?: string | null;

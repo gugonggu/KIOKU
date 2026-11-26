@@ -2,7 +2,7 @@ import type { ScheduleFields } from "./database.types";
 import type { Trip } from "./trip-details";
 import { outsideTrip, parseSchedule } from "./trip-plan.ts";
 
-export type TripImportRow = Pick<ScheduleFields, "title" | "local_date" | "time_mode" | "fixed_local_time" | "period">;
+export type TripImportRow = Pick<ScheduleFields, "title" | "local_date" | "time_mode" | "fixed_local_time" | "end_local_time" | "period">;
 export type ImportPreviewRow = TripImportRow & { status: "new" | "duplicate" | "outside" };
 export const importLimits = { rows: 30, text: 20000, fileBytes: 80000 };
 
@@ -20,8 +20,8 @@ export function parseTripImport(text: string): { rows: TripImportRow[] } | { err
   const rows: TripImportRow[] = [];
   for (const [index, item] of input.entries()) {
     if (!item || typeof item !== "object" || Array.isArray(item) ||
-        Object.keys(item).some((key) => !["title", "date", "time", "period"].includes(key)) ||
-        typeof item.title !== "string" || [item.date, item.time, item.period].some((value) => value != null && typeof value !== "string") ||
+        Object.keys(item).some((key) => !["title", "date", "time", "endTime", "period"].includes(key)) ||
+        typeof item.title !== "string" || [item.date, item.time, item.endTime, item.period].some((value) => value != null && typeof value !== "string") ||
         (item.time && item.period)) {
       return { error: (index + 1) + "번째 일정의 제목, 날짜 또는 시간 형식을 확인해 주세요." };
     }
@@ -29,12 +29,13 @@ export function parseTripImport(text: string): { rows: TripImportRow[] } | { err
     data.set("title", item.title);
     data.set("local_date", item.date ?? "");
     data.set("fixed_local_time", item.time ?? "");
+    data.set("end_local_time", item.endTime ?? "");
     data.set("period", item.period ?? "");
     data.set("time_mode", item.time ? "FIXED" : item.period ? "PERIOD" : "UNSCHEDULED");
     const result = parseSchedule(data);
     if (typeof result === "string") return { error: (index + 1) + "번째 일정 · " + result };
-    const { title, local_date, time_mode, fixed_local_time, period } = result;
-    rows.push({ title, local_date, time_mode, fixed_local_time, period });
+    const { title, local_date, time_mode, fixed_local_time, end_local_time, period } = result;
+    rows.push({ title, local_date, time_mode, fixed_local_time, end_local_time, period });
   }
   return { rows };
 }

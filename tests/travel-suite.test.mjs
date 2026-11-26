@@ -60,7 +60,7 @@ test("portable travel snapshots whitelist itinerary and flight fields", () => {
   const trip = { title: "Fixture", destination_label: "札幌", start_date: "2027-02-17", end_date: "2027-02-21", owner_id: "PLACEHOLDER_PRIVATE" };
   const places = [{ id: "p", display_name: "公園", address_text: "札幌市", address_ja: null, latitude: 43, longitude: 141, notes: "PLACEHOLDER_PRIVATE" }];
   const schedule = [{ id: "a", title: "산책", place_id: "p", local_date: "2027-02-17", fixed_local_time: "10:30:00", time_mode: "FIXED",
-    period: null, sort_order: 1, private_note: "PLACEHOLDER_PRIVATE", shared_note: "공유 가능" }];
+    end_local_time: "12:00:00", period: null, sort_order: 1, private_note: "PLACEHOLDER_PRIVATE", shared_note: "공유 가능" }];
   const bookings = [{ kind: "FLIGHT", title: "가상 항공", status: "CONFIRMED", confirmation_reference: "PLACEHOLDER_PRIVATE",
     shared_note: "PLACEHOLDER_PRIVATE", segments: [{ departure_airport: "CTS", departure_local_time: "10:15", departure_timezone: "Asia/Tokyo",
       flight_number: "PLACEHOLDER_PRIVATE" }] }];
@@ -68,5 +68,6 @@ test("portable travel snapshots whitelist itinerary and flight fields", () => {
   assert.doesNotMatch(JSON.stringify(result), /PLACEHOLDER_PRIVATE|"owner_id"|"place_id"/);
   assert.equal(result.schedule[0].place.name, "公園");
   assert.equal(result.schedule[0].note, "공유 가능");
+  assert.equal(result.schedule[0].end_local_time, "12:00:00");
   assert.equal(result.bookings[0].detail[0].departureZone, "Asia/Tokyo");
 });

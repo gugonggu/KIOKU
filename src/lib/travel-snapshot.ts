@@ -39,7 +39,7 @@ export function travelSnapshot(
     title: trip.title, destination: trip.destination_label, startDate: trip.start_date, endDate: trip.end_date,
     places: [...placeById.values()], bookings: bookings.map(bookingSnapshot),
     schedule: sortSchedule(schedule).flatMap((item) => item.local_date ? [{
-      title: item.title, date: item.local_date, fixed_local_time: item.fixed_local_time, period: item.period,
+      title: item.title, date: item.local_date, fixed_local_time: item.fixed_local_time, end_local_time: item.end_local_time ?? null, period: item.period,
       place: item.place_id ? placeById.get(item.place_id) ?? null : null, note: item.shared_note,
     }] : []).sort((a, b) => a.date.localeCompare(b.date)),
   };

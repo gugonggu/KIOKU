@@ -29,6 +29,7 @@ export type ScheduleFields = {
   time_mode: ScheduleTiming;
   local_date: string | null;
   fixed_local_time: string | null;
+  end_local_time?: string | null;
   period: SchedulePeriod | null;
   place_id: string | null;
   booking_id?: string | null;
