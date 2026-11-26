@@ -2,7 +2,7 @@
 
 import { CalendarDays, Clock3, MapPin, Search, SquarePen } from "lucide-react";
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { suggestionFields, type PlaceSuggestion } from "@/lib/geoapify";
 import { dateLabel } from "@/lib/trip-details";
@@ -57,6 +57,7 @@ export function ScheduleEditor({ action, cancel, item, date, places, initialPlac
   });
   const set = (key: string, value: string) => setValues((previous) => ({ ...previous, [key]: value }));
   const [source, setSource] = useState<"manual" | "saved" | "search">("manual");
+  const titleInput = useRef<HTMLInputElement>(null);
   const [placeQuery, setPlaceQuery] = useState("");
   const [external, setExternal] = useState<{ id: string; result: PlaceSuggestion }>();
   const matched = places.filter(({ name }) => name.normalize("NFKC").toLowerCase()
@@ -87,7 +88,11 @@ export function ScheduleEditor({ action, cancel, item, date, places, initialPlac
           <button type="button" aria-pressed={source === "saved"} onClick={() => setSource("saved")}><MapPin size={15} aria-hidden />저장한 장소</button>
           <button type="button" aria-pressed={source === "search"} onClick={() => setSource("search")}><Search size={15} aria-hidden />장소 검색</button>
         </div>
-        {source === "search" && <PlaceSearch tripId={quickTripId} schedule choose={(place) => {
+        {source === "search" && <PlaceSearch tripId={quickTripId} schedule onFallback={(query) => {
+          set("title", query.slice(0, planLimits.title));
+          setSource("manual");
+          requestAnimationFrame(() => titleInput.current?.focus());
+        }} choose={(place) => {
           setExternal({ id: crypto.randomUUID(), result: place });
           choosePlace(place.name, "");
         }} />}
@@ -114,7 +119,9 @@ export function ScheduleEditor({ action, cancel, item, date, places, initialPlac
         {Object.entries(suggestionFields(external.result)).map(([name, value]) =>
           <input key={name} type="hidden" name={name} value={value} />)}
       </>}
-      {field("title", "일정 이름", { required: true, maxLength: planLimits.title, placeholder: quickTripId ? "예: 오도리 공원 산책" : undefined })}
+      <label className="form-field"><span>일정 이름</span><Input ref={titleInput} name="title" value={values.title}
+        onChange={(event) => set("title", event.target.value)} required maxLength={planLimits.title}
+        placeholder={quickTripId ? "예: 오도리 공원 산책" : undefined} /></label>
       {initialBooking && values.booking_id === initialBooking.id && <p className="plan-meta">연결된 예약 · {initialBooking.title}</p>}
       {quickTripId && <div className="editorial-quick-context">
         <span><CalendarDays size={16} aria-hidden />{values.local_date ? dateLabel(values.local_date) : "날짜 미정 · 후보함"}</span>

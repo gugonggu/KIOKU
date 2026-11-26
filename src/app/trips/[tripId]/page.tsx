@@ -7,7 +7,8 @@ import { OfflineHomeStatus } from "@/components/offline-controls";
 import { requireUser } from "@/lib/auth";
 import { loadBookings, loadBookingSummaries } from "@/lib/trip-booking-data";
 import { bookingKinds, bookingOccursOn } from "@/lib/trip-bookings";
-import { dateLabel } from "@/lib/trip-details";
+import { dateLabel, monthDayLabel } from "@/lib/trip-details";
+import { directionsUrl } from "@/lib/trip-places";
 import { nextFixedSchedule, nextHomeRefresh, sortSchedule, tripHomeDay } from "@/lib/trip-plan";
 import { loadTripPlan } from "@/lib/trip-plan-data";
 import { getTrip } from "@/lib/trips";
@@ -48,10 +49,48 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
   const dayItems = date ? sortSchedule(plan?.schedule.filter((item) => item.local_date === date) ?? []) : [];
   const nextItem = active ? nextFixedSchedule(dayItems, now) : undefined;
   const nextPlace = nextItem?.place_id ? plan?.places.find((place) => place.id === nextItem.place_id) : undefined;
+  const nextDirections = nextPlace && directionsUrl({ ...nextPlace, address_text: nextPlace.address });
   const linkedBookings = new Set(dayItems.map(({ booking_id }) => booking_id));
   const todayBookings = dailyBookings?.filter((booking) => bookingOccursOn(booking, today, linkedBookings.has(booking.id)));
   const refreshAt = active || status === "upcoming" ? nextHomeRefresh(today, nextItem?.fixed_local_time) : null;
   const candidateCount = plan?.schedule.filter((item) => !item.local_date).length;
+  const dayAction = date === today ? "오늘 일정 바로가기" : date
+    ? `${monthDayLabel(date)} · ${date === trip.start_date ? "첫날 일정" : "일정 보기"}` : "";
+
+  const daySummary = <section className="editorial-paper editorial-preview" aria-labelledby="trip-preview-heading">
+      <Blossom className="editorial-sprig" />
+      <h2 id="trip-preview-heading">{active ? "오늘 일정" : date ? "선택한 날의 일정" : "후보함"}</h2>
+      {date && <p className="plan-meta">{dateLabel(date)} · 일본 현지 날짜</p>}
+      {active && plan && <section className="editorial-up-next trip-home-inline-next" aria-labelledby="trip-next-heading">
+        <h3 id="trip-next-heading">다음 일정</h3>
+        {nextItem ? <Link className="quiet-link" href={itineraryEntryHref(trip.id, nextItem, date)}>
+          <span className="editorial-time">{timeLabel(nextItem)}</span><strong>{nextItem.title}</strong>
+          <ChevronRight size={16} aria-hidden />
+        </Link> : <p className="plan-meta">{dayItems.length ? "오늘 남은 시간 지정 일정이 없어요." : "오늘 등록된 일정이 없어요."}</p>}
+        {nextPlace && <Link className="quiet-link" href={mapHref(trip.id, { date, filter: "date", place: nextPlace.id })}>
+          <MapPin size={16} aria-hidden /><strong>{nextPlace.name}</strong>
+        </Link>}
+        {nextDirections && <a className="quiet-link" href={nextDirections} target="_blank" rel="noreferrer">다음 장소 길찾기</a>}
+      </section>}
+      {plan && dayItems.length > 0 ? <ul>{dayItems.slice(0, 3).map((item) =>
+        <li key={item.id}><span className="editorial-time">{timeLabel(item)}</span><strong>{item.title}</strong></li>)}</ul>
+        : !active && plan && <p className="plan-meta">{date ? "이 날짜에 등록된 일정이 없어요." : `날짜를 정하지 않은 일정 ${candidateCount}개`}</p>}
+      <Link href={date ? scheduleHref : itineraryHref(trip.id, null, undefined, undefined, true)} className="quiet-link">
+        {date ? active ? "오늘 일정 열기" : dayAction : "후보함 열기"}<ChevronRight size={16} aria-hidden />
+      </Link>
+    </section>;
+
+  const scheduleOverview = <section className="editorial-section" aria-labelledby="trip-days-heading">
+      <div className="editorial-section-heading">
+        <h2 id="trip-days-heading">여행 일정 한눈에 보기</h2>
+        <div className="state-actions">
+          <Link href={scheduleHref} className="quiet-link">일정 보기</Link>
+          <Link href={href + "/itinerary?view=all"} className="quiet-link">전체 일정<ChevronRight size={15} aria-hidden /></Link>
+        </div>
+      </div>
+      {date ? <DayCards trip={trip} date={date} summaries={plan ? groups : undefined} /> :
+        <p className="plan-empty">여행 날짜가 정해지면 날짜별 계획을 여기에서 볼 수 있어요.</p>}
+    </section>;
 
   const reservationSummary = <section className="editorial-paper booking-home" aria-labelledby="booking-home-heading">
       <div className="editorial-section-heading">
@@ -95,8 +134,8 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
         <h1>{trip.title}</h1>
         <TripSummary trip={trip} showTravelers={!plan} />
         {!date && <Link href={`${href}/edit#trip-dates`} className="quiet-link">날짜 정하기</Link>}
-        {date && <Link href={scheduleHref} className="primary-button editorial-hero-shortcut">
-          {date === today ? "오늘 일정 바로가기" : "이날 일정 바로가기"}<ChevronRight size={15} aria-hidden />
+        {date && status !== "past" && <Link href={scheduleHref} className="primary-button editorial-hero-shortcut">
+          {dayAction}<ChevronRight size={15} aria-hidden />
         </Link>}
       </div>
     </article>
@@ -106,6 +145,8 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
       <Link className="quiet-link" href={href + "/memory?date=" + today + "&photo=1#add-photo"}><Camera size={17} aria-hidden />사진 추가</Link>
       <Link className="quiet-link" href={href + "/offline"}><Download size={17} aria-hidden />오프라인 수첩</Link>
     </nav>}
+    {active && daySummary}
+    {status === "upcoming" && plan && plan.schedule.length > 0 && scheduleOverview}
     {status === "upcoming" && <div className="trip-home-spread">
       {reservationSummary}
       <section className="editorial-paper trip-home-readiness" aria-labelledby="home-readiness">
@@ -122,26 +163,17 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
     {status === "past" && <section className="editorial-paper editorial-preview" aria-labelledby="home-memory-title">
       <h2 id="home-memory-title">여행의 기억</h2>
       <p>사진과 일기, 다녀온 장소를 날짜별로 모아 보세요.</p>
-      <Link className="quiet-link" href={href + "/memory"}>여행 기억 열기</Link>
-      <Link className="quiet-link" href={href + "/guide"}>여행 가이드 내보내기</Link>
+      <div className="state-actions">
+        <Link className="primary-button" href={href + "/memory"}>여행 기억 열기</Link>
+        <Link className="quiet-link" href={href + "/guide"}>여행 가이드 내보내기</Link>
+      </div>
     </section>}
     {status !== "past" && !active && plan && !plan.schedule.length && <section className="editorial-paper editorial-preview" aria-labelledby="home-first-steps">
       <h2 id="home-first-steps">첫 여행 계획</h2>
       <p>날짜가 정해지지 않은 일정은 후보함에서 시작할 수 있어요.</p>
       <Link className="quiet-link" href={itineraryHref(trip.id, date, "add")}>첫 일정 추가</Link>
+      <Link className="quiet-link" href={mapHref(trip.id, { date, mode: "add" })}>장소 찾기</Link>
       <Link className="quiet-link" href={href + "/preparation"}>준비 템플릿 보기</Link>
-      <Link className="quiet-link" href={href + "/itinerary/import"}>JSON 일정 가져오기</Link>
-    </section>}
-    {active && plan && <section className="editorial-paper editorial-up-next" aria-labelledby="trip-next-heading">
-      <h2 id="trip-next-heading">다음 일정</h2>
-      {nextItem ? <Link className="quiet-link" href={itineraryEntryHref(trip.id, nextItem, date)}>
-        <span className="editorial-time">{timeLabel(nextItem)}</span><strong>{nextItem.title}</strong>
-        <ChevronRight size={16} aria-hidden />
-      </Link> : <p className="plan-meta">{dayItems.length ? "오늘 남은 시간 지정 일정이 없어요." : "오늘 등록된 일정이 없어요."}</p>}
-      {dayItems.some((item) => item.time_mode !== "FIXED") && <p className="plan-meta">시간대·시간 미정 일정은 오늘 일정에서 확인하세요.</p>}
-      {nextPlace && <Link className="quiet-link" href={mapHref(trip.id, { date, filter: "date", place: nextPlace.id })}>
-        <MapPin size={16} aria-hidden /><strong>{nextPlace.name}</strong>
-      </Link>}
     </section>}
     {active && <section className="editorial-paper booking-home" aria-labelledby="today-bookings-heading">
       <h2 id="today-bookings-heading">오늘 확인할 예약</h2>
@@ -158,34 +190,14 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
       <div><MapPin aria-hidden /><dt>저장한 장소</dt><dd>{plan.places.length}개</dd></div>
       {trip.traveler_count !== null && <div><UsersRound aria-hidden /><dt>여행 인원</dt><dd>{trip.traveler_count}명</dd></div>}
     </dl> : <p className="notice notice-error" role="status">일정과 장소 요약을 불러오지 못했어요.</p>}
-    <section className="editorial-section" aria-labelledby="trip-days-heading">
-      <div className="editorial-section-heading">
-        <h2 id="trip-days-heading">여행 일정 한눈에 보기</h2>
-        <div className="state-actions">
-          <Link href={scheduleHref} className="quiet-link">일정 보기</Link>
-          <Link href={href + "/itinerary?view=all"} className="quiet-link">전체 일정<ChevronRight size={15} aria-hidden /></Link>
-        </div>
-      </div>
-      {date ? <DayCards trip={trip} date={date} summaries={plan ? groups : undefined} /> :
-        <p className="plan-empty">여행 날짜가 정해지면 날짜별 계획을 여기에서 볼 수 있어요.</p>}
-    </section>
+    {!(status === "upcoming" && plan && plan.schedule.length > 0) && scheduleOverview}
     {status !== "past" && status !== "upcoming" && readiness && <section className="editorial-paper editorial-preview">
       <h2>여행 준비</h2>
       <p>{readiness.total}개 중 {readiness.done}개 완료 · {readiness.percent}%</p>
       <Link className="quiet-link" href={href + "/preparation"}>준비 목록 열기</Link>
     </section>}
-    <div className="editorial-overview-bottom">
-      <section className="editorial-paper editorial-preview" aria-labelledby="trip-preview-heading">
-        <Blossom className="editorial-sprig" />
-        <h2 id="trip-preview-heading">{date === today ? "오늘 일정" : date ? "선택한 날의 일정" : "후보함"}</h2>
-        {date && <p className="plan-meta">{dateLabel(date)} · 일본 현지 날짜</p>}
-        {plan && dayItems.length > 0 ? <ul>{dayItems.slice(0, 3).map((item) =>
-          <li key={item.id}><span className="editorial-time">{timeLabel(item)}</span><strong>{item.title}</strong></li>)}</ul>
-          : plan && <p className="plan-meta">{date ? "이 날짜에 등록된 일정이 없어요." : `날짜를 정하지 않은 일정 ${candidateCount}개`}</p>}
-        <Link href={date ? scheduleHref : itineraryHref(trip.id, null, undefined, undefined, true)} className="quiet-link">
-          {date ? "이날 일정 열기" : "후보함 열기"}<ChevronRight size={16} aria-hidden />
-        </Link>
-      </section>
+    <div className={active ? undefined : "editorial-overview-bottom"}>
+      {!active && daySummary}
       <section className="editorial-paper editorial-home-places">
         <div className="editorial-icon"><MapPin size={22} aria-hidden /></div>
         <h2>장소와 지도</h2>

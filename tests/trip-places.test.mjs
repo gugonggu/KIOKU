@@ -81,6 +81,30 @@ test("Geoapify requests use a Japan filter and a fixed endpoint and validate ext
   });
   assert.deepEqual(result, { status:"ok", results:[{ id:"fixture-1",name:"Sapporo",address:"Hokkaido, Japan",latitude:43,longitude:141,language:"en" }] });
   assert.equal((await queryGeoapify("Sapporo","fake",async () => new Response(null,{ status:429 }))).status,"limited");
+  assert.equal((await queryGeoapify("Sapporo","fake",async () => new Response(null,{ status:403 }))).status,"unconfigured");
   assert.equal((await queryGeoapify("Sapporo","fake",async () => { throw new Error("network"); })).status,"unavailable");
   assert.equal((await queryGeoapify("Sapporo","",async () => { throw new Error("must not call"); })).status,"unconfigured");
+});
+
+test("landmark searches improve the provider query and prefer exact names without changing returned places", async () => {
+  for (const [query, text, lang] of [
+    ["道頓堀", "大阪 道頓堀", "ja"],
+    ["Dotonbori", "Dotonbori Osaka", "en"],
+    ["삿포로 TV 타워", "さっぽろテレビ塔", "ko"],
+  ]) {
+    const response = await queryGeoapify(query, "fixture", async (url) => {
+      const params = new URL(url).searchParams;
+      assert.equal(params.get("text"), text);
+      assert.equal(params.get("lang"), lang);
+      return Response.json({ results: [] });
+    });
+    assert.deepEqual(response, { status: "ok", results: [] });
+  }
+  const row = { country_code: "jp", formatted: "Osaka, Japan", lat: 34.669, lon: 135.502 };
+  const response = await queryGeoapify("Dotonbori", "fixture", async () => Response.json({ results: [
+    { ...row, place_id: "fixture-store", name: "Dotonbori shop" },
+    { ...row, place_id: "fixture-landmark", name: "Dōtonbori" },
+  ] }));
+  assert.equal(response.status, "ok");
+  assert.deepEqual(response.results.map(({ id }) => id), ["fixture-landmark", "fixture-store"]);
 });

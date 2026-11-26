@@ -5,6 +5,13 @@ export type PlaceSuggestion = { id: string; name: string; address: string; latit
 export type GeoapifyResult = { status: "ok"; results: PlaceSuggestion[] } | { status: "unconfigured" | "limited" | "unavailable" };
 export const SEARCH_MIN = 2;
 export const SEARCH_MAX = 100;
+// These inputs otherwise miss the landmark or rank nearby businesses above it.
+const landmarkQueries = new Map([
+  ["道頓堀", "大阪 道頓堀"],
+  ["dotonbori", "Dotonbori Osaka"],
+  ["삿포로 tv 타워", "さっぽろテレビ塔"],
+]);
+const placeNameOrder = new Intl.Collator("en", { usage: "search", sensitivity: "base" });
 
 export function suggestionFields(row: PlaceSuggestion) {
   return { display_name: row.name, address_text: row.address, latitude: String(row.latitude), longitude: String(row.longitude),
@@ -27,12 +34,14 @@ export function searchLanguage(query: string): Language {
 export async function queryGeoapify(query: string, key: string, request: typeof fetch = fetch): Promise<GeoapifyResult> {
   if (!key) return { status: "unconfigured" };
   const language = searchLanguage(query);
+  const text = landmarkQueries.get(query.toLowerCase()) ?? query;
   const url = new URL("https://api.geoapify.com/v1/geocode/autocomplete");
-  url.search = new URLSearchParams({ text: query, lang: language, filter: "countrycode:jp", bias: "countrycode:jp",
+  url.search = new URLSearchParams({ text, lang: language, filter: "countrycode:jp", bias: "countrycode:jp",
     format: "json", limit: "5", apiKey: key }).toString();
   try {
     const response = await request(url, { cache: "no-store", redirect: "error", signal: AbortSignal.timeout(4500) });
     if (response.status === 429) return { status: "limited" };
+    if (response.status === 401 || response.status === 403) return { status: "unconfigured" };
     if (!response.ok) return { status: "unavailable" };
     const payload: unknown = await response.json();
     if (!payload || typeof payload !== "object" || !("results" in payload) || !Array.isArray(payload.results)) return { status: "unavailable" };
@@ -49,7 +58,8 @@ export async function queryGeoapify(query: string, key: string, request: typeof 
         latitude: lat, longitude: lon, language });
       if (results.size === 5) break;
     }
-    return { status: "ok", results: [...results.values()] };
+    const exact = (name: string) => placeNameOrder.compare(name, query) === 0;
+    return { status: "ok", results: [...results.values()].sort((first, second) => Number(exact(second.name)) - Number(exact(first.name))) };
   } catch {
     // A provider exception can include the API key or search text. Return a fixed status.
     return { status: "unavailable" };
