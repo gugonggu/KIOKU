@@ -4,9 +4,9 @@ export const expenseCategories = {
 } as const;
 
 export type ExpenseCategory = keyof typeof expenseCategories;
-export type Budget = { trip_id: string; budget_krw: number; rate: number; people: string[] };
+export type Budget = { trip_id: string; budget_krw: number; rate: number | null; people: string[] };
 export type ExpenseFields = {
-  title: string; amount: number; refund: number; currency: "KRW" | "JPY"; rate: number;
+  title: string; amount: number; refund: number; currency: "KRW" | "JPY"; rate: number | null;
   spent_on: string; category: ExpenseCategory; payer: number; shares: number[];
   method: string | null; prepaid: boolean; note: string | null; booking_id: string | null;
 };
@@ -23,28 +23,37 @@ type SettlementInput = Pick<ExpenseFields, "amount" | "refund" | "currency" | "r
 
 export function expenseWon(expense: SettlementInput) {
   const net = BigInt(expense.amount - expense.refund);
-  return expense.currency === "KRW" ? net : (net * BigInt(expense.rate) + BigInt(5000)) / BigInt(10000);
+  if (net === BigInt(0)) return net;
+  if (expense.currency === "JPY" && expense.rate == null) return null;
+  return expense.currency === "KRW" ? net : (net * BigInt(expense.rate!) + BigInt(5000)) / BigInt(10000);
 }
 
 export function expenseTotals(expenses: SettlementInput[]) {
   const totals = { total: BigInt(0), prepaid: BigInt(0), local: BigInt(0), krw: BigInt(0), jpy: BigInt(0),
-    categories: new Map<ExpenseCategory, bigint>() };
+    pendingJpy: BigInt(0), pendingCount: 0, complete: true, categories: new Map<ExpenseCategory, bigint>() };
   for (const expense of expenses) {
     const won = expenseWon(expense);
+    totals[expense.currency === "JPY" ? "jpy" : "krw"] += BigInt(expense.amount - expense.refund);
+    if (won === null) {
+      totals.pendingJpy += BigInt(expense.amount - expense.refund);
+      totals.pendingCount++; totals.complete = false;
+      continue;
+    }
     totals.total += won;
     totals[expense.prepaid ? "prepaid" : "local"] += won;
-    totals[expense.currency === "JPY" ? "jpy" : "krw"] += BigInt(expense.amount - expense.refund);
     totals.categories.set(expense.category, (totals.categories.get(expense.category) ?? BigInt(0)) + won);
   }
   return totals;
 }
 
 export function settleExpenses(personCount: number, expenses: SettlementInput[]) {
+  let excludedCount = 0;
   const people = Array.from({ length: personCount }, (_, index) => ({
     id: index + 1, paid: BigInt(0), due: BigInt(0), yenPaid: BigInt(0), yenDue: BigInt(0),
   }));
   for (const expense of expenses) {
     const won = expenseWon(expense);
+    if (won === null) { excludedCount++; continue; }
     const yen = expense.currency === "JPY" ? BigInt(expense.amount - expense.refund) : BigInt(0);
     people[expense.payer - 1].paid += won;
     people[expense.payer - 1].yenPaid += yen;
@@ -71,9 +80,14 @@ export function settleExpenses(personCount: number, expenses: SettlementInput[])
       if (receiver.balance === BigInt(0)) receiverIndex++;
     }
   }
-  return { people, transfers };
+  return { people, transfers, excludedCount };
 }
 
-export function wonLabel(value: bigint | number) {
-  return value.toLocaleString("ko-KR") + "원";
+export function wonLabel(value: bigint | number | null) {
+  return value === null ? "환율 미확정" : value.toLocaleString("ko-KR") + "원";
+}
+
+export function expenseTotalLabel(expenses: SettlementInput[]) {
+  const totals = expenseTotals(expenses);
+  return wonLabel(totals.total) + (totals.complete ? "" : ` · 일부 환산 (미확정 ${totals.pendingJpy.toLocaleString("ko-KR")}엔)`);
 }

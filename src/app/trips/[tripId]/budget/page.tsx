@@ -17,11 +17,13 @@ function ExpenseForm({ tripId, budget, bookings, usedBookings, expense }: {
   tripId: string; budget: Budget; bookings: BookingSummary[]; usedBookings: Set<string>; expense?: Expense;
 }) {
   const solo = budget.people.length === 1;
+  const defaultRate = expense?.currency === "JPY" ? expense.rate : budget.rate;
   const expenseId = expense?.id ?? randomUUID();
   return <BudgetForm key={expenseId} action={saveExpense.bind(null, tripId, expenseId, expense?.revision ?? null)}
     label={expense ? "지출 수정 저장" : "지출 등록"}>
     <div className="budget-grid">
       <label>원래 결제액<input name="amount" type="number" inputMode="numeric" min="1" max="1000000000" step="1" defaultValue={expense?.amount} /></label>
+      <label>통화<select name="currency" defaultValue={expense?.currency ?? "JPY"}><option>KRW</option><option>JPY</option></select></label>
       <label>카테고리<select name="category" defaultValue={expense?.category ?? "other"}>{categoryOptions}</select></label>
       <label>결제자<select name="payer" required defaultValue={expense?.payer ?? (solo ? 1 : "")}>
         {!solo && <option value="">결제자 선택</option>}{budget.people.map((name, i) => <option key={i} value={i + 1}>{name}</option>)}
@@ -35,8 +37,7 @@ function ExpenseForm({ tripId, budget, bookings, usedBookings, expense }: {
       <div className="suite-form">
         <label>지출명<input name="title" maxLength={100} defaultValue={expense?.title} placeholder="비워 두면 카테고리 이름을 사용해요" /></label>
         <div className="budget-grid">
-          <label>통화<select name="currency" defaultValue={expense?.currency ?? "JPY"}><option>KRW</option><option>JPY</option></select></label>
-          <label>적용 환율 (1엔당 원)<input name="rate" inputMode="decimal" defaultValue={(expense?.currency === "JPY" ? expense.rate : budget.rate) / 10000} /></label>
+          <label>적용 환율 (1엔당 원)<input name="rate" inputMode="decimal" placeholder="미확정이면 비워 두세요" defaultValue={defaultRate == null ? "" : defaultRate / 10000} /></label>
           <label>누적 환불액 (같은 통화)<input name="refund" type="number" min="0" max="1000000000" step="1" defaultValue={expense?.refund ?? 0} /></label>
           <label>지출 날짜<input type="date" name="date" defaultValue={expense?.spent_on ?? japanDate()} /></label>
           <label>결제 시점<select name="phase" defaultValue={expense?.prepaid ? "prepaid" : "local"}><option value="local">현지 결제</option><option value="prepaid">사전 결제</option></select></label>
@@ -60,7 +61,11 @@ export default async function Page({ params, searchParams }: PageProps<"/trips/[
   if (!trip || error) return <TripLoadError />;
   const [result, bookings] = await Promise.all([loadBudget(tripId), loadBookingSummaries(tripId)]);
   const href = "/trips/" + tripId;
-  const budget = result?.budget;
+  const storedBudget = result?.budget;
+  const travelerCount = Math.min(12, trip.traveler_count ?? 1);
+  const existingPeople = storedBudget?.people ?? (travelerCount === 1 ? ["나"] :
+    Array.from({ length: travelerCount }, (_, i) => "동행 " + (i + 1)));
+  const budget: Budget = storedBudget ?? {trip_id:tripId,budget_krw:0,rate:null,people:existingPeople};
   const expenses = result?.expenses ?? [];
   const totals = expenseTotals(expenses);
   const settlement = budget && settleExpenses(budget.people.length, expenses);
@@ -71,9 +76,6 @@ export default async function Page({ params, searchParams }: PageProps<"/trips/[
   const shown = expenses.filter((expense) => (!date || expense.spent_on === date) &&
     (!category || expense.category === category) && (!payer || String(expense.payer) === payer));
   const remaining = budget?.budget_krw ? BigInt(budget.budget_krw) - totals.total : null;
-  const travelerCount = Math.min(12, trip.traveler_count ?? 1);
-  const existingPeople = budget?.people ?? (travelerCount === 1 ? ["나"] :
-    Array.from({ length: travelerCount }, (_, i) => "동행 " + (i + 1)));
 
   return <div className="editorial-page suite-page">
     <header><Link className="quiet-link" href={href + "/more"}>더보기</Link><h1>예산과 경비</h1><p>{trip.title} · 소유자만 볼 수 있어요.</p></header>
@@ -83,25 +85,28 @@ export default async function Page({ params, searchParams }: PageProps<"/trips/[
         <dl className="budget-grid budget-totals">
           <div><dt>총예산</dt><dd>{budget.budget_krw ? wonLabel(budget.budget_krw) : "미설정"}</dd></div>
           <div><dt>총지출 (원화 환산)</dt><dd>{wonLabel(totals.total)}</dd></div>
+          <div><dt>환산 상태</dt><dd>{totals.complete ? "전체 환산 완료" : "일부 환산 · 미완결"}</dd></div>
           <div><dt>남은 예산</dt><dd>{remaining === null ? "—" : wonLabel(remaining)}</dd></div>
           <div><dt>예산 사용률</dt><dd>{budget.budget_krw ? (totals.total * BigInt(100) / BigInt(budget.budget_krw)).toString() + "%" : "—"}</dd></div>
           <div><dt>사전 결제</dt><dd>{wonLabel(totals.prepaid)}</dd></div>
           <div><dt>현지 지출</dt><dd>{wonLabel(totals.local)}</dd></div>
         </dl>
         <p>통화별 순지출 {wonLabel(totals.krw)} · {totals.jpy.toLocaleString("ko-KR")}엔</p>
+        {!totals.complete && <p className="notice" role="status">환율 미확정 {totals.pendingCount}건 · {totals.pendingJpy.toLocaleString("ko-KR")}엔은 원화 합계와 정산에서 제외했어요. 지출 기록을 열어 나중에 환율을 입력할 수 있어요. 예산 잔액과 사용률도 일부 환산 기준이에요.</p>}
         {remaining !== null && remaining < BigInt(0) && <p className="notice notice-error" role="status">설정한 예산을 초과했어요.</p>}
         {!!totals.categories.size && <ul>{[...totals.categories].map(([key, value]) => <li key={key}>
           {expenseCategories[key]} · {wonLabel(value)}{totals.total > BigInt(0) && " · " + (value * BigInt(100) / totals.total).toString() + "%"}
         </li>)}</ul>}
       </section>}
-      <details open={!budget} className="editorial-paper suite-stack">
-        <summary className="quiet-link">{budget ? "예산과 정산 인원 편집" : "예산과 정산 인원 설정"}</summary>
+      <details className="editorial-paper suite-stack">
+        <summary className="quiet-link">{storedBudget ? "예산과 정산 인원 편집" : "예산과 정산 인원 설정"}</summary>
         <BudgetForm action={saveBudget.bind(null, tripId)} label="예산 저장">
           <label>총예산 (원)<input type="number" name="budget" min="0" max="1000000000" step="1" defaultValue={budget?.budget_krw || undefined} placeholder="정하지 않았다면 비워 두세요" /></label>
-          <label>기본 환율 (1엔당 원)<input name="rate" required inputMode="decimal" placeholder="예: 9.1234" defaultValue={budget ? budget.rate / 10000 : undefined} /></label>
+          <label>기본 환율 (1엔당 원)<input name="rate" inputMode="decimal" placeholder="미확정이면 비워 두세요" defaultValue={budget.rate == null ? "" : budget.rate / 10000} /></label>
           <label>동행자 이름 (한 줄에 한 명)<textarea name="people" required rows={4} maxLength={400}
             defaultValue={existingPeople.join("\n")} /></label>
           <p className="plan-meta">지출마다 적용한 환율을 보관해요. {expenses.length ? "지출이 있는 동안 기존 동행자의 이름과 순서는 유지하고, 새 인원은 마지막 줄에 추가해 주세요." : "혼자 기록하려면 이름을 한 개만 입력하세요."}</p>
+          <p className="plan-meta">예산·환율 설정 없이 바로 지출을 기록해도 돼요. 기본 환율 변경은 기존 지출에 소급 적용하지 않아요.</p>
         </BudgetForm>
       </details>
       {budget && <>
@@ -125,6 +130,7 @@ export default async function Page({ params, searchParams }: PageProps<"/trips/[
           </details>) : <p>표시할 지출이 없어요.</p>}
         </section>
         {settlement && <section className="editorial-paper suite-stack"><h2>인원별 정산</h2>
+          {settlement.excludedCount > 0 && <p className="notice">일부 정산 · 환율 미확정 {settlement.excludedCount}건을 제외한 결과예요. 최종 송금 전 환율을 입력해 주세요.</p>}
           <p>송금액은 환불을 반영한 원화 환산액을 균등 분할해 계산해요. 원화와 엔화 내역에서 남는 1원과 1엔은 동행자 목록 앞쪽부터 배정해요.</p>
           <ul>{settlement.people.map(({ id, paid, due, yenPaid, yenDue }) => <li key={id}>
             <strong>{budget.people[id - 1]}</strong> · 지불 {wonLabel(paid)} · 부담 {wonLabel(due)} · {paid >= due ? "받을 금액 " + wonLabel(paid - due) : "보낼 금액 " + wonLabel(due - paid)}

@@ -28,11 +28,12 @@ export async function saveBudget(trip: string, _state: string, data: FormData) {
   const { client } = await requireTripClient();
   if (!(await getTrip(trip)).data) return "여행을 확인해 주세요.";
   const amount = integer(field(data, "budget") || "0", 0, 1000000000);
-  const rate = parseRate(field(data, "rate"));
+  const rawRate = field(data, "rate");
+  const rate = rawRate ? parseRate(rawRate) : null;
   const people = field(data, "people").split(/\r?\n/).map((name) => name.trim()).filter(Boolean);
-  if (amount === null || rate === null || people.length < 1 || people.length > 12 ||
+  if (amount === null || (rawRate && rate === null) || people.length < 1 || people.length > 12 ||
     people.some((name) => name.length > 30) || new Set(people.map((name) => name.toLowerCase())).size !== people.length) {
-    return "입력한 예산, 확인된 환율과 중복 없는 동행자 이름을 확인해 주세요.";
+    return "예산, 입력한 환율과 중복 없는 동행자 이름을 확인해 주세요. 예산과 환율은 비워 둘 수 있어요.";
   }
   const [current, expenses] = await Promise.all([
     client.from("trip_budgets").select("people").eq("trip_id", trip).maybeSingle(),
@@ -72,11 +73,12 @@ export async function saveExpense(trip: string, id: string, revision: number | n
     currency = booking.currency!;
   }
   const rate = currency === "KRW" ? 10000 : parseRate(field(data, "rate"));
+  if (currency === "JPY" && field(data, "rate") && rate === null) return "입력한 환율을 확인하거나 비워 두세요.";
   if (payer === null || !shares.length || shares.some((share) => share === null)) {
     return "결제자와 분담 대상을 선택해 주세요.";
   }
   if (title.length > 100 || !isCalendarDate(spentOn) || !["KRW", "JPY"].includes(currency)
-    || amount === null || refund === null || refund > amount || !rate
+    || amount === null || refund === null || refund > amount
     || method.length > 40 || note.length > 500) return "금액, 날짜, 환율 등 입력값을 확인해 주세요.";
   const values: ExpenseFields = { title, amount, refund, currency: currency as "KRW" | "JPY", rate,
     spent_on: spentOn, category, payer, shares: shares as number[], method: method || null,

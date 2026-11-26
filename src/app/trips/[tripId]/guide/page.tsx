@@ -117,7 +117,8 @@ export default async function Page({ params, searchParams }: PageProps<"/trips/[
       </section>}
       {readiness && <section className="guide-block"><h3>여행 준비</h3><p>{readiness.total}개 중 {readiness.done}개 완료 · {readiness.percent}%</p></section>}
       {options.budget && <section className="guide-block"><h3>경비 요약 (소유자용)</h3>
-        {totals && ledger?.budget ? <p>예산 {ledger.budget.budget_krw ? wonLabel(ledger.budget.budget_krw) : "미설정"} · 지출 {wonLabel(totals.total)} · 사전 결제 {wonLabel(totals.prepaid)}</p> : <p>표시할 경비가 없어요.</p>}
+        {totals && ledger?.budget ? <><p>예산 {ledger.budget.budget_krw ? wonLabel(ledger.budget.budget_krw) : "미설정"} · 지출 {wonLabel(totals.total)} · 사전 결제 {wonLabel(totals.prepaid)}</p>
+          {!totals.complete && <p>일부 환산 · 환율 미확정 {totals.pendingCount}건, {totals.pendingJpy.toLocaleString("ko-KR")}엔 제외</p>}</> : <p>표시할 경비가 없어요.</p>}
       </section>}
     </article>
     <TripTabs href={href} active="more" />

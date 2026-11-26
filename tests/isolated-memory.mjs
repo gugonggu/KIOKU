@@ -7,6 +7,7 @@ import { createClient } from "@supabase/supabase-js";
 import sharp from "sharp";
 import { verifyReleaseMobile } from "./release-mobile.mjs";
 import { verifyM13Visual } from "./m13-visual.mjs";
+import { verifyOptionalBudget } from "./optional-budget-browser.mjs";
 
 const fixture = JSON.parse(process.env.KIOKU_LOCAL_SUPABASE || "{}");
 const hosted = new URL(fixture.API_URL);
@@ -120,15 +121,22 @@ async function verifyMemory({ owner, visitor, path, tripId, date }) {
   const context = await browser.newContext({ baseURL: app, viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
   await enter(page, owner.email);
+  await verifyOptionalBudget({page,app,owner,must});
+  if (process.env.KIOKU_OPTIONAL_BUDGET_ONLY === "1") {
+    console.log("Isolated Supabase + Chrome passed: optional budget, pending JPY, deferred FX and settlement preservation.");
+    return;
+  }
   await page.goto(path + "/preparation");
   await page.getByText("여행 준비 템플릿", { exact: true }).click();
   await page.getByRole("button", { name: "겨울 여행 템플릿" }).click();
   await page.getByRole("button", { name: "방한복 완료", exact: true }).click();
   await page.goto(path + "/budget");
+  await page.getByText("예산과 정산 인원 설정",{exact:true}).click();
   await page.getByLabel("총예산 (원)").fill("500000");
   await page.getByLabel("기본 환율 (1엔당 원)").fill("9.1234");
   await page.getByLabel("동행자 이름 (한 줄에 한 명)").fill("가\n나\n다");
   await page.getByRole("button", { name: "예산 저장" }).click();
+  await expect(page.getByText("예산과 정산 인원 편집",{exact:true})).toBeVisible();
   const expense = page.locator("#new-expense");
   await expense.getByText("지출 상세 설정", { exact: true }).click();
   await expense.getByLabel("지출명").fill("가상 사전 결제 내역");

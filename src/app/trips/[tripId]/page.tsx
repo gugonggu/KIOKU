@@ -182,6 +182,7 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
       {budget?.budget && <p>{status === "upcoming"
         ? "사전 결제 " + wonLabel(expenseTotals(budget.expenses).prepaid)
         : "총지출 " + wonLabel(expenseTotals(budget.expenses).total)}</p>}
+      {budget && !expenseTotals(budget.expenses).complete && <p>일부 환산 · 환율 미확정 {expenseTotals(budget.expenses).pendingJpy.toLocaleString("ko-KR")}엔 제외</p>}
       <Link className="quiet-link" href={href + "/budget" + (active && budget?.budget ? "#new-expense" : "")}>
         {active && budget?.budget ? "빠른 지출 등록" : status === "past" ? "지출과 정산 보기" : "예산 열기"}
       </Link>

@@ -12,7 +12,7 @@
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "playwright test",
-    "test:db": "node --test tests/trips-db.test.mjs tests/trip-places-db.test.mjs tests/trip-bookings-db.test.mjs tests/trip-sharing-db.test.mjs tests/travel-suite-db.test.mjs tests/travel-memory-db.test.mjs tests/itinerary-end-db.test.mjs tests/trip-cover-db.test.mjs",
+    "test:db": "node --test tests/trips-db.test.mjs tests/trip-places-db.test.mjs tests/trip-bookings-db.test.mjs tests/trip-sharing-db.test.mjs tests/travel-suite-db.test.mjs tests/travel-memory-db.test.mjs tests/itinerary-end-db.test.mjs tests/trip-cover-db.test.mjs tests/optional-budget-db.test.mjs",
     "test:unit": "node --test --disable-warning=MODULE_TYPELESS_PACKAGE_JSON tests/auth-config.test.mjs tests/trip-details.test.mjs tests/trip-plan.test.mjs tests/trip-places.test.mjs tests/trip-bookings.test.mjs tests/trip-sharing.test.mjs tests/travel-suite.test.mjs tests/travel-memory.test.mjs tests/trip-import.test.mjs tests/memory-photo-input.test.mjs tests/photo-queue.test.mjs tests/trip-cover.test.mjs"
   },
   "dependencies": {

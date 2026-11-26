@@ -342,10 +342,12 @@ test("suite budget settles a three-person trip with prepayment and a local yen r
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
   await page.goto(trip + "/budget");
+  await page.getByText("예산과 정산 인원 설정",{exact:true}).click();
   await page.getByLabel("총예산 (원)").fill("500000");
   await page.getByLabel("기본 환율 (1엔당 원)").fill("9.1234");
   await page.getByLabel("동행자 이름 (한 줄에 한 명)").fill("가\n나\n다");
   await page.getByRole("button", { name: "예산 저장" }).click();
+  await expect(page.getByText("예산과 정산 인원 편집",{exact:true})).toBeVisible();
   await expect(page.getByRole("heading", { name: "예산 현황" })).toBeVisible();
   const form = page.locator("#new-expense");
   await form.getByText("지출 상세 설정", { exact: true }).click();
@@ -387,9 +389,11 @@ test("quick expense keeps the amount on validation and offline errors and saves 
   const trip = await seedFiveDayTrip("가상 빠른 경비");
   await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
   await page.goto(trip + "/budget");
+  await page.getByText("예산과 정산 인원 설정",{exact:true}).click();
   await page.getByLabel("기본 환율 (1엔당 원)").fill("9.1234");
   await page.getByLabel("동행자 이름 (한 줄에 한 명)").fill("가\n나");
   await page.getByRole("button", { name: "예산 저장" }).click();
+  await expect(page.getByText("예산과 정산 인원 편집",{exact:true})).toBeVisible();
   await expect(page.getByText("미설정", { exact: true })).toBeVisible();
   const form = page.locator("#new-expense");
   await expect(form.getByLabel("지출명")).toBeHidden();

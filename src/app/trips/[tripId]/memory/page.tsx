@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import Image from "next/image";
 import Link from "next/link";
 import { Blossom } from "@/components/brand";
-import { expenseTotals, wonLabel } from "@/lib/trip-budget";
+import { expenseTotalLabel } from "@/lib/trip-budget";
 import { loadBudget } from "@/lib/trip-budget-data";
 import { dateLabel, isCalendarDate, japanDate } from "@/lib/trip-details";
 import { loadTripMemory } from "@/lib/trip-memory-data";
@@ -190,7 +190,7 @@ export default async function Page({ params, searchParams }: PageProps<"/trips/[
       </li>)}</ul> : <p>이 범위에 방문 상태를 기록할 일정이 없어요.</p>}
     </section>
     <footer className="editorial-paper suite-row">
-      {ledger?.budget && <p>총지출 {wonLabel(expenseTotals(ledger.expenses).total)}</p>}
+      {ledger?.budget && <p>총지출 {expenseTotalLabel(ledger.expenses)}</p>}
       <Link className="quiet-link" href={href + "/budget"}>경비와 정산</Link>
       <Link className="quiet-link" href={href + "/itinerary"}>여행 일정</Link>
       <Link className="quiet-link" href={href + "/guide"}>여행 가이드 출력</Link>

@@ -46,6 +46,23 @@ test("fixed point conversion and settlement conserve won after refunds and remai
   assert.deepEqual(remainder.people.map(({ due }) => Number(due)), [1, 1, 0]);
 });
 
+test("unknown JPY rates keep original currency totals and are excluded from won settlement", () => {
+  const known = {amount:1000,refund:0,currency:"KRW",rate:10000,payer:1,shares:[1,2],prepaid:false,category:"food"};
+  const pending = {...known,amount:500,refund:100,currency:"JPY",rate:null,payer:2};
+  const totals = expenseTotals([known,pending]);
+  assert.equal(totals.total,1000n);
+  assert.equal(totals.jpy,400n);
+  assert.equal(totals.pendingJpy,400n);
+  assert.equal(totals.pendingCount,1);
+  assert.equal(totals.complete,false);
+  const settlement=settleExpenses(2,[known,pending]);
+  assert.deepEqual(settlement.transfers,[{from:2,to:1,amount:500n}]);
+  assert.equal(settlement.excludedCount,1);
+  const later=expenseTotals([known,{...pending,rate:90000}]);
+  assert.equal(later.total,4600n);
+  assert.equal(later.complete,true);
+});
+
 test("preparation templates are opt-in and each item has a stable source key", () => {
   const basic = preparationTemplate("japan");
   const winter = preparationTemplate("winter");
