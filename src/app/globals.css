@@ -225,7 +225,7 @@ h2 { font-weight: 700; line-height: 1.35; letter-spacing: -.035em; }
 .trip-card-link { display: block; height: 100%; border-radius: inherit; }
 .trip-card-link .cover { border-radius: 15px 15px 0 0; }
 .trip-card-body { padding: 16px; }
-.trip-card h3 { font-size: 1.1rem; font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; }
+.trip-card h3 { font-size: 1.1rem; font-weight: 700; line-height: 1.35; word-break: keep-all; overflow-wrap: anywhere; }
 .trip-card-open { display: inline-flex; align-items: center; gap: 4px; margin-top: 14px; color: #355744; font-size: .85rem; font-weight: 700; }
 .trip-card-link:hover .trip-card-open { text-decoration: underline; text-underline-offset: 3px; }
 .trip-card-menu { position: absolute; inset: 8px 8px auto auto; }

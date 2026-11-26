@@ -24,7 +24,7 @@ export async function loadTripPlan(tripId: string) {
   const [schedule, places] = await Promise.all([
     readRows((start, end) => client.from("itinerary_items").select(scheduleColumns).eq("trip_id", tripId)
       .order("local_date").order("id").range(start, end)),
-    readRows((start, end) => client.from("trip_places").select("id,name:display_name,address:address_text").eq("trip_id", tripId)
+    readRows((start, end) => client.from("trip_places").select("id,name:display_name,address:address_text,latitude,longitude,address_ja").eq("trip_id", tripId)
       .order("display_name").order("id").range(start, end)),
   ]);
   return schedule && places ? { schedule, places } : null;

@@ -27,6 +27,7 @@ export default defineConfig({
         SUPABASE_URL: e2eUrls.provider,
         SUPABASE_PUBLISHABLE_KEY: "sb_publishable_e2e_fixture",
         GEOAPIFY_API_KEY: "",
+        SUPABASE_STORAGE_SECRET_KEY: "sb_secret_e2e_fixture",
         KIOKU_SHARE_ENCRYPTION_KEY: randomBytes(32).toString("base64url"),
       },
     },

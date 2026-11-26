@@ -12,9 +12,9 @@ import { MapCanvas, mapLatitudeLimit, type MapPin as CanvasPin } from "./map-can
 
 type Action = (state: PlaceState, form: FormData) => Promise<PlaceState>;
 const searchMessages = {
-  unconfigured: "장소 검색이 설정되지 않았어요. 아래에서 직접 등록할 수 있어요.",
-  limited: "검색 한도에 도달했어요. 나중에 다시 검색하거나 직접 등록해 주세요.",
-  unavailable: "지금은 검색할 수 없어요. 직접 등록하거나 잠시 후 다시 시도해 주세요.",
+  unconfigured: "이 서비스에서 장소 검색을 사용할 수 없어요.",
+  limited: "검색 한도에 도달했어요. 잠시 후 다시 시도해 주세요.",
+  unavailable: "장소 검색에 일시적인 문제가 있어요. 다시 시도해 주세요.",
 };
 
 export function PlaceSearch({ tripId, choose, schedule = false, onFallback }: {
@@ -57,13 +57,13 @@ export function PlaceSearch({ tripId, choose, schedule = false, onFallback }: {
     </ul> : <p className="notice" role="status">{schedule ? "검색 결과가 없어요. 일정 이름을 직접 입력할 수 있어요." :
       "검색 결과가 없어요. 장소를 직접 등록할 수 있어요."}</p>)}
     {result && result.status !== "ok" && <div className="notice" role="status">
-      <p>{schedule && result.status === "unconfigured" ? "장소 검색이 설정되지 않았어요. 일정 이름을 직접 입력할 수 있어요." : searchMessages[result.status]}</p>
+      <p>{searchMessages[result.status]}</p>
       {result.status === "unavailable" && <button type="button" className="quiet-link"
         onClick={() => { setResponse(undefined); setAttempt((count) => count + 1); }}>다시 검색</button>}
     </div>}
     {onFallback && result && (result.status !== "ok" || !result.results.length) &&
       <button type="button" className="quiet-link places-fallback" onClick={() => onFallback(query)}>
-        <SquarePen size={16} aria-hidden />“{query}” 직접 등록으로 계속</button>}
+        <SquarePen size={16} aria-hidden />{schedule ? `“${query}” 이름으로 일정 추가` : `“${query}” 직접 등록으로 계속`}</button>}
     <p className="plan-meta">검색 제공 <a href="https://www.geoapify.com/" target="_blank" rel="noreferrer">Geoapify</a></p>
   </section>;
 }

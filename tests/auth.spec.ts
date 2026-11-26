@@ -422,11 +422,42 @@ test("memory archive saves a standalone private diary and manual visit status", 
   await asUser(database, ownerA, (tx) => tx.query("insert into public.itinerary_items(trip_id,title,local_date,kind) values ($1,'오타루 가상 방문','2027-02-19','PLACE')", [tripId]));
   await page.setViewportSize({ width: 320, height: 844 });
   await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
-  await page.goto(trip + "/memory?date=2027-02-19&write=1");
+  await page.goto(trip + "/memory?date=2027-02-19");
+  const writeLink = page.getByRole("link", { name: "일기 쓰기", exact: true });
+  await expect(page.getByLabel("일기 제목")).toBeHidden();
+  await writeLink.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByLabel("일기 제목")).toBeFocused();
+  await expect(page.locator("#write-memory").getByLabel("기록 날짜")).toHaveValue("2027-02-19");
   await page.getByLabel("일기 제목").fill("첫 가상 기억");
   await page.getByLabel("일기 본문").fill("소유자만 보는 가상 일기");
+  await page.getByRole("link", { name: "사진 추가", exact: true }).click();
+  const files = page.getByLabel("사진 파일", { exact: true });
+  await expect(files).toBeFocused();
+  await expect(page.getByLabel("사진 날짜")).toHaveValue("2027-02-19");
+  await files.setInputFiles({ name: "fixture.png", mimeType: "image/png",
+    buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aV1sAAAAASUVORK5CYII=", "base64") });
+  await expect(page.getByLabel("사진 제목 1")).toHaveValue("fixture");
+  await writeLink.click();
+  await expect(page.getByLabel("일기 본문")).toHaveValue("소유자만 보는 가상 일기");
+  await page.getByRole("link", { name: "사진 추가", exact: true }).click();
+  await expect(page.getByLabel("사진 제목 1")).toHaveValue("fixture");
+  if (process.env.KIOKU_UI_SCREENSHOTS) {
+    await page.screenshot({ path: `${process.env.KIOKU_UI_SCREENSHOTS}/photo-composer-320.png`, animations: "disabled" });
+  }
   await page.getByRole("button", { name: "일기 저장", exact: true }).click();
   await expect(page.getByRole("heading", { name: "첫 가상 기억" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /2027년 2월 19일.*여행 3일차/ })).toBeVisible();
+  await expect(page.locator(".memory-note").getByText(/^작성:/)).toBeVisible();
+  const photoId = randomUUID();
+  await asUser(database, ownerA, (tx) => tx.query(`insert into public.trip_memory_photos
+    (id,trip_id,day,title,caption,entry_id)
+    select $1,trip_id,day,'가상 겨울 사진','여행 기록에 연결한 사진',id
+    from public.trip_memory_entries where trip_id=$2 and title='첫 가상 기억'`, [photoId, tripId]));
+  await database.query("update public.trip_memory_photos set phase='ready',width=480,height=240,bytes=2048 where id=$1", [photoId]);
+  await page.route(`**/api/memory/${tripId}/${photoId}`, (route) => route.fulfill({
+    path: "public/kioku-winter-cover.webp", contentType: "image/webp",
+  }));
   await expect(page.getByLabel("방문 상태", { exact: false })).toHaveValue("planned");
   await page.goto(trip + "/itinerary?date=2027-02-19");
   await page.getByLabel("오타루 가상 방문 방문 상태: 방문 예정").click();
@@ -434,7 +465,13 @@ test("memory archive saves a standalone private diary and manual visit status", 
   await expect(page.getByLabel("오타루 가상 방문 방문 상태: 방문 완료")).toBeVisible();
   await page.goto(trip + "/memory?date=2027-02-19");
   await expect(page.getByLabel("방문 상태", { exact: false })).toHaveValue("visited");
+  const photo = page.getByRole("img", { name: "가상 겨울 사진" });
+  await expect(photo).toBeVisible();
+  await expect(page.locator(".memory-card").getByRole("link", { name: "첫 가상 기억" })).toHaveAttribute("href", /^#entry-/);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  if (process.env.KIOKU_UI_SCREENSHOTS) {
+    await page.screenshot({ path: `${process.env.KIOKU_UI_SCREENSHOTS}/memory-320.png`, fullPage: true, animations: "disabled" });
+  }
   const guest = await request.get("/api/memory/" + tripId + "/" + randomUUID());
   expect(guest.status()).toBe(401);
   const snapshot = await page.request.get("/api/offline/" + tripId);
@@ -1010,7 +1047,7 @@ test("travel-day home opens the next timed place and the selected day's map on m
       (title,destination_label,start_date,end_date,traveler_count)
       values ('가상 겨울 수첩','홋카이도',$1::date-2,$1::date+2,3) returning id`, [today]);
     const { rows: [place] } = await tx.query<{ id: string }>(`insert into public.trip_places
-      (trip_id,display_name) values ($1,'가상 시내 짐 보관소') returning id`, [trip.id]);
+      (trip_id,display_name,latitude,longitude) values ($1,'가상 시내 짐 보관소',43.068,141.35) returning id`, [trip.id]);
     await tx.query(`insert into public.trip_places (trip_id,display_name) values ($1,'다른 날 후보 장소')`, [trip.id]);
     await tx.query(`insert into public.itinerary_items (trip_id,title,local_date,time_mode,fixed_local_time,place_id)
       values ($1,'짐 찾기',$2::date,'FIXED','23:59',$3),
@@ -1031,6 +1068,7 @@ test("travel-day home opens the next timed place and the selected day's map on m
   const next = page.getByRole("region", { name: "다음 일정" });
   await expect(next).toBeInViewport();
   await expect(next.getByText("23:59")).toBeVisible();
+  await expect(next.getByRole("link", { name: "다음 장소 길찾기" })).toHaveAttribute("href", /destination=43\.068%2C141\.35/);
   const todayBooking = page.getByRole("region", { name: "오늘 확인할 예약" });
   await expect(todayBooking.getByRole("link", { name: /가상 연박 숙소/ })).toBeVisible();
   await expect(todayBooking.getByText("취소된 가상 투어")).toHaveCount(0);
@@ -1112,23 +1150,71 @@ test("release trip home labels upcoming, empty active, and finished trips withou
   const { rows } = await asUser(database, ownerA, (tx) => tx.query<{ id: string; title: string }>(`insert into public.trips
     (title,destination_label,start_date,end_date) values
     ('가상 출발 전','교토',$1::date+2,$1::date+6), ('가상 여행 중','교토',$1::date-1,$1::date+1),
-    ('가상 종료 여행','교토',$1::date-6,$1::date-2) returning id,title`, [today]));
+    ('가상 종료 여행','교토',$1::date-6,$1::date-2),
+    ('가상 한글 여행 제목의 어절 줄바꿈 검증용 수첩','교토',$1::date+3,$1::date+4),
+    (repeat('한', 75),'교토',$1::date+3,$1::date+4) returning id,title`, [today]));
   const id = (title: string) => rows.find((row) => row.title === title)!.id;
   await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/trips/${id("가상 출발 전")}`);
   await expect(page.getByText("출발까지 D-2")).toBeVisible();
   await expect(page.getByRole("heading", { name: "다음 일정" })).toHaveCount(0);
+  const firstDay = shiftDay(shiftDay(today, 1)!, 1);
+  await expect(page.getByRole("link", { name: /월 .*일 · 첫날 일정/ }).first()).toHaveAttribute("href", new RegExp(firstDay + "$"));
+  const firstPlan = page.getByRole("region", { name: "첫 여행 계획" });
+  await expect(firstPlan.getByRole("link", { name: "장소 찾기" })).toHaveAttribute("href", /\/map\?.*mode=add/);
+  await expect(firstPlan.getByRole("link", { name: /JSON/ })).toHaveCount(0);
   await page.goto(`/trips/${id("가상 여행 중")}`);
   const phase = page.locator(".editorial-kicker");
   await expect(phase).toContainText("Day 2 · 일본 현지");
   await expect(phase.locator("time")).toHaveText(/^\d{2}:\d{2}$/);
-  await expect(page.getByRole("navigation", { name: "여행 중 바로가기" }).getByRole("link", { name: "오늘 장소" })).toBeVisible();
+  const shortcuts = page.getByRole("navigation", { name: "여행 중 바로가기" });
+  await expect(shortcuts.getByRole("link", { name: "오늘 장소" })).toBeVisible();
   await expect(page.getByText("오늘 등록된 일정이 없어요.")).toBeVisible();
+  const summary = page.getByRole("region", { name: "오늘 일정", exact: true });
+  await expect(summary.getByRole("heading", { name: "오늘 일정", exact: true })).toBeInViewport();
+  if (process.env.KIOKU_UI_SCREENSHOTS) {
+    await page.screenshot({ path: `${process.env.KIOKU_UI_SCREENSHOTS}/active-home-390.png`, animations: "disabled" });
+  }
+  await shortcuts.getByRole("link", { name: "오늘 여행 기록하기" }).click();
+  await expect(page.getByLabel("일기 제목")).toBeFocused();
+  await expect(page.locator("#write-memory").getByLabel("기록 날짜")).toHaveValue(today);
+  await page.goto(`/trips/${id("가상 여행 중")}`);
+  await shortcuts.getByRole("link", { name: "사진 추가" }).click();
+  await expect(page.getByLabel("사진 파일", { exact: true })).toBeFocused();
+  await expect(page.getByLabel("사진 날짜")).toHaveValue(today);
   await page.goto(`/trips/${id("가상 종료 여행")}`);
   await expect(phase).toHaveText("여행 종료");
   await expect(page.getByRole("region", { name: "여행의 기억" }).getByRole("link", { name: "여행 가이드 내보내기" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "여행 기억 열기" })).toBeInViewport();
   await expect(page.getByRole("link", { name: "예약 전체 보기" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "다음 일정" })).toHaveCount(0);
+  if (process.env.KIOKU_UI_SCREENSHOTS) {
+    await page.screenshot({ path: `${process.env.KIOKU_UI_SCREENSHOTS}/finished-home-390.png`, animations: "disabled" });
+  }
+
+  const longTitle = "가상 한글 여행 제목의 어절 줄바꿈 검증용 수첩";
+  await asUser(database, ownerA, (tx) => tx.query(`insert into public.itinerary_items (trip_id,title,local_date)
+    select id,'가상 첫날 일정',start_date from public.trips where id=$1`, [id(longTitle)]));
+  await page.goto(`/trips/${id(longTitle)}`);
+  const title = page.getByRole("heading", { name: longTitle, exact: true });
+  expect(await page.locator("#trip-days-heading").evaluate((heading) =>
+    Boolean(heading.compareDocumentPosition(document.querySelector("#home-readiness")!) & Node.DOCUMENT_POSITION_FOLLOWING),
+  )).toBe(true);
+  for (const width of [320, 390, 1440]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expect(title).toHaveCSS("word-break", "keep-all");
+    await expect(title).toHaveCSS("overflow-wrap", "anywhere");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+    if (process.env.KIOKU_UI_SCREENSHOTS) {
+      await page.screenshot({ path: `${process.env.KIOKU_UI_SCREENSHOTS}/upcoming-home-${width}.png`, animations: "disabled" });
+    }
+  }
+  await page.goto(`/trips/${id("한".repeat(75))}`);
+  for (const width of [320, 390, 1440]) {
+    await page.setViewportSize({ width, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+  }
 });
 
 test("M2 sorts five Japan travel days with three time modes on mobile and desktop", async ({ page }) => {
@@ -1320,7 +1406,7 @@ test("M3 manually saves a Japanese place, shows a map pin and links or detaches 
   await page.getByRole("link", { name: "장소와 지도" }).click();
   await page.getByRole("link", { name: "장소 추가" }).click();
   await page.getByRole("searchbox", { name: "일본 장소 검색" }).fill("삿포로역");
-  await expect(page.getByRole("main").getByText(/장소 검색이 설정되지 않았어요/)).toBeVisible();
+  await expect(page.getByRole("main").getByText("이 서비스에서 장소 검색을 사용할 수 없어요.")).toBeVisible();
   await page.getByRole("button", { name:/직접 등록으로 계속/ }).click();
   await expect(page.getByLabel("장소 이름", { exact:true })).toHaveValue("삿포로역");
   await page.getByLabel("장소 이름", { exact:true }).fill("삿포로 테스트 장소");
@@ -1409,7 +1495,7 @@ test("M3 debounces Japanese search, handles service errors and saves a selected 
   await page.goto(`${trip}/map?mode=add`);
   const search = page.getByRole("searchbox", { name:"일본 장소 검색" });
   await search.fill("검색 장애");
-  await expect(page.getByText(/지금은 검색할 수 없어요/)).toBeVisible();
+  await expect(page.getByText(/장소 검색에 일시적인 문제가 있어요/)).toBeVisible();
   await search.fill("검색 한도");
   await expect(page.getByText(/검색 한도에 도달했어요/)).toBeVisible();
   await search.fill("札");
@@ -1499,6 +1585,47 @@ test("editorial home opens a keyboard-dismissable quick add without losing the d
     ["삿포로역에서 만나기"],
   ));
   expect(saved).toEqual({ local_date: "2027-02-19", time_mode: "UNSCHEDULED", display_name: "삿포로역" });
+});
+
+test("schedule search falls back to the typed name and keeps the draft without adding a place", async ({ page }) => {
+  const trip = await seedFiveDayTrip("가상 일정 검색 복구");
+  const tripId = trip.split("/").at(-1);
+  await page.route("**/api/places/search?**", (route) => {
+    const query = new URL(route.request().url()).searchParams.get("q");
+    return query === "도톤보리"
+      ? route.fulfill({ status: 503, json: { status: "unavailable" } })
+      : route.fulfill({ json: { status: "ok", results: [] } });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
+  await page.goto(trip + "/itinerary?date=2027-02-19&mode=add");
+  const dialog = page.getByRole("dialog", { name: "일정 추가" });
+  await dialog.getByText("일정 상세 설정").click();
+  await dialog.getByLabel("개인 메모").fill("가상 메모 유지");
+  await dialog.getByRole("button", { name: "장소 검색", exact: true }).click();
+  const search = dialog.getByRole("searchbox");
+  await search.fill("도톤보리");
+  await expect(dialog.getByText(/일시적인 문제가 있어요/)).toBeVisible();
+  await dialog.getByRole("button", { name: /도톤보리.*이름으로 일정 추가/ }).click();
+  await expect(dialog.getByLabel("일정 이름")).toBeFocused();
+  await expect(dialog.getByLabel("일정 이름")).toHaveValue("도톤보리");
+  await dialog.getByRole("button", { name: "장소 검색", exact: true }).click();
+  await search.fill("도톤보리 야시장");
+  await expect(dialog.getByText(/검색 결과가 없어요/)).toBeVisible();
+  await dialog.getByRole("button", { name: /도톤보리 야시장.*이름으로 일정 추가/ }).click();
+  await expect(dialog.getByLabel("일정 이름")).toHaveValue("도톤보리 야시장");
+  await dialog.getByText("일정 상세 설정").click();
+  await expect(dialog.getByLabel("일정 날짜")).toHaveValue("2027-02-19");
+  await expect(dialog.getByLabel("개인 메모")).toHaveValue("가상 메모 유지");
+  if (process.env.KIOKU_UI_SCREENSHOTS) {
+    await page.screenshot({ path: `${process.env.KIOKU_UI_SCREENSHOTS}/schedule-fallback-390.png`, animations: "disabled" });
+  }
+  await dialog.getByRole("button", { name: "일정 저장", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "도톤보리 야시장" })).toBeVisible();
+  const { rows } = await asUser(database, ownerA, (tx) => tx.query(
+    "select place_id, local_date::text, private_note from itinerary_items where trip_id=$1 and title=$2", [tripId, "도톤보리 야시장"],
+  ));
+  expect(rows).toEqual([{ place_id: null, local_date: "2027-02-19", private_note: "가상 메모 유지" }]);
 });
 
 test("editorial desktop and mobile keep saved places and quick-add controls in reach", async ({ page }) => {
@@ -1687,7 +1814,7 @@ test("editorial places workspace keeps list, map and selection in sync on deskto
   await page.getByRole("link", { name: "장소 추가" }).click();
   const add = page.getByRole("dialog", { name: "장소 추가" });
   await add.getByRole("searchbox", { name: "일본 장소 검색" }).fill("검색 장애");
-  await expect(add.getByText(/지금은 검색할 수 없어요/)).toBeVisible();
+  await expect(add.getByText(/장소 검색에 일시적인 문제가 있어요/)).toBeVisible();
   await capture("place-search-failed-1440");
   await add.getByRole("button", { name: /직접 등록으로 계속/ }).click();
   await expect(add.getByLabel("장소 이름", { exact: true })).toHaveValue("검색 장애");

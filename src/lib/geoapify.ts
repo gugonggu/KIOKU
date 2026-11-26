@@ -33,6 +33,7 @@ export async function queryGeoapify(query: string, key: string, request: typeof 
   try {
     const response = await request(url, { cache: "no-store", redirect: "error", signal: AbortSignal.timeout(4500) });
     if (response.status === 429) return { status: "limited" };
+    if (response.status === 401 || response.status === 403) return { status: "unconfigured" };
     if (!response.ok) return { status: "unavailable" };
     const payload: unknown = await response.json();
     if (!payload || typeof payload !== "object" || !("results" in payload) || !Array.isArray(payload.results)) return { status: "unavailable" };

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import Image from "next/image";
 import Link from "next/link";
 import { Blossom } from "@/components/brand";
-import { dateLabel, isCalendarDate, japanDate } from "@/lib/trip-details";
+import { dateLabel, isCalendarDate, japanDate, monthDayLabel } from "@/lib/trip-details";
 import { loadTripMemory } from "@/lib/trip-memory-data";
 import { memoryPhotoHref, tripMemoryDays, visitStatuses, type MemoryEntry, type MemoryPhoto } from "@/lib/trip-memory";
 import { loadTripPlan } from "@/lib/trip-plan-data";
@@ -13,9 +13,10 @@ import { deleteMemoryEntry, deleteMemoryPhoto, organizePhoto, saveMemoryEntry, s
 import { MemoryForm } from "./memory-form";
 import { PhotoQueueForm } from "./photo-queue-form";
 import { saveQueuedMemoryPhoto } from "./actions";
+import { ComposerLinks } from "./composer-links";
 
 export const metadata = { title: "여행 기억", robots: { index: false, follow: false } };
-const dateTime = new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Tokyo", dateStyle: "short", timeStyle: "short" });
+const dateTime = new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Tokyo", dateStyle: "long", timeStyle: "short" });
 type TripPlan = NonNullable<Awaited<ReturnType<typeof loadTripPlan>>>;
 
 function PlaceChoices({ plan, value }: { plan: TripPlan; value?: string | null }) {
@@ -72,7 +73,7 @@ export default async function Page({ params, searchParams }: PageProps<"/trips/[
   if (!memory || !plan) return <div className="editorial-page suite-page"><TripLoadError /><TripTabs href={href} active="more" /></div>;
   const date = typeof query.date === "string" && isCalendarDate(query.date) ? query.date : "";
   const day = date || japanDate();
-  const quick = query.write === "1";
+  const composer = query.photo === "1" ? "add-photo" : query.write === "1" ? "write-memory" : undefined;
   const entries = memory.entries;
   const photos = memory.photos.filter((photo) => photo.phase === "ready");
   const hasPending = photos.length !== memory.photos.length;
@@ -94,24 +95,20 @@ export default async function Page({ params, searchParams }: PageProps<"/trips/[
       <Blossom className="memory-sprig" />
       <p className="editorial-kicker">記憶 · 여행 기록</p>
       <h1>여행 기억</h1>
-      <h2>{trip.title}</h2>
+      <h2 className="memory-trip-title">{trip.title}</h2>
       <p>{trip.start_date && trip.end_date
         ? dateLabel(trip.start_date) + " ~ " + dateLabel(trip.end_date) + " · " + dayNumber(trip.start_date, trip.end_date) + "일"
         : "여행 날짜 미정"}</p>
-      <div className="suite-row">
-        <a className="quiet-link" href="#write-memory">일기 쓰기</a>
-        <a className="quiet-link" href="#add-photo">사진 추가</a>
-        <a className="quiet-link" href="#visit-log">방문 기록</a>
-      </div>
+      <ComposerLinks href={href + "/memory"} date={day} initial={composer} />
     </header>
-    <div className="editorial-paper suite-stack">
-      <details id="write-memory" open={quick || undefined}>
+    <div className="editorial-paper suite-stack memory-composers">
+      <details id="write-memory" open={composer === "write-memory" || undefined}>
         <summary className="quiet-link">새 일기</summary>
         <MemoryForm action={saveMemoryEntry.bind(null, tripId, randomUUID(), false)} label="일기 저장">
           <EntryFields day={day} plan={plan} />
         </MemoryForm>
       </details>
-      <details id="add-photo" open={query.photo === "1" || undefined}>
+      <details id="add-photo" open={composer === "add-photo" || undefined}>
         <summary className="quiet-link">새 사진</summary>
         {canUpload ? <>
           <p>소유자만 볼 수 있어요. 여행당 24장, 계정당 120장까지 보관할 수 있어요.</p>
@@ -134,16 +131,21 @@ export default async function Page({ params, searchParams }: PageProps<"/trips/[
       {days.map((entryDay) => {
         const notes = entries.filter((entry) => entry.day === entryDay);
         const gallery = photos.filter((photo) => photo.day === entryDay);
-        return <section className="editorial-paper suite-stack" key={entryDay} aria-label={dateLabel(entryDay) + " 기록"}>
-          <h3>{dateLabel(entryDay)}</h3>
+        const tripDay = trip.start_date && trip.end_date && entryDay >= trip.start_date && entryDay <= trip.end_date
+          ? dayNumber(trip.start_date, entryDay) : null;
+        return <section className="editorial-paper suite-stack memory-day" key={entryDay} aria-labelledby={"memory-day-" + entryDay}>
+          <h3 className="memory-day-heading" id={"memory-day-" + entryDay}>
+            <time dateTime={entryDay}>{Number(entryDay.slice(0, 4))}년 {monthDayLabel(entryDay)}</time>
+            {tripDay && <span className="plan-meta">여행 {tripDay}일차</span>}
+          </h3>
           {!notes.length && !gallery.length && <p className="plan-meta">이 날짜에 저장한 기억이 없어요.</p>}
-          {notes.map((entry) => <article className="memory-note suite-stack" key={entry.id}>
+          {notes.map((entry) => <article className="memory-note suite-stack" key={entry.id} id={"entry-" + entry.id}>
             <h4>{entry.title}</h4>
             <p className="memory-body">{entry.body}</p>
-            <p className="plan-meta"><time dateTime={entry.created_at}>{dateTime.format(new Date(entry.created_at))}</time>
+            <p className="plan-meta">작성: <time dateTime={entry.created_at}>{dateTime.format(new Date(entry.created_at))}</time>
               {entry.place_id && placeById.get(entry.place_id) && " · " + placeById.get(entry.place_id)}
               {entry.schedule_id && scheduleById.get(entry.schedule_id) && " · " + scheduleById.get(entry.schedule_id)}</p>
-            <details><summary className="quiet-link">일기 편집</summary>
+            <details className="memory-entry-controls"><summary className="quiet-link">일기 편집</summary>
               <MemoryForm action={saveMemoryEntry.bind(null, tripId, entry.id, true)} label="일기 수정 저장">
                 <EntryFields day={entryDay} plan={plan} entry={entry} />
               </MemoryForm>
@@ -155,11 +157,13 @@ export default async function Page({ params, searchParams }: PageProps<"/trips/[
             <figure><PhotoImage photo={photo} /><figcaption>
               <strong>{photo.title}</strong>{photo.is_cover && <span className="plan-meta"> · 대표 사진</span>}
               {photo.caption && <p className="memory-body">{photo.caption}</p>}
-              <p className="plan-meta">
-                {[photo.entry_id && entryById.get(photo.entry_id), photo.place_id && placeById.get(photo.place_id)].filter(Boolean).join(" · ")}
-              </p>
+              {photo.entry_id && entryById.has(photo.entry_id) && <p className="plan-meta">
+                {notes.some(({ id }) => id === photo.entry_id)
+                  ? <a href={"#entry-" + photo.entry_id}>{entryById.get(photo.entry_id)}</a> : entryById.get(photo.entry_id)}
+              </p>}
+              {photo.place_id && placeById.has(photo.place_id) && <p className="plan-meta">{placeById.get(photo.place_id)}</p>}
             </figcaption></figure>
-            <details><summary className="quiet-link">사진 관리</summary>
+            <details className="memory-entry-controls"><summary className="quiet-link">사진 관리</summary>
               {canUpload && <MemoryForm action={saveMemoryPhoto.bind(null, tripId, photo.id, true)} label="사진 정보 저장">
                 <PhotoFields day={entryDay} plan={plan} entries={entries} photo={photo} />
               </MemoryForm>}

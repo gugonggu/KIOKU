@@ -81,6 +81,7 @@ test("Geoapify requests use a Japan filter and a fixed endpoint and validate ext
   });
   assert.deepEqual(result, { status:"ok", results:[{ id:"fixture-1",name:"Sapporo",address:"Hokkaido, Japan",latitude:43,longitude:141,language:"en" }] });
   assert.equal((await queryGeoapify("Sapporo","fake",async () => new Response(null,{ status:429 }))).status,"limited");
+  assert.equal((await queryGeoapify("Sapporo","fake",async () => new Response(null,{ status:403 }))).status,"unconfigured");
   assert.equal((await queryGeoapify("Sapporo","fake",async () => { throw new Error("network"); })).status,"unavailable");
   assert.equal((await queryGeoapify("Sapporo","",async () => { throw new Error("must not call"); })).status,"unconfigured");
 });

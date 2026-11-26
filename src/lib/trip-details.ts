@@ -90,6 +90,11 @@ export function dateLabel(date: string) {
   return `${year}. ${month}. ${day}.`;
 }
 
+export function monthDayLabel(date: string) {
+  const [, month, day] = date.split("-").map(Number);
+  return `${month}월 ${day}일`;
+}
+
 export function durationLabel(start: string, end: string) {
   const nights = (Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86_400_000;
   return nights === 0 ? "당일치기" : `${nights}박 ${nights + 1}일`;

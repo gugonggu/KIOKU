@@ -147,7 +147,8 @@ export async function handlePlanRequest({ database, userId, method, url, readJso
       query = "select id,trip_id,day::text,title,body,place_id,schedule_id,created_at from public.trip_memory_entries where trip_id=$1 order by day,created_at,id";
       break;
     case "/rest/v1/trip_memory_photos":
-      query = "select * from public.trip_memory_photos where trip_id=$1 order by day,sort_order,id";
+      query = "select id,trip_id,day::text,title,caption,entry_id,place_id,phase,width,height,bytes,is_cover,sort_order,created_at " +
+        "from public.trip_memory_photos where trip_id=$1 order by day,sort_order,id";
       break;
     case "/rest/v1/trip_visit_marks":
       query = "select trip_id,schedule_id,status from public.trip_visit_marks where trip_id=$1 order by schedule_id";
@@ -186,8 +187,8 @@ export async function handlePlanRequest({ database, userId, method, url, readJso
         " shared_note,revision,sort_order::float8,archived_date::text from public.itinerary_items where trip_id=$1 order by local_date,id";
       break;
     default:
-      query = columns === "id,name:display_name,address:address_text"
-        ? "select id,display_name as name,address_text as address from public.trip_places where trip_id=$1 order by display_name,id"
+      query = columns === "id,name:display_name,address:address_text,latitude,longitude,address_ja"
+        ? "select id,display_name as name,address_text as address,latitude,longitude,address_ja from public.trip_places where trip_id=$1 order by display_name,id"
         : "select id,display_name,name_ko,name_ja,name_en,address_text,address_ja,latitude,longitude,notes," +
           " provider,provider_place_id,content_version from public.trip_places where trip_id=$1 order by display_name,id";
   }
