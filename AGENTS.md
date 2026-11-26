@@ -6,6 +6,8 @@ KIOKU is a Korean-first Japan travel planner / travel journal for real small-gro
 
 ## Source of truth
 
+The current product scope is [docs/PRODUCT_SCOPE.md](docs/PRODUCT_SCOPE.md). Its 2026-11-26 decision supersedes older planning guidance on expense features.
+
 At the start of a session, read the repository README, recent Git history, current worktree changes, and the affected code. When the private planning notes are available locally, read them in this order:
 1. `docs/01_PRODUCT_BASELINE_v1.0.md`
 2. `docs/02_ARCHITECTURE_DATA_SECURITY_v1.0.md`

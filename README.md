@@ -1,17 +1,21 @@
-# KIOKU — Japan Travel Planner
+# KIOKU · 記憶
 
-한국어 사용자를 위한 일본 여행 수첩입니다. 이메일 또는 Google로 로그인해 일본 현지 날짜별 일정을 만들고, 장소·예약·준비물·경비를 한곳에서 관리할 수 있습니다. 동행자에게 필요한 정보만 공유하고, 여행 중에는 저장한 수첩을 오프라인에서 읽고, 돌아와서는 일기와 사진을 보관할 수 있습니다.
+일본 여행을 계획하고, 함께 떠나고, 소중한 기억을 남기는 디지털 여행 수첩.
+
+A travel journal for planning, exploring, and remembering Japan.
 
 [운영 사이트](https://kioku-trip.vercel.app) · [가상 여행 예제](examples/sapporo-2027/README.md) · [v1.1 제품 검증](V1_1_PRODUCT_REVIEW.md)
 
-v1.1 후속 작업은 기존 [Draft PR #9](https://github.com/gugonggu/KIOKU/pull/9), `feature/v1.1-product-quality`에서 이어갑니다. 종료 시각·사진 순차 업로드·표지 선택·예산/환율 없는 경비 기록을 구현했습니다. 운영은 v1.0.0이며 DB 적용·main 병합·Production 배포는 승인 대기입니다. 다른 PC에서는 깨끗한 작업 트리를 확인하고 해당 브랜치를 `git pull --ff-only`로 갱신한 뒤 [개발 이력](DEVELOPMENT_HISTORY.md)과 [migration 순서/복구 주의](supabase/README.md)를 읽습니다.
+v1.1 후속 작업은 기존 [Draft PR #9](https://github.com/gugonggu/KIOKU/pull/9), `feature/v1.1-product-quality`에서 이어갑니다. 종료 시각·사진 순차 업로드·표지 선택을 구현했습니다. 운영은 v1.0.0이며 DB 적용·main 병합·Production 배포는 승인 대기입니다. 다른 PC에서는 깨끗한 작업 트리를 확인하고 해당 브랜치를 `git pull --ff-only`로 갱신한 뒤 [개발 이력](DEVELOPMENT_HISTORY.md)과 [migration 순서/복구 주의](supabase/README.md)를 읽습니다.
 
 <img src="examples/sapporo-2027/schedule-preview.png" width="320" alt="가상 삿포로 여행의 모바일 날짜별 일정 화면">
 
-## 주요 기능
+## PLAN → TRAVEL → REMEMBER
+
+[제품 범위와 변경 결정](docs/PRODUCT_SCOPE.md)
 
 - 날짜별·전체 일정, 후보함, JSON 가져오기와 장소 연결
-- 항공권·숙소·투어 예약, 여행 준비 목록, 경비와 정산
+- 항공권·숙소·투어 예약과 소유자 전용 예약 가격, 여행 준비 목록
 - 동행자 읽기 전용 공유, 비공개 여행 일기와 앨범, PDF 가이드
 - 이메일·Google 로그인, 이 기기에 저장하는 오프라인 수첩
 
@@ -28,7 +32,7 @@ npm run dev
 
 여행 기능을 로컬에서 사용하려면 `.env.example`을 참고해 `.env.local`을 만들고, 해당 격리 Supabase 인스턴스에 [저장소 마이그레이션](supabase/README.md)을 순서대로 적용합니다. OAuth 콜백과 앱 주소는 같은 환경의 값을 사용합니다.
 
-여행을 연 뒤 **더보기**에서 준비 목록, 오프라인 수첩, 예산과 경비, 인쇄용 여행 가이드를 관리합니다. 기능별 사용법과 격리 검증은 [여행 수첩 확장 기록](TRAVEL_SUITE.md), DB 적용 순서는 [Supabase 문서](supabase/README.md)를 참고하세요.
+여행을 연 뒤 **더보기**에서 준비 목록, 오프라인 수첩, 여행 기억과 앨범, 인쇄용 여행 가이드를 관리합니다. 기능별 사용법과 격리 검증은 [여행 수첩 확장 기록](TRAVEL_SUITE.md), DB 적용 순서는 [Supabase 문서](supabase/README.md)를 참고하세요.
 
 여행 기억과 JSON 일정 가져오기 운영 릴리스의 배포 및 스모크 기록은 [PR #6](https://github.com/gugonggu/KIOKU/pull/6)에 있습니다. 일정 파일의 [작성 규격과 예제](TRAVEL_SUITE.md#json-일정-작성-규격)와 [실기기 체크리스트](MOBILE_QA.md#실기기-체크리스트)를 참고하세요.
 
