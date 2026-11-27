@@ -8,7 +8,7 @@ import { isCalendarDate, japanDate } from "@/lib/trip-details";
 import { planDay } from "@/lib/trip-plan";
 import { loadTripPlaces } from "@/lib/trip-plan-data";
 import { placesArea } from "@/lib/geoapify";
-import { getTrip } from "@/lib/trips";
+import { getTrip, isTripId } from "@/lib/trips";
 import { TripLoadError } from "../../trip-load-error";
 import { TripTabs } from "../editorial";
 import { itineraryHref } from "../itinerary/links";
@@ -22,9 +22,10 @@ export const metadata = { title: "장소와 지도" };
 
 export default async function PlacesPage({ params, searchParams }: PageProps<"/trips/[tripId]/map">) {
   const [{ tripId }, query] = await Promise.all([params, searchParams]);
-  const { data: trip, error } = await getTrip(tripId);
+  if (!isTripId(tripId)) notFound();
+  // Ownership and data load in one round of queries. RLS limits every query to the owner; the trip check still gates rendering.
+  const [{ data: trip, error }, data] = await Promise.all([getTrip(tripId), loadTripPlaces(tripId)]);
   if (error || !trip) return <TripLoadError />;
-  const data = await loadTripPlaces(trip.id);
   const today = japanDate();
   const requested = typeof query.date === "string" && isCalendarDate(query.date) ? query.date : undefined;
   const itineraryDate = planDay(trip, requested, today);

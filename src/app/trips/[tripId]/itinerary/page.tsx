@@ -9,7 +9,7 @@ import { dateLabel, isCalendarDate, japanDate, type Trip } from "@/lib/trip-deta
 import { outsideTrip, planCalendar as calendar, planDay, shiftDay, sortSchedule } from "@/lib/trip-plan";
 import { loadTripPlan, type PlanSchedule } from "@/lib/trip-plan-data";
 import { loadTripVisits } from "@/lib/trip-memory-data";
-import { getTrip } from "@/lib/trips";
+import { getTrip, isTripId } from "@/lib/trips";
 import { notFound } from "next/navigation";
 import { randomUUID } from "node:crypto";
 import { TripLoadError } from "../../trip-load-error";
@@ -53,11 +53,12 @@ function DateNavigation({ trip, date, today, counts }: {
 
 export default async function ItineraryPage({ params, searchParams }: PageProps<"/trips/[tripId]/itinerary">) {
   const [{ tripId }, query] = await Promise.all([params, searchParams]);
-  const { data: trip, error } = await getTrip(tripId);
-  if (error || !trip) return <TripLoadError />;
-  const [plan, bookingRows, visitRows] = await Promise.all([
-    loadTripPlan(trip.id), loadBookingSummaries(trip.id), query.view === "candidates" ? null : loadTripVisits(trip.id),
+  if (!isTripId(tripId)) notFound();
+  // Ownership and data load in one round of queries. RLS limits every query to the owner; the trip check still gates rendering.
+  const [{ data: trip, error }, plan, bookingRows, visitRows] = await Promise.all([
+    getTrip(tripId), loadTripPlan(tripId), loadBookingSummaries(tripId), query.view === "candidates" ? null : loadTripVisits(tripId),
   ]);
+  if (error || !trip) return <TripLoadError />;
   // A booking slot fills the add form; the user still reviews and saves it.
   const slotBooking = query.mode === "add" && typeof query.booking === "string" && typeof query.slot === "string"
     ? (await loadBookings(trip.id))?.find(({ id }) => id === query.booking) : undefined;

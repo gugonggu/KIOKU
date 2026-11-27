@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { Blossom } from "@/components/brand";
@@ -6,7 +7,7 @@ import { dateLabel, isCalendarDate, japanDate, monthDayLabel } from "@/lib/trip-
 import { loadTripMemory } from "@/lib/trip-memory-data";
 import { memoryPhotoHref, tripMemoryDays, visitStatuses, type MemoryEntry, type MemoryPhoto } from "@/lib/trip-memory";
 import { loadTripPlan } from "@/lib/trip-plan-data";
-import { getTrip } from "@/lib/trips";
+import { getTrip, isTripId } from "@/lib/trips";
 import { TripLoadError } from "../../trip-load-error";
 import { dayNumber, TripTabs } from "../editorial";
 import { deleteMemoryEntry, deleteMemoryPhoto, organizePhoto, saveMemoryEntry, saveMemoryPhoto, saveVisit, sweepMemoryPhotos } from "./actions";
@@ -66,9 +67,10 @@ function PhotoImage({ photo, priority = false }: { photo: MemoryPhoto; priority?
 
 export default async function Page({ params, searchParams }: PageProps<"/trips/[tripId]/memory">) {
   const [{ tripId }, query] = await Promise.all([params, searchParams]);
-  const { data: trip, error } = await getTrip(tripId);
+  if (!isTripId(tripId)) notFound();
+  // Ownership and data load in one round of queries. RLS limits every query to the owner; the trip check still gates rendering.
+  const [{ data: trip, error }, memory, plan] = await Promise.all([getTrip(tripId), loadTripMemory(tripId), loadTripPlan(tripId)]);
   if (!trip || error) return <TripLoadError />;
-  const [memory, plan] = await Promise.all([loadTripMemory(tripId), loadTripPlan(tripId)]);
   const href = "/trips/" + tripId;
   if (!memory || !plan) return <div className="editorial-page suite-page"><TripLoadError /><TripTabs href={href} active="more" /></div>;
   const date = typeof query.date === "string" && isCalendarDate(query.date) ? query.date : "";
