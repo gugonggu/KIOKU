@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { EditorialDialog } from "@/components/editorial-dialog";
 import type { BookingKind } from "@/lib/database.types";
 import { loadBookingLinks, loadBookings, loadPrivateBooking } from "@/lib/trip-booking-data";
+import { bookingSlots } from "@/lib/booking-slots";
 import { bookingKinds } from "@/lib/trip-bookings";
 import { dateLabel, isCalendarDate, japanDate } from "@/lib/trip-details";
 import { planDay } from "@/lib/trip-plan";
@@ -90,10 +91,13 @@ export default async function BookingsPage({ params, searchParams }: PageProps<"
         {privateResult?.data && <BookingPrivate data={privateResult.data} />}
         {privateResult?.error && <p className="notice notice-error" role="alert">비공개 정보를 불러오지 못했어요.</p>}
         {linkDetails ? <div><h3>연결된 일정</h3>{linkDetails}</div> : linkWarning}
-        <Link className="primary-button booking-schedule-add"
-          href={itineraryHref(trip.id, date, "add", undefined, !date) + "&booking=" + item.id}>
-          <CalendarPlus size={17} aria-hidden />일정에 추가
-        </Link>
+        <div className="booking-schedule-adds">{bookingSlots(item).map((slot, index) => {
+          const day = slot.local_date ?? date;
+          return <Link key={slot.key} className={index ? "quiet-link booking-schedule-add booking-schedule-alt" : "primary-button booking-schedule-add"}
+            href={itineraryHref(trip.id, day, "add", undefined, !day) + "&booking=" + item.id + "&slot=" + encodeURIComponent(slot.key)}>
+            <CalendarPlus size={17} aria-hidden />{slot.label}
+          </Link>;
+        })}</div>
         <div className="state-actions booking-manage">
           <Link className="quiet-link" href={bookingsHref(trip.id, date, "edit", item.id)} scroll={false}>예약 수정</Link>
           <Link className="quiet-link danger-link" href={bookingsHref(trip.id, date, "delete", item.id)} scroll={false}>예약 삭제</Link>

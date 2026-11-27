@@ -2,7 +2,7 @@
 
 import { CalendarDays, Clock3, MapPin, Search, SquarePen } from "lucide-react";
 import Link from "next/link";
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { suggestionFields, type PlaceSuggestion } from "@/lib/geoapify";
 import { dateLabel } from "@/lib/trip-details";
@@ -39,35 +39,50 @@ function FormFooter({ state, pending, cancel, label, danger, again }: {
   </>;
 }
 
-export function ScheduleEditor({ action, cancel, item, date, places, initialPlace, bookings = [], initialBooking, quickTripId }: {
+export function ScheduleEditor({ action, cancel, item, date, places, initialPlace, bookings = [], initialBooking, quickTripId, searchTripId, prefill, focusTitle }: {
   action: Action; cancel: string; item?: PlanSchedule; date: string | null; places: { id: string; name: string }[];
   initialPlace?: { id: string; name: string };
   bookings?: BookingSummary[];
   initialBooking?: BookingSummary;
   quickTripId?: string;
+  /** Enables saved-place and place-search sources, including when editing an existing item. */
+  searchTripId?: string;
+  /** Values taken from a booking slot. The user reviews them before saving. */
+  prefill?: Partial<Record<"title" | "local_date" | "time_mode" | "fixed_local_time" | "end_local_time", string>>;
+  /** After "저장하고 계속 추가", return focus to the empty title field. */
+  focusTitle?: boolean;
 }) {
   const [state, dispatch, pending] = useActionState(action, {});
   const [values, setValues] = useState<Record<string, string>>({
-    title: item?.title ?? initialPlace?.name ?? initialBooking?.title ?? "",
-    kind: item?.kind ?? (initialPlace ? "PLACE" : initialBooking ? "BOOKING_REF" : "NOTE"), local_date: item ? item.local_date ?? "" : date ?? "",
-    time_mode: item?.time_mode ?? "UNSCHEDULED", fixed_local_time: item?.fixed_local_time?.slice(0, 5) ?? "",
-    end_local_time: item?.end_local_time?.slice(0, 5) ?? "",
+    title: item?.title ?? initialPlace?.name ?? prefill?.title ?? initialBooking?.title ?? "",
+    kind: item?.kind ?? (initialPlace ? "PLACE" : initialBooking ? "BOOKING_REF" : "NOTE"), local_date: item ? item.local_date ?? "" : prefill?.local_date ?? date ?? "",
+    time_mode: item?.time_mode ?? prefill?.time_mode ?? "UNSCHEDULED", fixed_local_time: item?.fixed_local_time?.slice(0, 5) ?? prefill?.fixed_local_time ?? "",
+    end_local_time: item?.end_local_time?.slice(0, 5) ?? prefill?.end_local_time ?? "",
     period: item?.period ?? "", place_id: item?.place_id ?? initialPlace?.id ?? "", booking_id: item?.booking_id ?? initialBooking?.id ?? "",
     private_note: item?.private_note ?? "", shared_note: item?.shared_note ?? "",
   });
   const set = (key: string, value: string) => setValues((previous) => ({ ...previous, [key]: value }));
   const [source, setSource] = useState<"manual" | "saved" | "search">("manual");
   const titleInput = useRef<HTMLInputElement>(null);
+  const autoTitle = useRef("");
+  const searchTrip = searchTripId ?? quickTripId;
+  useEffect(() => { if (focusTitle) titleInput.current?.focus(); }, [focusTitle]);
   const [placeQuery, setPlaceQuery] = useState("");
   const [external, setExternal] = useState<{ id: string; result: PlaceSuggestion }>();
   const matched = places.filter(({ name }) => name.normalize("NFKC").toLowerCase()
     .includes(placeQuery.normalize("NFKC").trim().toLowerCase()));
   const activePlace = places.find(({ id }) => id === values.place_id);
-  const selecting = Boolean(quickTripId && source !== "manual");
+  const selecting = Boolean(searchTrip && source !== "manual");
   const selected = external?.result ?? activePlace;
 
   function choosePlace(name: string, id: string) {
-    setValues((previous) => ({ ...previous, title: name.slice(0, planLimits.title), kind: "PLACE", place_id: id }));
+    const nextTitle = name.slice(0, planLimits.title);
+    setValues((previous) => {
+      // Keep a title the user typed or an existing item's title; replace only an empty or auto-filled one.
+      const replace = !previous.title.trim() || previous.title === autoTitle.current;
+      if (replace) autoTitle.current = nextTitle;
+      return { ...previous, title: replace ? nextTitle : previous.title, kind: previous.kind === "NOTE" ? "PLACE" : previous.kind, place_id: id };
+    });
     setSource("manual");
     setPlaceQuery("");
   }
@@ -82,13 +97,13 @@ export function ScheduleEditor({ action, cancel, item, date, places, initialPlac
   return <form className={quickTripId ? "editorial-quick-form" : "plan-card"} action={dispatch}
     onSubmit={(event) => { if (selecting) event.preventDefault(); }}>
     <fieldset className="plan-fields" disabled={pending}>
-      {quickTripId && <>
+      {searchTrip && <>
         <div className="editorial-sources" role="group" aria-label="일정 입력 방식">
           <button type="button" aria-pressed={source === "manual"} onClick={() => setSource("manual")}><SquarePen size={15} aria-hidden />직접 입력</button>
           <button type="button" aria-pressed={source === "saved"} onClick={() => setSource("saved")}><MapPin size={15} aria-hidden />저장한 장소</button>
           <button type="button" aria-pressed={source === "search"} onClick={() => setSource("search")}><Search size={15} aria-hidden />장소 검색</button>
         </div>
-        {source === "search" && <PlaceSearch tripId={quickTripId} schedule onFallback={(query) => {
+        {source === "search" && <PlaceSearch tripId={searchTrip} schedule onFallback={(query) => {
           set("title", query.slice(0, planLimits.title));
           setSource("manual");
           requestAnimationFrame(() => titleInput.current?.focus());
@@ -106,12 +121,12 @@ export function ScheduleEditor({ action, cancel, item, date, places, initialPlac
         </div> : <p className="plan-empty">저장한 장소가 없어요.</p>)}
       </>}
       {!selecting && <>
-      {quickTripId && selected && <div className="editorial-selected-place">
+      {searchTrip && selected && <div className="editorial-selected-place">
         <MapPin size={18} aria-hidden /><div><span>{external ? "검색한 장소 · 저장 후 연결" : "저장한 장소 · 일정에 연결"}</span>
           <strong>{selected.name}</strong></div>
         <button type="button" className="quiet-link" onClick={() => {
           setExternal(undefined);
-          setValues((previous) => ({ ...previous, kind: "NOTE", place_id: "" }));
+          setValues((previous) => ({ ...previous, kind: previous.kind === "PLACE" ? "NOTE" : previous.kind, place_id: "" }));
         }}>연결 해제</button>
       </div>}
       {external && <>
@@ -128,7 +143,7 @@ export function ScheduleEditor({ action, cancel, item, date, places, initialPlac
         <span><Clock3 size={16} aria-hidden />{values.time_mode === "FIXED" ? values.fixed_local_time || "정확한 시각" :
           values.time_mode === "PERIOD" ? periods[values.period as keyof typeof periods] || "시간대 선택" : "시간 미정"}</span>
       </div>}
-      <details open={item || initialPlace ? true : undefined}>
+      <details open={item || initialPlace || prefill ? true : undefined}>
         <summary className="quiet-link">일정 상세 설정</summary>
         <div className="plan-fields itinerary-details">
           <div className="plan-pair">

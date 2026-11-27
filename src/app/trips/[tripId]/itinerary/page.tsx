@@ -2,7 +2,8 @@ import { ArrowLeft, ArrowRight, ChevronRight, MapPin, Plus } from "lucide-react"
 import Link from "next/link";
 import { Blossom } from "@/components/brand";
 import { EditorialDialog } from "@/components/editorial-dialog";
-import { loadBookingSummaries } from "@/lib/trip-booking-data";
+import { loadBookings, loadBookingSummaries } from "@/lib/trip-booking-data";
+import { bookingSlots } from "@/lib/booking-slots";
 import { Input } from "@/components/ui/input";
 import { dateLabel, isCalendarDate, japanDate, type Trip } from "@/lib/trip-details";
 import { outsideTrip, planCalendar as calendar, planDay, shiftDay, sortSchedule } from "@/lib/trip-plan";
@@ -57,6 +58,12 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
   const [plan, bookingRows, visitRows] = await Promise.all([
     loadTripPlan(trip.id), loadBookingSummaries(trip.id), query.view === "candidates" ? null : loadTripVisits(trip.id),
   ]);
+  // A booking slot fills the add form; the user still reviews and saves it.
+  const slotBooking = query.mode === "add" && typeof query.booking === "string" && typeof query.slot === "string"
+    ? (await loadBookings(trip.id))?.find(({ id }) => id === query.booking) : undefined;
+  const slot = slotBooking ? bookingSlots(slotBooking).find(({ key }) => key === query.slot) : undefined;
+  const prefill = slot && { title: slot.title, ...(slot.local_date && { local_date: slot.local_date }),
+    ...(slot.time_mode && { time_mode: slot.time_mode, fixed_local_time: slot.fixed_local_time ?? "", end_local_time: slot.end_local_time ?? "" }) };
   const visitStatusesById = visitRows && Object.fromEntries(visitRows.map(({ schedule_id, status }) => [schedule_id, status]));
   const bookings = bookingRows ?? [];
   const today = japanDate();
@@ -101,11 +108,12 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
     const target = candidates ? null : initialDate;
     const draft = copy && item ? { ...item, local_date: target, private_note: null, shared_note: null,
       ...(target === null && { time_mode: "UNSCHEDULED" as const, fixed_local_time: null, end_local_time: null, period: null }) } : undefined;
-    const editorKey = entry?.id ?? draft?.id ?? (typeof query.next === "string" ? query.next : back);
+    const editorKey = entry?.id ?? draft?.id ?? (typeof query.next === "string" ? query.next : back + (slot ? ":" + slot.key : ""));
     return <ScheduleEditor key={editorKey} action={saveItinerary.bind(null, trip.id, entry?.id ?? randomUUID(), entry?.revision ?? null, date)}
       cancel={back} item={entry ?? draft} date={target} initialPlace={initialPlace} places={plan.places}
       bookings={bookings} initialBooking={quick ? bookings.find(({ id }) => id === query.booking) : undefined}
-      quickTripId={quick ? trip.id : undefined} />;
+      quickTripId={quick ? trip.id : undefined} searchTripId={trip.id} prefill={quick ? prefill : undefined}
+      focusTitle={quick && typeof query.next === "string"} />;
   };
   if (mode === "edit" || placing) {
     const title = mode === "edit" ? "일정 수정" : mode === "move" ? "일정 날짜 이동" : mode === "restore" ? "후보 복원" : "일정 삭제";
@@ -186,7 +194,8 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
           {candidates ? undated.length ? <ScheduleList key={back} items={undated} tripId={trip.id} date={date} places={plan.places} bookings={bookings} candidate /> :
             <p className="plan-empty">날짜를 아직 정하지 않은 일정이 없어요.</p>
             : date ? onDay.length ? <ScheduleList key={back} items={onDay} tripId={trip.id} date={date} places={plan.places} bookings={bookings} visits={visitStatusesById} /> :
-              <p className="plan-empty">이 날짜에 등록된 일정이 없어요.</p>
+              <div className="plan-empty itinerary-empty-day"><p>이 날짜에 등록된 일정이 없어요.</p>
+                <Link href={add} scroll={false} className="primary-button itinerary-empty-add"><Plus size={17} aria-hidden />첫 일정 추가</Link></div>
               : <p className="plan-empty">여행 기간을 정하면 날짜별로 일정을 볼 수 있어요. <Link href={`${homeHref}/edit#trip-dates`} className="quiet-link">여행 날짜 정하기</Link></p>}
           <Link href={add} scroll={false} className="editorial-add" data-itinerary-add>
             <Plus size={21} aria-hidden /><span>{addLabel}</span>
