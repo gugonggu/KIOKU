@@ -5,6 +5,8 @@ import { getTrip } from "@/lib/trips";
 import { TripLoadError } from "../../trip-load-error";
 import { TripTabs } from "../editorial";
 
+export const metadata = { title: "오프라인 수첩", robots: { index: false, follow: false } };
+
 export default async function Page({ params }: PageProps<"/trips/[tripId]/offline">) {
   const { tripId } = await params;
   const [owner, { data: trip, error }] = await Promise.all([requireUser(), getTrip(tripId)]);

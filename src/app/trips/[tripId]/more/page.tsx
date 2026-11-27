@@ -6,6 +6,8 @@ import { TripTabs } from "../editorial";
 
 const tabRoutes = new Set(["/itinerary", "/map", "/bookings"]);
 
+export const metadata = { title: "더보기", robots: { index: false, follow: false } };
+
 export default async function Page({ params }: PageProps<"/trips/[tripId]/more">) {
   const { tripId } = await params;
   const { data: trip, error } = await getTrip(tripId);

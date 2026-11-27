@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { startTransition, useActionState, useEffect, useState, type ReactNode } from "react";
+import { ConfirmButton } from "@/components/confirm-button";
 import { maxMemoryUpload, memoryPhotoInputError, selectedMemoryPhotos } from "@/lib/memory-photo-input";
 
 const localPhotoLimit = 16_000_000;
@@ -45,7 +46,6 @@ export function MemoryForm({ action, label, children, confirm, photoUpload }: {
     setInputError(error);
     setPreview(!error && files.length ? URL.createObjectURL(files[0]) : "");
   }} onSubmit={async (event) => {
-    if (confirm && !window.confirm(confirm)) event.preventDefault();
     if (!photoUpload) return;
     const form = new FormData(event.currentTarget);
     const files = selectedMemoryPhotos(form);
@@ -75,9 +75,11 @@ export function MemoryForm({ action, label, children, confirm, photoUpload }: {
   }}>
     {children}
     {preview && <Image className="memory-image memory-preview" src={preview} unoptimized alt="선택한 사진 미리보기" width={240} height={160} />}
-    <button className={children ? "primary-button" : "quiet-link"} disabled={processing || pending} type="submit">
-      {processing ? "사진을 줄이는 중…" : pending ? "처리 중…" : label}
-    </button>
+    {confirm ? <ConfirmButton label={pending ? "처리 중…" : label} confirmLabel={label + " 확인"} message={confirm}
+      disabled={processing || pending} />
+      : <button className={children ? "primary-button" : "quiet-link"} disabled={processing || pending} type="submit">
+        {processing ? "사진을 줄이는 중…" : pending ? "처리 중…" : label}
+      </button>}
     {alert && <p className="notice notice-error" role="alert">{alert}</p>}
   </form>;
 }

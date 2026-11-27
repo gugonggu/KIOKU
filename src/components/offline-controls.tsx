@@ -1,5 +1,6 @@
 "use client";
 
+import { ConfirmButton } from "@/components/confirm-button";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
@@ -218,14 +219,14 @@ export function OfflineControls({ owner, tripId }: { owner: string; tripId: stri
     <div className="suite-row">
       <button className="quiet-link" type="button" disabled={pending} onClick={save}>{savedAt ? "최신 수첩으로 갱신" : "오프라인 수첩 저장"}</button>
       {savedAt && <a className="quiet-link" href={"/offline.html?trip=" + encodeURIComponent(tripId)}>저장된 수첩 열기</a>}
-      {savedAt && <button className="quiet-link" type="button" disabled={pending} onClick={async () => {
-        if (!window.confirm("이 기기에 저장한 수첩을 삭제할까요?")) return;
-        try {
-          await deleteOffline(tripId, owner);
-          refresh(unsaved);
-          setMessage("기기에 저장된 수첩을 삭제했어요.");
-        } catch { setMessage("삭제하지 못했어요. 다시 시도해 주세요."); }
-      }}>저장한 수첩 삭제</button>}
+      {savedAt && <ConfirmButton className="quiet-link" label="저장한 수첩 삭제" confirmLabel="수첩 삭제 확인"
+        message="이 기기에 저장한 수첩을 삭제해요." disabled={pending} onConfirm={async () => {
+          try {
+            await deleteOffline(tripId, owner);
+            refresh(unsaved);
+            setMessage("기기에 저장된 수첩을 삭제했어요.");
+          } catch { setMessage("삭제하지 못했어요. 다시 시도해 주세요."); }
+        }} />}
     </div>
     <p role="status">{message}</p>
     <details>
