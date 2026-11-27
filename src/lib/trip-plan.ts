@@ -24,7 +24,9 @@ export function parseSchedule(data: FormData): ScheduleFields | string {
   if (place && !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(place)) return "연결할 장소를 다시 선택해 주세요.";
   if (booking && !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(booking)) return "연결할 예약을 다시 선택해 주세요.";
   const date = read(data, "local_date");
-  if ((date || mode !== "UNSCHEDULED") && !isCalendarDate(date)) return "일정 날짜를 입력해 주세요.";
+  if ((date || mode !== "UNSCHEDULED") && !isCalendarDate(date)) {
+    return date ? "일정 날짜를 2027-02-19처럼 실제 날짜로 입력해 주세요." : "일정 날짜를 입력해 주세요.";
+  }
   const fixed = mode === "FIXED" ? read(data, "fixed_local_time") : "";
   const end = read(data, "end_local_time");
   if (end && (mode !== "FIXED" || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(end) || end <= fixed)) {

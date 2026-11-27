@@ -1,5 +1,6 @@
 "use client";
 
+import { ConfirmButton } from "@/components/confirm-button";
 import { Copy, Link2 } from "lucide-react";
 import { useActionState, useState, useTransition } from "react";
 import { Input } from "@/components/ui/input";
@@ -41,12 +42,7 @@ export function ShareForm({ settings, configured, save, reveal }: {
       {notice && <p role="status" className="plan-meta">{notice}</p>}
       {!configured && <p className="notice">링크를 발급하려면 서버의 공유 암호화 키가 필요해요.</p>}
     </div>
-    <form action={dispatch} className="editorial-paper share-settings-card" onSubmit={(event) => {
-      const submitter = (event.nativeEvent as SubmitEvent).submitter;
-      const mode = submitter instanceof HTMLButtonElement ? submitter.value : "";
-      if (mode === "stop" && !window.confirm("온라인 공유를 중지할까요? 이전 링크로는 다시 열 수 없어요.")) event.preventDefault();
-      if (mode === "issue" && settings.enabled && !window.confirm("새 링크를 발급할까요? 이전 링크는 즉시 만료돼요.")) event.preventDefault();
-    }}>
+    <form action={dispatch} className="editorial-paper share-settings-card">
       <h2>공개할 정보</h2>
       <p className="plan-meta">여행 제목·일정·장소는 기본으로 표시돼요. 예약번호, 결제금액, 개인 메모는 동행자 화면에 포함되지 않아요.</p>
       <fieldset key={settings.revision} disabled={pending} className="plan-fields">
@@ -58,10 +54,11 @@ export function ShareForm({ settings, configured, save, reveal }: {
         <p className="plan-meta">만료일을 비우면 직접 중지할 때까지 열 수 있어요. 기한을 정하면 선택한 날짜가 끝날 때 만료돼요.</p>
         <button className="quiet-link" name="mode" value="settings">공유 설정 저장</button>
         <div className="state-actions">
-          <button className="primary-button" name="mode" value="issue" disabled={!configured}>
-            {settings.enabled ? "새 링크 발급" : "링크 공유 켜기"}
-          </button>
-          {settings.enabled && <button className="quiet-link danger-link" name="mode" value="stop" formNoValidate>공유 중지</button>}
+          {settings.enabled ? <ConfirmButton className="primary-button" label="새 링크 발급" confirmLabel="새 링크 발급 확인"
+            message="이전 링크는 즉시 만료돼요." name="mode" value="issue" disabled={!configured} />
+            : <button className="primary-button" name="mode" value="issue" disabled={!configured}>링크 공유 켜기</button>}
+          {settings.enabled && <ConfirmButton label="공유 중지" confirmLabel="공유 중지 확인"
+            message="이전 링크로는 다시 열 수 없어요." name="mode" value="stop" formNoValidate />}
         </div>
       </fieldset>
       {state.error && <p className="notice notice-error" role="alert">{state.error}</p>}

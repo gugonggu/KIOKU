@@ -153,7 +153,7 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
         <h2 id="home-readiness">출발 준비</h2>
         {readiness && <>
           <p>{readiness.total}개 중 {readiness.done}개 완료 · {readiness.percent}%</p>
-          <progress value={readiness.percent} max={100} aria-label="여행 준비 진행률" />
+          <progress className="kioku-progress" value={readiness.percent} max={100} aria-label="여행 준비 진행률" />
         </>}
         <Link className="quiet-link" href={href + "/preparation"}>준비 목록 열기<ChevronRight size={16} aria-hidden /></Link>
         {plan && plan.schedule.length > 0 &&

@@ -9,11 +9,15 @@ type GeoPoint = [number, number];
 export const mapLatitudeLimit = 85.051129;
 const styleUrl = "https://tiles.openfreemap.org/styles/liberty";
 
-export function MapCanvas({ pins, selected, onSelect, showLocation = true, onPick, route }: {
+export function MapCanvas({ pins, selected, onSelect, showLocation = true, onPick, route, start }: {
   pins: MapPin[]; selected?: string; onSelect?: (id: string, nearby: MapPin[]) => void; showLocation?: boolean;
   onPick?: (point: GeoPoint) => void; route?: GeoPoint[][];
+  /** Where an empty map opens, for example the middle of the trip's saved places. */
+  start?: GeoPoint;
 }) {
   const container = useRef<HTMLDivElement>(null);
+  // Only the first value matters: it sets where an empty map opens.
+  const initialStart = useRef(start);
   const [runtime, setRuntime] = useState<{ map: MapLibre; lib: typeof import("maplibre-gl") }>();
   const [status, setStatus] = useState<"loading" | "ready" | "failed">("loading");
   const [retry, setRetry] = useState(0);
@@ -35,7 +39,7 @@ export function MapCanvas({ pins, selected, onSelect, showLocation = true, onPic
     void import("maplibre-gl").then((lib) => {
       if (cancelled || !container.current) return;
       lib.setWorkerUrl(`/map-assets/${lib.getVersion()}/maplibre-gl-worker.mjs`);
-      map = new lib.Map({ container: container.current, style: styleUrl, center: [137.5, 36.2], zoom: 4.3,
+      map = new lib.Map({ container: container.current, style: styleUrl, center: initialStart.current ?? [137.5, 36.2], zoom: initialStart.current ? 11 : 4.3,
         attributionControl: false, scrollZoom: false, maxZoom: 18 });
       map.addControl(new lib.NavigationControl({ showCompass: false }), "top-right");
       map.on("error", () => { if (!cancelled) setStatus("failed"); });

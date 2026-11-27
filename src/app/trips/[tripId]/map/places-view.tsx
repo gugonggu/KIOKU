@@ -64,13 +64,18 @@ export function PlacesView({ places, links, trip, date, filter, itineraryDate }:
   const filtersOnMap = compact && view === "map";
   const [copyMessage, setCopyMessage] = useState("");
   const visible = useMemo(() => filterPlaces(places, links, filter, date), [places, links, filter, date]);
-  const shown = useMemo(() => searchPlaces(visible, find), [visible, find]);
   const ordered = useMemo(() => filter === "date" ? sortSchedule(links.filter((entry) => entry.local_date === date)) : [], [links, filter, date]);
   const firstVisits = useMemo(() => {
     const slots = new Map<string, number>();
     ordered.forEach(({ place_id }, index) => { if (place_id && !slots.has(place_id)) slots.set(place_id, index + 1); });
     return slots;
   }, [ordered]);
+  // On a date, list places in visit order so list numbers match the pins.
+  const shown = useMemo(() => {
+    const rows = searchPlaces(visible, find);
+    return filter === "date" ? [...rows].sort((first, second) =>
+      (firstVisits.get(first.id) ?? Number.MAX_SAFE_INTEGER) - (firstVisits.get(second.id) ?? Number.MAX_SAFE_INTEGER)) : rows;
+  }, [visible, find, filter, firstVisits]);
   const pins = useMemo(() => {
     const markers: MapPin[] = [];
     for (const { id, display_name, latitude, longitude } of shown) {

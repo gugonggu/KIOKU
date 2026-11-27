@@ -534,7 +534,7 @@ test("product polish groups travel tools and adds, copies and continues imported
   await page.context().setOffline(true);
   try {
     await page.goto("/offline.html?trip=" + tripId);
-    await expect(page.getByText("14:00–15:30 · 90분 · 가상 오타루 산책 복사본",{exact:true})).toBeVisible();
+    await expect(page.locator(".offline-item").filter({hasText:"가상 오타루 산책 복사본"})).toContainText("14:00–15:30 · 90분");
   } finally { await page.context().setOffline(false); }
 });
 
@@ -2242,7 +2242,8 @@ test("M5 shares only the permitted itinerary, map and bookings and rechecks each
     expect(changed.bookings).toBeNull();
     expect(changed.schedule[0].note).toBe("공유 약속 메모");
     await page.getByLabel("만료일 (일본 현지 날짜)").fill("2099-04-18");
-    await page.getByRole("button", { name: "새 링크 발급" }).click();
+    await page.getByRole("button", { name: "새 링크 발급", exact: true }).click();
+    await page.getByRole("button", { name: "새 링크 발급 확인" }).click();
     await expect(page.getByText("공유 링크를 발급했어요.")).toBeVisible();
     await expect(page.getByLabel("만료일 (일본 현지 날짜)")).toHaveValue("2099-04-18");
     const rotated = await openLink();
@@ -2262,7 +2263,8 @@ test("M5 shares only the permitted itinerary, map and bookings and rechecks each
     await guest.reload();
     await expect(guest.getByRole("heading", { name: "공유 링크를 열 수 없어요" })).toBeVisible();
     expect((await guest.request.get(apiFor(rotated))).status()).toBe(200);
-    await page.getByRole("button", { name: "공유 중지" }).click();
+    await page.getByRole("button", { name: "공유 중지", exact: true }).click();
+    await page.getByRole("button", { name: "공유 중지 확인" }).click();
     await expect(page.getByText("공유 꺼짐", { exact: true })).toBeVisible();
     expect((await guest.request.get(apiFor(rotated))).status()).toBe(404);
     await page.getByRole("button", { name: "링크 공유 켜기" }).click();

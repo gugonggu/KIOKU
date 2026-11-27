@@ -1,6 +1,8 @@
 "use client";
 
+import { CircleCheck, Circle, ListPlus, Pencil, Sparkles } from "lucide-react";
 import { useActionState, useState } from "react";
+import { ConfirmButton } from "@/components/confirm-button";
 import { preparationCategories, preparationProgress, type PreparationRow } from "@/lib/trip-preparation";
 import { dateLabel } from "@/lib/trip-details";
 import { updatePreparation } from "./actions";
@@ -21,25 +23,25 @@ export function PreparationList({ tripId, items }: { tripId: string; items: Prep
   const [unfinished, setUnfinished] = useState(false);
   const progress = preparationProgress(items);
   return <>
-    <section className="editorial-paper suite-stack" aria-label="여행 준비 진행률">
+    <section className="editorial-paper suite-stack prep-progress" aria-label="여행 준비 진행률">
       <strong>{progress.total}개 중 {progress.done}개 완료 · {progress.percent}%</strong>
-      <progress value={progress.done} max={progress.total || 1} aria-label="준비 완료율" />
+      <progress className="kioku-progress" value={progress.percent} max={100} aria-label="준비 완료율" />
       <label className="suite-check"><input type="checkbox" checked={unfinished} onChange={(e) => setUnfinished(e.target.checked)} /> 미완료만 보기</label>
     </section>
-    <details className="editorial-paper suite-stack">
-      <summary>준비 항목 추가</summary>
+    <details className="editorial-paper suite-stack prep-tool">
+      <summary><ListPlus size={18} aria-hidden />준비 항목 추가</summary>
       <form action={action} className="suite-form">
         <input type="hidden" name="command" value="add" />
         <Fields />
         <button className="primary-button" disabled={pending}>항목 추가</button>
       </form>
     </details>
-    <details className="editorial-paper suite-stack">
-      <summary>여행 준비 템플릿</summary>
+    <details className="editorial-paper suite-stack prep-tool">
+      <summary><Sparkles size={18} aria-hidden />여행 준비 템플릿</summary>
       <p className="plan-meta">여행에 맞게 추가하거나 수정할 수 있는 준비 예시예요.</p>
-      <form action={action} className="state-actions">
-        <button name="command" value="japan" className="quiet-link" disabled={pending}>일본 기본 템플릿</button>
-        <button name="command" value="winter" className="quiet-link" disabled={pending}>겨울 여행 템플릿</button>
+      <form action={action} className="state-actions prep-templates">
+        <button name="command" value="japan" className="quiet-link booking-schedule-alt" disabled={pending}>일본 기본 템플릿</button>
+        <button name="command" value="winter" className="quiet-link booking-schedule-alt" disabled={pending}>겨울 여행 템플릿</button>
       </form>
     </details>
     {message && <p role="status" className="plan-meta">{message}</p>}
@@ -50,31 +52,30 @@ export function PreparationList({ tripId, items }: { tripId: string; items: Prep
       const visible = unfinished ? group.filter((item) => !item.done) : group;
       if (!visible.length) return null;
       const { done, total } = preparationProgress(group);
-      return <details key={category} open className="editorial-paper suite-stack">
-        <summary>{label} <small>{done}/{total} 완료</small></summary>
-        <ul className="suite-stack">{visible.map((item) => <li className="suite-entry" key={item.id}>
-          <form action={action} className="suite-row">
+      return <details key={category} open className="editorial-paper suite-stack prep-group">
+        <summary><span>{label}</span><small className="prep-count">{done}/{total}</small></summary>
+        <ul className="prep-items">{visible.map((item) => <li className="prep-item" key={item.id} data-done={item.done || undefined}>
+          <form action={action} className="prep-item-main">
             <input type="hidden" name="id" value={item.id} />
-            <button className="quiet-link" aria-label={item.title + (item.done ? " 미완료로 변경" : " 완료")} name="command" value={item.done ? "open" : "done"} disabled={pending}>{item.done ? "✓ 완료" : "○ 미완료"}</button>
+            <button className="prep-check" aria-label={item.title + (item.done ? " 미완료로 변경" : " 완료")} aria-pressed={item.done}
+              name="command" value={item.done ? "open" : "done"} disabled={pending}>
+              {item.done ? <CircleCheck size={22} aria-hidden /> : <Circle size={22} aria-hidden />}</button>
             <strong>{item.title}</strong>
           </form>
           {item.due_date && <p className="plan-meta">마감 {dateLabel(item.due_date)}</p>}
           {item.note && <p className="plan-meta">{item.note}</p>}
-          <details>
-            <summary>{item.title} 편집</summary>
+          <details className="prep-edit">
+            <summary aria-label={item.title + " 편집"}><Pencil size={14} aria-hidden />편집</summary>
             <form action={action} className="suite-form">
               <input type="hidden" name="id" value={item.id} />
               <Fields item={item} />
               <button className="primary-button" name="command" value="edit" disabled={pending}>변경 저장</button>
             </form>
-            <form action={action} className="state-actions" onSubmit={(event) => {
-              const button = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement;
-              if (button?.value === "delete" && !confirm("이 준비 항목을 삭제할까요?")) event.preventDefault();
-            }}>
+            <form action={action} className="state-actions">
               <input type="hidden" name="id" value={item.id} />
               <button className="quiet-link" name="command" value="up" disabled={pending}>위로</button>
               <button className="quiet-link" name="command" value="down" disabled={pending}>아래로</button>
-              <button className="quiet-link danger-link" name="command" value="delete" disabled={pending}>삭제</button>
+              <ConfirmButton label="삭제" confirmLabel="삭제 확인" message="이 준비 항목을 삭제해요." name="command" value="delete" disabled={pending} />
             </form>
           </details>
         </li>)}</ul>

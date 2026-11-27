@@ -34,6 +34,12 @@ function finish(tripId: string, date: string | null, candidates = false, next?: 
   return redirect(next ? href + "&next=" + next : href);
 }
 
+// A searched place created for an item that then failed to save is removed while nothing links to it.
+async function discardPlace(client: Awaited<ReturnType<typeof requireTripClient>>["client"], tripId: string, placeId: string) {
+  const { data } = await client.from("trip_places").select("content_version").eq("trip_id", tripId).eq("id", placeId).maybeSingle();
+  if (data) await client.rpc("delete_trip_place", { p_trip: tripId, p_id: placeId, p_version: data.content_version, p_expected_count: 0 });
+}
+
 export async function saveItinerary(
   tripId: string, id: string, revision: number | null, currentDate: string | null, _state: ItineraryState, form: FormData,
 ): Promise<ItineraryState> {
@@ -47,8 +53,9 @@ export async function saveItinerary(
   if (warning) return warning;
 
   const searchPlaceId = form.get("search_place_id");
+  let createdPlace: string | undefined;
   if (searchPlaceId) {
-    if (revision !== null || typeof searchPlaceId !== "string" || !isTripId(searchPlaceId) || fields.place_id) return conflict;
+    if (typeof searchPlaceId !== "string" || !isTripId(searchPlaceId) || fields.place_id) return conflict;
     const place = parsePlace(form);
     if (typeof place === "string") return { error: place };
     if (place.provider !== "GEOAPIFY") return { error: "검색 결과를 다시 선택해 주세요." };
@@ -59,6 +66,7 @@ export async function saveItinerary(
         .eq("trip_id", tripId).eq("id", saved.data.id).maybeSingle();
       if (existing?.provider !== place.provider || existing.provider_place_id !== place.provider_place_id) return conflict;
     } else if (saved.data.status !== "saved" && saved.data.status !== "duplicate") return conflict;
+    if (saved.data.status === "saved") createdPlace = saved.data.id;
     fields.place_id = saved.data.id;
     revalidatePath(`/trips/${tripId}/map`);
     revalidatePath(`/trips/${tripId}`);
@@ -67,6 +75,7 @@ export async function saveItinerary(
   const { data, error } = await client.rpc("save_itinerary_item", {
     p_trip: tripId, p_item: id, p_revision: revision, p_trip_version: trip.content_version, p_fields: fields,
   });
+  if (createdPlace && (error || data !== "saved")) await discardPlace(client, tripId, createdPlace);
   if (data === "invalid_booking") return { error: "이 여행에 등록된 예약을 다시 선택해 주세요.", refresh: true };
   if (error?.code === "23503") return { error: "이 여행에 등록된 장소를 다시 선택해 주세요." };
   if (error) return saveError;
