@@ -14,3 +14,4 @@ li { margin-block: .35rem; }
 section h3 { color: #284e3c; }
 .offline-item { display: flex; flex-wrap: wrap; gap: .2rem .6rem; align-items: baseline; margin-block: .6rem .2rem; }
 .offline-time { padding: 0 .5rem; border-radius: 999px; background: #f5e4d6; color: #513c30; font-size: .85rem; font-weight: 650; }
+h1, h2, h3, h4, .offline-item strong { word-break: keep-all; }

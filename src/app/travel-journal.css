@@ -169,3 +169,4 @@
 .itinerary-empty-day { display: grid; justify-items: center; gap: 10px; }
 .itinerary-empty-add { gap: 6px; }
 @media (min-width: 840px) { .itinerary-empty-add { display: none; } }
+.editorial-side-panel li a > svg { flex: none; }

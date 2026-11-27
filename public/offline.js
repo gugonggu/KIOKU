@@ -7,7 +7,7 @@ const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
 const bookingLabels = { CANCELLED: "취소됨", CONFIRMED: "예약 완료", PENDING: "예약 진행 중", NEEDS_BOOKING: "예약 필요" };
 // The service worker serves this shell at a trip URL when the network fails. Read the trip from either form.
 const pathTrip = location.pathname.match(/^\/trips\/([0-9a-f-]{36})(?:\/|$)/i)?.[1];
-const shellAtTripUrl = location.pathname !== "/offline.html";
+const shellAtTripUrl = Boolean(pathTrip);
 
 if (shellAtTripUrl) {
   const note = document.createElement("p");
@@ -205,7 +205,7 @@ async function render() {
 
 addEventListener("pageshow", render);
 // At a trip URL this shell only stands in for the real page. Load the real page when the connection returns.
-addEventListener("online", () => shellAtTripUrl ? location.reload() : render());
+addEventListener("online", () => shellAtTripUrl && navigator.onLine ? location.reload() : render());
 addEventListener("offline", render);
 addEventListener("storage", (event) => { if (event.key === CHANGE) void render(); });
 addEventListener("pagehide", () => { renderVersion++; content.replaceChildren(); });

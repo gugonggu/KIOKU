@@ -303,6 +303,15 @@ test("suite offline saves an owner snapshot, reloads disconnected and clears on 
   await offline.reload();
   await expect(offline.getByText("인터넷 연결 없이 보고 있습니다.")).toBeVisible();
   await expect(offline.getByRole("heading", { name: "가상 오프라인 삿포로" })).toBeVisible();
+  // Trip pages opened or reloaded offline fall back to the static shell, which finds the trip from the path.
+  for (const path of [trip + "/itinerary?date=2027-02-17", trip + "/map"]) {
+    await offline.goto(path);
+    expect(offline.url().endsWith(path)).toBe(true);
+    await expect(offline.getByText("인터넷 연결이 없어 이 기기에 저장한 수첩을 보여 드려요.", { exact: false })).toBeVisible({ timeout: 10_000 });
+    await expect(offline.getByRole("heading", { name: "가상 오프라인 삿포로" })).toBeVisible({ timeout: 10_000 });
+  }
+  // At a trip URL the shell reloads into the real page when the connection returns; keep the sign-out check on /offline.html.
+  await offline.goto("/offline.html?trip=" + tripId);
   await context.setOffline(false);
   await page.goto("/trips");
   await page.getByRole("button", { name: "로그아웃" }).click();
