@@ -305,6 +305,9 @@ test("suite offline saves an owner snapshot, reloads disconnected and clears on 
   await expect(offline.getByRole("heading", { name: "가상 오프라인 삿포로" })).toBeVisible();
   // Trip pages opened or reloaded offline fall back to the static shell, which finds the trip from the path.
   for (const path of [trip + "/itinerary?date=2027-02-17", trip + "/map"]) {
+    // Chromium's offline emulation can fire `online` while the next navigation starts, and the shell's
+    // reconnect reload then cancels it (CI: /map ERR_ABORTED, frame back on the itinerary). Leave the shell first.
+    await offline.goto("about:blank");
     const events: string[] = [];
     const onNav = (frame: import("@playwright/test").Frame) => { if (frame === offline.mainFrame()) events.push("nav " + frame.url()); };
     const onFail = (req: import("@playwright/test").Request) => events.push("fail " + req.url() + " " + req.failure()?.errorText);
@@ -327,7 +330,8 @@ test("suite offline saves an owner snapshot, reloads disconnected and clears on 
   await expect(page).toHaveURL(/\/login$/);
   await page.goto("/trips");
   await expect(page).toHaveURL(/\/login$/);
-  await expect(offline.getByText("이 기기에 저장된 수첩이 없습니다.")).toBeVisible();
+  // Check the status line itself so a failure reports what the shell showed instead.
+  await expect(offline.locator("#offline-status")).toHaveText(/^이 기기에 저장된 수첩이 없습니다\./);
   await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
   await page.goto(trip + "/offline");
   await page.getByRole("button", { name: "오프라인 수첩 저장" }).click();
