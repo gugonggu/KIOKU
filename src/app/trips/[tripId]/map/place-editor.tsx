@@ -50,12 +50,18 @@ export function PlaceSearch({ tripId, choose, schedule = false, onFallback }: {
       onChange={(event) => setInput(event.target.value)} autoComplete="off" placeholder="삿포로역, 札幌駅, Sapporo" /></label>
     {!valid && <p className="plan-meta">두 글자 이상 입력해 주세요.</p>}
     {valid && !result && <p className="plan-meta" role="status">장소를 검색하는 중이에요.</p>}
+    {result?.status === "ok" && result.alternate && result.results.length > 0 && <p className="notice" role="status">
+      한국어 이름으로는 찾지 못해 영문 표기 ‘{result.alternate}’로 찾은 결과예요. 이름과 주소를 확인해 주세요.</p>}
     {result?.status === "ok" && (result.results.length ? <ul className="places-suggestions">
       {result.results.map((row) => <li key={row.id}><button type="button" className="quiet-link" onClick={() => { choose(row); setInput(""); }}>
-        <strong>{row.name}</strong>{row.address && <span>{row.address}</span>}
+        <strong>{row.name}</strong>
+        {(row.kind || row.area) && <small className="places-suggestion-meta">{[row.kind, row.area].filter(Boolean).join(" · ")}</small>}
+        {row.address && <span>{row.address}</span>}
       </button></li>)}
-    </ul> : <p className="notice" role="status">{schedule ? "검색 결과가 없어요. 일정 이름을 직접 입력할 수 있어요." :
-      "검색 결과가 없어요. 장소를 직접 등록할 수 있어요."}</p>)}
+    </ul> : <div className="notice" role="status">
+      <p>{schedule ? "검색 결과가 없어요. 일정 이름을 직접 입력할 수 있어요." : "검색 결과가 없어요. 장소를 직접 등록할 수 있어요."}</p>
+      <p className="plan-meta">일본어나 영어 이름(예: 札幌駅, Sapporo Station)으로 찾으면 결과가 나올 수 있어요.</p>
+    </div>)}
     {result && result.status !== "ok" && <div className="notice" role="status">
       <p>{searchMessages[result.status]}</p>
       {result.status === "unavailable" && <button type="button" className="quiet-link"
@@ -68,7 +74,9 @@ export function PlaceSearch({ tripId, choose, schedule = false, onFallback }: {
   </section>;
 }
 
-export function PlaceEditor({ action, tripId, item, back }: { action: Action; tripId: string; item?: PlanPlace; back: string }) {
+export function PlaceEditor({ action, tripId, item, back, start }: {
+  action: Action; tripId: string; item?: PlanPlace; back: string; start?: [number, number];
+}) {
   const [state, dispatch, pending] = useActionState(action, {});
   const [picker, setPicker] = useState(false);
   const [mapUrl, setMapUrl] = useState("");
@@ -149,7 +157,7 @@ export function PlaceEditor({ action, tripId, item, back }: { action: Action; tr
           </button>
           {picker && <>
             <p className="plan-meta">지도를 이동하거나 확대하고, 원하는 지점을 눌러 핀을 놓으세요. 좌표를 직접 입력할 수도 있어요.</p>
-            <MapCanvas pins={pickerPins} onPick={setPoint} showLocation={false} />
+            <MapCanvas pins={pickerPins} onPick={setPoint} showLocation={false} start={start} />
             {located && <p className="plan-meta">위도 {values.latitude} · 경도 {values.longitude}{!pickerPins.length && " · 지도 표시 범위 밖"}</p>}
           </>}
           <details>

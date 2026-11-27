@@ -7,6 +7,7 @@ import { EditorialDialog } from "@/components/editorial-dialog";
 import { isCalendarDate, japanDate } from "@/lib/trip-details";
 import { planDay } from "@/lib/trip-plan";
 import { loadTripPlaces } from "@/lib/trip-plan-data";
+import { placesArea } from "@/lib/geoapify";
 import { getTrip } from "@/lib/trips";
 import { TripLoadError } from "../../trip-load-error";
 import { TripTabs } from "../editorial";
@@ -30,6 +31,8 @@ export default async function PlacesPage({ params, searchParams }: PageProps<"/t
   const date = requested ?? itineraryDate ?? today;
   const filter = query.filter === "date" || query.filter === "candidates" || query.filter === "unlocated" ? query.filter : "all";
   const current = data?.places.find(({ id }) => id === query.place);
+  const area = data ? placesArea(data.places) : undefined;
+  const start: [number, number] | undefined = area && [area.longitude, area.latitude];
   const view = query.view === "map" || query.view === "list" ? query.view : current ? "map" : "list";
   const context = { date, filter, view, place: current?.id,
     query: typeof query.q === "string" ? query.q.slice(0, 100) : "", route: query.route === "1" } satisfies MapContext;
@@ -66,10 +69,10 @@ export default async function PlacesPage({ params, searchParams }: PageProps<"/t
     <PlacesView {...data} trip={{ id: tripId, start_date: trip.start_date, end_date: trip.end_date }} date={date} filter={filter} itineraryDate={itineraryDate} />
     <PlacesTabs tripId={tripId} date={date} filter={filter} itineraryDate={itineraryDate} />
     {mode === "add" && <EditorialDialog title="장소 추가" back={back}>
-      <PlaceEditor tripId={tripId} back={back} action={savePlace.bind(null, tripId, randomUUID(), null, context)} />
+      <PlaceEditor tripId={tripId} back={back} start={start} action={savePlace.bind(null, tripId, randomUUID(), null, context)} />
     </EditorialDialog>}
     {mode === "edit" && current && <EditorialDialog title="장소 수정" back={back}>
-      <PlaceEditor tripId={tripId} back={back} item={current}
+      <PlaceEditor tripId={tripId} back={back} item={current} start={start}
         action={savePlace.bind(null, tripId, current.id, current.content_version, context)} />
     </EditorialDialog>}
     {mode === "delete" && current && <EditorialDialog title="장소 삭제" back={back}>
