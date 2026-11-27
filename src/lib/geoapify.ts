@@ -13,7 +13,6 @@ const landmarkQueries = new Map([
   ["dotonbori", "Dotonbori Osaka"],
   ["삿포로 tv 타워", "さっぽろテレビ塔"],
 ]);
-const placeNameOrder = new Intl.Collator("en", { usage: "search", sensitivity: "base" });
 
 export function suggestionFields(row: PlaceSuggestion) {
   return { display_name: row.name, address_text: row.address, latitude: String(row.latitude), longitude: String(row.longitude),
@@ -45,7 +44,7 @@ const kindLabels: [string, string][] = [
   ["leisure", "여가"], ["tourism", "관광지"], ["religion", "사찰·신사"], ["natural", "자연"], ["service.post", "우체국"],
   ["building", "건물"], ["education", "학교"], ["healthcare", "병원"],
 ];
-const typeLabels: Record<string, string> = { street: "도로", suburb: "지역", district: "지역", city: "도시", county: "지역", state: "지역", postcode: "우편번호" };
+const typeLabels: Record<string, string> = { street: "도로", suburb: "지역", district: "지역", city: "지역", county: "지역", state: "지역", postcode: "우편번호" };
 
 function textOf(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : "";
@@ -66,11 +65,11 @@ function placeArea(item: Record<string, unknown>) {
 }
 
 async function requestPlaces(text: string, language: Language, key: string, request: typeof fetch,
-  area?: SearchArea, type?: string): Promise<ProviderResult> {
+  area?: SearchArea): Promise<ProviderResult> {
   const url = new URL("https://api.geoapify.com/v1/geocode/autocomplete");
   const bias = (area ? `proximity:${area.longitude},${area.latitude}|` : "") + "countrycode:jp";
   url.search = new URLSearchParams({ text, lang: language, filter: "countrycode:jp", bias,
-    ...(type && { type }), format: "json", limit: "5", apiKey: key }).toString();
+    format: "json", limit: "5", apiKey: key }).toString();
   const response = await request(url, { cache: "no-store", redirect: "error", signal: AbortSignal.timeout(4500) });
   if (response.status === 429) return { status: "limited" };
   if (response.status === 401 || response.status === 403) return { status: "unconfigured" };
@@ -95,7 +94,32 @@ async function requestPlaces(text: string, language: Language, key: string, requ
   return { status: "ok", results: [...results.values()] };
 }
 
-const stationKinds = new Set(["역", "지하철역"]);
+// A proximity bias alone can push the named place out of the top results, so near and nationwide results
+// are requested together and merged. Each request costs one provider credit.
+async function searchText(text: string, language: Language, key: string, request: typeof fetch, area?: SearchArea) {
+  if (!area) return requestPlaces(text, language, key, request);
+  const [near, wide] = await Promise.all([requestPlaces(text, language, key, request, area), requestPlaces(text, language, key, request)]);
+  if (near.status !== "ok" && wide.status !== "ok") return near;
+  const rows = [...(near.status === "ok" ? near.results : []), ...(wide.status === "ok" ? wide.results : [])];
+  return { status: "ok" as const, results: [...new Map(rows.map((row) => [row.id, row])).values()] };
+}
+
+const simple = (text: string) => text.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").normalize("NFKC").toLowerCase().replace(/[\s\-·・.,]/g, "");
+const areaKinds = new Set(["도로", "지역", "우편번호"]);
+
+/** Orders by how well the name matches, then real places before streets and areas, then nearness to the trip. */
+export function rankPlaces(query: string, rows: PlaceSuggestion[], area?: SearchArea) {
+  const wanted = simple(query);
+  const tier = ({ name }: PlaceSuggestion) => {
+    const name2 = simple(name);
+    return name2 === wanted ? 0 : name2.startsWith(wanted) || wanted.startsWith(name2) ? 1 : name2.includes(wanted) ? 2 : 3;
+  };
+  const distance = ({ latitude, longitude }: PlaceSuggestion) => !area ? 0
+    : (latitude - area.latitude) ** 2 + ((longitude - area.longitude) * Math.cos(area.latitude * Math.PI / 180)) ** 2;
+  return rows.map((row, index) => ({ row, index, tier: tier(row), place: row.kind && areaKinds.has(row.kind) ? 1 : 0, far: distance(row) }))
+    .sort((first, second) => first.tier - second.tier || first.place - second.place || first.far - second.far || first.index - second.index)
+    .slice(0, 5).map(({ row }) => row);
+}
 
 export async function queryGeoapify(query: string, key: string, request: typeof fetch = fetch,
   area?: SearchArea): Promise<GeoapifyResult> {
@@ -103,28 +127,19 @@ export async function queryGeoapify(query: string, key: string, request: typeof 
   const language = searchLanguage(query);
   const alias = landmarkQueries.get(query.toLowerCase());
   try {
-    const first = await requestPlaces(alias ?? query, language, key, request, area);
+    const first = await searchText(alias ?? query, language, key, request, area);
     if (first.status !== "ok") return first;
     let results = first.results;
     let alternate: string | undefined;
-    // Japanese station names are often stored without 駅. Ask once more for stations only.
-    if (language === "ja" && !alias && /\S駅$/u.test(query) && !results.some(({ kind }) => kind && stationKinds.has(kind))) {
-      const stations = await requestPlaces(query.slice(0, -1), language, key, request, area, "amenity");
-      if (stations.status === "ok") {
-        const found = stations.results.filter(({ kind }) => kind && stationKinds.has(kind));
-        results = [...found, ...results.filter(({ id }) => !found.some((row) => row.id === id))].slice(0, 5);
-      }
-    }
     // Korean names exist only for some places. Retry once with the English spelling and label it in the UI.
     if (language === "ko" && !alias && !results.length) {
       const retry = koreanPlaceRetry(query);
       if (retry) {
-        const second = await requestPlaces(retry, "en", key, request, area);
+        const second = await searchText(retry, "en", key, request, area);
         if (second.status === "ok" && second.results.length) { results = second.results; alternate = retry; }
       }
     }
-    const exact = (name: string) => placeNameOrder.compare(name, alternate ?? query) === 0;
-    const ordered = [...results].sort((first, second) => Number(exact(second.name)) - Number(exact(first.name)));
+    const ordered = rankPlaces(alternate ?? alias ?? query, results, area);
     return alternate ? { status: "ok", results: ordered, alternate } : { status: "ok", results: ordered };
   } catch {
     // A provider exception can include the API key or search text. Return a fixed status.

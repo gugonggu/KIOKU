@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { koreanPlaceRetry } from "../src/lib/korean-romaji.ts";
-import { destinationArea, placesArea, queryGeoapify } from "../src/lib/geoapify.ts";
+import { destinationArea, placesArea, queryGeoapify, rankPlaces } from "../src/lib/geoapify.ts";
 
 const row = (id, name, extra = {}) => ({ country_code: "jp", place_id: id, name, formatted: name + ", Japan", lat: 43.06, lon: 141.35, ...extra });
 
@@ -16,13 +16,18 @@ test("Korean spellings of Japanese places get one English-script retry query", (
   assert.equal(koreanPlaceRetry("역"), "Station");
 });
 
-test("searches near the trip area keep the Japan filter and add a proximity bias", async () => {
-  const result = await queryGeoapify("Sapporo", "fixture", async (url) => {
+test("searches near the trip merge a proximity-biased and a nationwide request", async () => {
+  const biases = [];
+  const result = await queryGeoapify("Sapporo Station", "fixture", async (url) => {
     const params = new URL(url).searchParams;
     assert.equal(params.get("filter"), "countrycode:jp");
-    assert.equal(params.get("bias"), "proximity:141.35,43.06|countrycode:jp");
-    return Response.json({ results: [row("fixture-1", "Sapporo Station", { category: "public_transport.train", city: "Sapporo", district: "Kita Ward" })] });
+    biases.push(params.get("bias"));
+    return Response.json({ results: params.get("bias").startsWith("proximity")
+      ? [row("fixture-near", "Sapporo Station North Exit", { category: "public_transport.train" }), row("fixture-1", "Sapporo Station", { category: "public_transport.train", city: "Sapporo", district: "Kita Ward" })]
+      : [row("fixture-1", "Sapporo Station", { category: "public_transport.train", city: "Sapporo", district: "Kita Ward" })] });
   }, { latitude: 43.06, longitude: 141.35 });
+  assert.deepEqual(biases.sort(), ["countrycode:jp", "proximity:141.35,43.06|countrycode:jp"]);
+  assert.deepEqual(result.results.map(({ id }) => id), ["fixture-1", "fixture-near"]);
   assert.deepEqual(result.results[0], { id: "fixture-1", name: "Sapporo Station", address: "Sapporo Station, Japan",
     latitude: 43.06, longitude: 141.35, language: "en", kind: "역", area: "Sapporo Kita Ward" });
   const plain = await queryGeoapify("Sapporo", "fixture", async (url) => {
@@ -30,6 +35,33 @@ test("searches near the trip area keep the Japan filter and add a proximity bias
     return Response.json({ results: [] });
   });
   assert.deepEqual(plain, { status: "ok", results: [] });
+  // One failing request still returns the other request's places.
+  const half = await queryGeoapify("Sapporo Station", "fixture", async (url) => new URL(url).searchParams.get("bias").startsWith("proximity")
+    ? new Response(null, { status: 500 }) : Response.json({ results: [row("fixture-1", "Sapporo Station")] }), { latitude: 43, longitude: 141 });
+  assert.deepEqual(half.results.map(({ id }) => id), ["fixture-1"]);
+});
+
+test("ranking prefers exact names, then places over streets, then the nearest branch", () => {
+  const area = { latitude: 43.06, longitude: 141.35 };
+  const rows = [
+    { id: "tokyo", name: "根室花まる 銀座店", address: "", latitude: 35.67, longitude: 139.76, language: "ja", kind: "음식점" },
+    { id: "far", name: "根室花まる", address: "", latitude: 43.33, longitude: 145.58, language: "ja", kind: "음식점" },
+    { id: "near", name: "根室花まる", address: "", latitude: 43.07, longitude: 141.35, language: "ja", kind: "음식점" },
+  ];
+  assert.deepEqual(rankPlaces("根室花まる", rows, area).map(({ id }) => id), ["near", "far", "tokyo"]);
+  const odori = [
+    { id: "street", name: "오도리 공원", address: "", latitude: 43.0601, longitude: 141.3501, language: "ko", kind: "도로" },
+    { id: "park", name: "오도리 공원", address: "", latitude: 43.06, longitude: 141.348, language: "ko", kind: "공원" },
+  ];
+  assert.deepEqual(rankPlaces("오도리 공원", odori, area).map(({ id }) => id), ["park", "street"]);
+  assert.deepEqual(rankPlaces("Otaru Station", [
+    { id: "power", name: "Ishikariwan Shinko power station", address: "", latitude: 43.19, longitude: 141.27, language: "en" },
+    { id: "otaru", name: "Otaru station", address: "", latitude: 43.19, longitude: 140.99, language: "en", kind: "역" },
+  ], area).map(({ id }) => id), ["otaru", "power"]);
+  assert.deepEqual(rankPlaces("Dotonbori", [
+    { id: "shop", name: "Dotonbori shop", address: "", latitude: 34.669, longitude: 135.502, language: "en" },
+    { id: "landmark", name: "Dōtonbori", address: "", latitude: 34.669, longitude: 135.502, language: "en" },
+  ]).map(({ id }) => id), ["landmark", "shop"]);
 });
 
 test("an empty Korean search retries once in English and reports the retry text", async () => {
@@ -51,25 +83,6 @@ test("an empty Korean search retries once in English and reports the retry text"
   assert.equal(direct.alternate, undefined);
   // A provider failure on the first request is returned without a retry.
   assert.equal((await queryGeoapify("니조 시장", "fixture", async () => new Response(null, { status: 429 }))).status, "limited");
-});
-
-test("a Japanese station query without a station result asks once for stations by the bare name", async () => {
-  const calls = [];
-  const result = await queryGeoapify("小樽駅", "fixture", async (url) => {
-    const params = new URL(url).searchParams;
-    calls.push([params.get("text"), params.get("type")]);
-    return Response.json({ results: params.get("type") === "amenity"
-      ? [row("fixture-station", "小樽", { category: "public_transport.train" }), row("fixture-city-hall", "小樽市役所", { category: "office" })]
-      : [row("fixture-post", "小樽駅前郵便局", { category: "service.post" })] });
-  });
-  assert.deepEqual(calls, [["小樽駅", null], ["小樽", "amenity"]]);
-  assert.deepEqual(result.results.map(({ id }) => id), ["fixture-station", "fixture-post"]);
-  const once = [];
-  await queryGeoapify("札幌駅", "fixture", async (url) => {
-    once.push(new URL(url).searchParams.get("text"));
-    return Response.json({ results: [row("fixture-sapporo", "札幌駅", { category: "public_transport.train" })] });
-  });
-  assert.deepEqual(once, ["札幌駅"]);
 });
 
 test("the trip area is the median of saved coordinates and a destination city lookup", async () => {
