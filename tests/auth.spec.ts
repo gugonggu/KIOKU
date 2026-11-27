@@ -305,6 +305,9 @@ test("suite offline saves an owner snapshot, reloads disconnected and clears on 
   await expect(offline.getByRole("heading", { name: "가상 오프라인 삿포로" })).toBeVisible();
   // Trip pages opened or reloaded offline fall back to the static shell, which finds the trip from the path.
   for (const path of [trip + "/itinerary?date=2027-02-17", trip + "/map"]) {
+    // Chromium's offline emulation can fire `online` while the next navigation starts, and the shell's
+    // reconnect reload then cancels it (CI: /map ERR_ABORTED, frame back on the itinerary). Leave the shell first.
+    await offline.goto("about:blank");
     const events: string[] = [];
     const onNav = (frame: import("@playwright/test").Frame) => { if (frame === offline.mainFrame()) events.push("nav " + frame.url()); };
     const onFail = (req: import("@playwright/test").Request) => events.push("fail " + req.url() + " " + req.failure()?.errorText);
