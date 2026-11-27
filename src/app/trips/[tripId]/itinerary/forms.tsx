@@ -143,7 +143,7 @@ export function ScheduleEditor({ action, cancel, item, date, places, initialPlac
         <span><Clock3 size={16} aria-hidden />{values.time_mode === "FIXED" ? values.fixed_local_time || "정확한 시각" :
           values.time_mode === "PERIOD" ? periods[values.period as keyof typeof periods] || "시간대 선택" : "시간 미정"}</span>
       </div>}
-      <details open={item || initialPlace || prefill ? true : undefined}>
+      <details open={item || initialPlace || prefill?.local_date || prefill?.time_mode ? true : undefined}>
         <summary className="quiet-link">일정 상세 설정</summary>
         <div className="plan-fields itinerary-details">
           <div className="plan-pair">

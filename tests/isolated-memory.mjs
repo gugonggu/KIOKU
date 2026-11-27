@@ -265,8 +265,8 @@ async function verifyMemory({ owner, visitor, path, tripId, date }) {
   assert.equal((await page.pdf({ preferCSSPageSize: true })).subarray(0, 5).toString(), "%PDF-");
   await page.goto(path + "/memory?date=" + date);
   await gallery.getByText("사진 관리", { exact: true }).click();
-  page.once("dialog", (dialog) => { void dialog.accept(); });
-  await gallery.getByRole("button", { name: "사진 삭제" }).click();
+  await gallery.getByRole("button", { name: "사진 삭제", exact: true }).click();
+  await gallery.getByRole("button", { name: "사진 삭제 확인" }).click();
   await expect(gallery).toHaveCount(0);
   assert.equal((await page.request.get(imagePath)).status(), 404);
   assert.ok((await admin.storage.from("trip-memory").download(filename)).error);

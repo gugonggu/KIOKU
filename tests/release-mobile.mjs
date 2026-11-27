@@ -101,8 +101,8 @@ async function verifyAndroid({ app, path, tripId, signIn }) {
     await expectAndroid(page.getByRole("img", { name: "Android 시험용 사진", exact: true })).toBeVisible();
     const photo = page.locator(".memory-card").filter({ hasText: "Android 시험용 사진" });
     await photo.getByText("사진 관리", { exact: true }).click();
-    page.once("dialog", (dialog) => { void dialog.accept(); });
-    await photo.getByRole("button", { name: "사진 삭제" }).click();
+    await photo.getByRole("button", { name: "사진 삭제", exact: true }).click();
+    await photo.getByRole("button", { name: "사진 삭제 확인" }).click();
     await expectAndroid(photo).toHaveCount(0);
     console.log("PASS Android Chrome: fixture file input, upload and photo deletion.");
 

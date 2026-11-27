@@ -36,7 +36,7 @@ export function PreparationList({ tripId, items }: { tripId: string; items: Prep
         <button className="primary-button" disabled={pending}>항목 추가</button>
       </form>
     </details>
-    <details className="editorial-paper suite-stack prep-tool" open={!items.length || undefined}>
+    <details className="editorial-paper suite-stack prep-tool">
       <summary><Sparkles size={18} aria-hidden />여행 준비 템플릿</summary>
       <p className="plan-meta">여행에 맞게 추가하거나 수정할 수 있는 준비 예시예요.</p>
       <form action={action} className="state-actions prep-templates">

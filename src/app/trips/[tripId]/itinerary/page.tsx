@@ -195,7 +195,7 @@ export default async function ItineraryPage({ params, searchParams }: PageProps<
             <p className="plan-empty">날짜를 아직 정하지 않은 일정이 없어요.</p>
             : date ? onDay.length ? <ScheduleList key={back} items={onDay} tripId={trip.id} date={date} places={plan.places} bookings={bookings} visits={visitStatusesById} /> :
               <div className="plan-empty itinerary-empty-day"><p>이 날짜에 등록된 일정이 없어요.</p>
-                <Link href={add} scroll={false} className="primary-button itinerary-empty-add"><Plus size={17} aria-hidden />첫 일정 추가</Link></div>
+                <Link href={add} scroll={false} className="primary-button itinerary-empty-add"><Plus size={17} aria-hidden />첫 일정 만들기</Link></div>
               : <p className="plan-empty">여행 기간을 정하면 날짜별로 일정을 볼 수 있어요. <Link href={`${homeHref}/edit#trip-dates`} className="quiet-link">여행 날짜 정하기</Link></p>}
           <Link href={add} scroll={false} className="editorial-add" data-itinerary-add>
             <Plus size={21} aria-hidden /><span>{addLabel}</span>
