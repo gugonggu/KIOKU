@@ -108,3 +108,64 @@
     max-height: min(34dvh, 320px, max(120px, calc(100dvh - 422px - env(safe-area-inset-bottom))));
   }
 }
+
+/* v1.1.2: Korean text breaks between words in headings and controls; long strings still wrap. */
+.editorial-page :is(h1, h2, h3, h4, .primary-button, .quiet-link, .editorial-back, .editorial-time),
+.editorial-page .trip-home-actions a, .editorial-tabs a {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+/* v1.1.2: the itinerary side panel keeps long names and addresses inside its 246px column. */
+.editorial-side-panel, .editorial-side-panel > *, .editorial-side-panel ul, .editorial-side-panel li,
+.editorial-side-panel li a, .editorial-side-heading h2 { min-width: 0; }
+.editorial-side-panel li.editorial-side-place > a > div strong { display: block; overflow-wrap: anywhere; }
+
+/* v1.1.2: place search rows show type and area so similar names can be told apart. */
+.places-suggestion-meta { font-size: .74rem; font-weight: 650; color: #3f6150; }
+
+/* v1.1.2: each booking slot (flight segment, check-in, check-out) gets its own itinerary draft link. */
+.booking-schedule-adds { display: flex; flex-wrap: wrap; gap: 8px; }
+.booking-schedule-alt { display: inline-flex; align-items: center; min-height: 44px; padding-inline: 14px; border: 1px solid var(--color-primary); border-radius: 10px; color: var(--color-primary); }
+
+/* v1.1.2: shared progress bar (home readiness and preparation page). */
+.kioku-progress {
+  width: 100%; height: .5rem; border: 0; border-radius: 999px; overflow: hidden;
+  appearance: none; background: var(--ed-sage);
+}
+.kioku-progress::-webkit-progress-bar { background: var(--ed-sage); }
+.kioku-progress::-webkit-progress-value { background: var(--color-primary); }
+.kioku-progress::-moz-progress-bar { background: var(--color-primary); }
+
+/* v1.1.2: preparation checklist uses the same paper cards, green accent and 44px controls as other screens. */
+.prep-page summary::before, .prep-page details[open] > summary::before { content: none; }
+.prep-page summary { list-style: none; }
+.prep-page summary::-webkit-details-marker { display: none; }
+.prep-progress .suite-check input { accent-color: var(--color-primary); width: 1.15rem; height: 1.15rem; }
+.prep-tool > summary { color: var(--color-primary); font-weight: 650; }
+.prep-templates { gap: 8px; }
+.prep-group > summary { justify-content: space-between; font-weight: 750; font-size: 1.02rem; }
+.prep-group > summary::after { content: "⌄"; color: var(--color-muted-ink); transition: transform .15s; }
+.prep-group:not([open]) > summary::after { transform: rotate(-90deg); }
+.prep-count { margin-inline-start: auto; padding: 1px 9px; border-radius: 999px; background: var(--ed-sage); color: #28503a; font-size: .75rem; font-weight: 650; }
+.prep-items { display: grid; }
+.prep-item { display: grid; gap: 2px; border-top: 1px solid var(--ed-line); padding-block: 4px; }
+.prep-item-main { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.prep-item-main strong { font-weight: 600; word-break: keep-all; overflow-wrap: anywhere; }
+.prep-item[data-done] .prep-item-main strong { color: var(--color-muted-ink); text-decoration: line-through; text-decoration-color: var(--color-sage); }
+.prep-check { display: inline-grid; place-items: center; flex: none; width: 44px; height: 44px; border-radius: 999px; color: var(--color-field); cursor: pointer; }
+.prep-check[aria-pressed="true"] { color: var(--color-primary); }
+.prep-check:hover { background: var(--ed-sage); }
+.prep-item > .plan-meta { padding-inline-start: 50px; }
+.prep-edit { padding-inline-start: 50px; }
+.prep-edit > summary { min-height: 36px; width: fit-content; color: var(--color-muted-ink); font-size: .82rem; }
+
+/* v1.1.2: inline two-step confirmation replaces browser confirm dialogs. */
+.confirm-inline { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 4px 10px; border-radius: 10px; background: var(--ed-peach); }
+.confirm-inline-message { font-size: .85rem; color: #513c30; }
+.confirm-inline-actions { display: inline-flex; gap: 4px; }
+
+/* v1.1.2: on phones the add button is an icon; an empty day also shows a labelled first step. */
+.itinerary-empty-day { display: grid; justify-items: center; gap: 10px; }
+.itinerary-empty-add { gap: 6px; }
+@media (min-width: 840px) { .itinerary-empty-add { display: none; } }

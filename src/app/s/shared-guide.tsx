@@ -69,7 +69,7 @@ export function SharedGuide({ trip, requested, href, preserveFragment = false }:
     if (place) dayPlaces.set(JSON.stringify([place.name, place.address, place.latitude, place.longitude]), place);
   }
   const winter = /삿포로|홋카이도|札幌|北海道|sapporo|hokkaido/i.test(trip.destination);
-  return <div className="editorial-page shared-guide">
+  return <div className="editorial-page editorial-overview shared-guide">
     <article className="editorial-hero" id="guide-home">
       <div className={"editorial-cover" + (winter ? "" : " editorial-cover-neutral")} aria-hidden="true">{!winter && <Cover />}</div>
       <div className="editorial-hero-content">
