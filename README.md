@@ -6,7 +6,7 @@ A travel journal for planning, exploring, and remembering Japan.
 
 [운영 사이트](https://kioku-trip.vercel.app) · [가상 여행 예제](examples/sapporo-2027/README.md) · [v1.1 제품 검증](V1_1_PRODUCT_REVIEW.md)
 
-운영 버전은 [KIOKU v1.1.2](https://github.com/gugonggu/KIOKU/releases/tag/v1.1.2)입니다. 여행 근처를 우선하는 장소 검색과 한국어 재검색, 일정 수정의 장소 변경, 예약 기반 일정 초안, 여행 준비 화면, 오프라인 접근을 개선했습니다. 실사용과 유지보수는 `main`과 [제품 범위](docs/PRODUCT_SCOPE.md)를 기준으로 합니다. [개발 이력](DEVELOPMENT_HISTORY.md)에서 실제 검증과 운영 설정 상태를 확인할 수 있습니다.
+운영 버전은 [KIOKU v1.1.3](https://github.com/gugonggu/KIOKU/releases/tag/v1.1.3)입니다. 서버 함수를 데이터베이스와 같은 서울 리전에서 실행하고 화면별 조회를 한 단계로 줄여, 화면 표시와 저장이 약 2~5배 빨라졌습니다. 실사용과 유지보수는 `main`과 [제품 범위](docs/PRODUCT_SCOPE.md)를 기준으로 합니다. [개발 이력](DEVELOPMENT_HISTORY.md)에서 실제 검증과 운영 설정 상태를 확인할 수 있습니다.
 
 <img src="examples/sapporo-2027/schedule-preview.png" width="320" alt="가상 삿포로 여행의 모바일 날짜별 일정 화면">
 
