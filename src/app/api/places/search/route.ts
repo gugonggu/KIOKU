@@ -35,11 +35,13 @@ export async function GET(request: Request) {
   if (!task) {
     if (pending.size >= 32) return Response.json({ status: "limited" }, { status: 429, headers });
     task = (async (): Promise<GeoapifyResult> => {
-      const quota = await client.rpc("authorize_place_search", { p_trip: tripId });
+      // The quota check and the trip's own coordinates are independent; the quota still gates every provider call.
+      const [quota, located] = await Promise.all([
+        client.rpc("authorize_place_search", { p_trip: tripId }),
+        client.from("trip_places").select("latitude,longitude").eq("trip_id", tripId).not("latitude", "is", null).limit(200),
+      ]);
       if (quota.error) return { status: "unavailable" };
       if (!quota.data) return { status: "limited" };
-      const located = await client.from("trip_places").select("latitude,longitude").eq("trip_id", tripId)
-        .not("latitude", "is", null).limit(200);
       let area = located.error ? undefined : placesArea(located.data ?? []);
       if (!area && trip.data?.destination_label) {
         const label = tripId + ":" + trip.data.destination_label;

@@ -1,17 +1,18 @@
 import { ArrowLeft, CalendarDays, Camera, ChevronRight, Download, MapPin, PencilLine, Plus, Share2, UsersRound } from "lucide-react";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { Blossom } from "@/components/brand";
 import { DefaultTripCover } from "@/components/cover";
 import { OfflineHomeStatus } from "@/components/offline-controls";
 import { requireUser } from "@/lib/auth";
-import { loadBookings, loadBookingSummaries } from "@/lib/trip-booking-data";
+import { loadBookings } from "@/lib/trip-booking-data";
 import { bookingKinds, bookingOccursOn } from "@/lib/trip-bookings";
 import { dateLabel, monthDayLabel } from "@/lib/trip-details";
 import { directionsUrl } from "@/lib/trip-places";
 import { nextFixedSchedule, nextHomeRefresh, sortSchedule, tripHomeDay } from "@/lib/trip-plan";
 import { loadTripPlan } from "@/lib/trip-plan-data";
-import { getTrip } from "@/lib/trips";
+import { getTrip, isTripId } from "@/lib/trips";
 import { loadPreparation } from "@/lib/trip-preparation-data";
 import { preparationProgress } from "@/lib/trip-preparation";
 import { loadMemoryCover } from "@/lib/trip-memory-data";
@@ -29,17 +30,18 @@ export const metadata = { title: "여행 수첩" };
 
 export default async function TripPage({ params }: PageProps<"/trips/[tripId]">) {
   const { tripId } = await params;
-  const { data: trip, error } = await getTrip(tripId);
+  if (!isTripId(tripId)) notFound();
+  // Ownership and data load in one round of queries. RLS limits every query to the owner; the trip check still gates rendering.
+  const [{ data: trip, error }, plan, fullBookings, preparation, cover, owner] = await Promise.all([
+    getTrip(tripId), loadTripPlan(tripId), loadBookings(tripId), loadPreparation(tripId), loadMemoryCover(tripId), requireUser(),
+  ]);
   if (error || !trip) return <TripLoadError />;
   const now = new Date();
   const { today, date, status, offset } = tripHomeDay(trip, now);
   const active = status === "active";
-  const [plan, dailyBookings, bookingSummaries, preparation, cover, owner] = await Promise.all([
-    loadTripPlan(trip.id), active ? loadBookings(trip.id) : null, active ? null : loadBookingSummaries(trip.id), loadPreparation(trip.id), loadMemoryCover(trip.id),
-    requireUser(),
-  ]);
   const readiness = preparation && preparationProgress(preparation);
-  const bookings = active ? dailyBookings : bookingSummaries;
+  const bookings = active ? fullBookings
+    : fullBookings?.map(({ id, kind, title, status: bookingStatus }) => ({ id, kind, title, status: bookingStatus }));
   const href = `/trips/${trip.id}`;
   const scheduleHref = itineraryHref(trip.id, date);
   const groups = new Map<string, string>();
@@ -51,7 +53,7 @@ export default async function TripPage({ params }: PageProps<"/trips/[tripId]">)
   const nextPlace = nextItem?.place_id ? plan?.places.find((place) => place.id === nextItem.place_id) : undefined;
   const nextDirections = nextPlace && directionsUrl({ ...nextPlace, address_text: nextPlace.address });
   const linkedBookings = new Set(dayItems.map(({ booking_id }) => booking_id));
-  const todayBookings = dailyBookings?.filter((booking) => bookingOccursOn(booking, today, linkedBookings.has(booking.id)));
+  const todayBookings = (active ? fullBookings : null)?.filter((booking) => bookingOccursOn(booking, today, linkedBookings.has(booking.id)));
   const refreshAt = active || status === "upcoming" ? nextHomeRefresh(today, nextItem?.fixed_local_time) : null;
   const candidateCount = plan?.schedule.filter((item) => !item.local_date).length;
   const dayAction = date === today ? "오늘 일정 바로가기" : date

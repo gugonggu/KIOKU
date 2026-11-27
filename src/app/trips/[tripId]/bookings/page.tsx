@@ -9,7 +9,7 @@ import { bookingSlots } from "@/lib/booking-slots";
 import { bookingKinds } from "@/lib/trip-bookings";
 import { dateLabel, isCalendarDate, japanDate } from "@/lib/trip-details";
 import { planDay } from "@/lib/trip-plan";
-import { getTrip } from "@/lib/trips";
+import { getTrip, isTripId } from "@/lib/trips";
 import { TripLoadError } from "../../trip-load-error";
 import { timeLabel, TripTabs } from "../editorial";
 import { itineraryEntryHref, itineraryHref } from "../itinerary/links";
@@ -22,9 +22,10 @@ export const metadata = { title: "예약" };
 
 export default async function BookingsPage({ params, searchParams }: PageProps<"/trips/[tripId]/bookings">) {
   const [{ tripId }, query] = await Promise.all([params, searchParams]);
-  const { data: trip, error } = await getTrip(tripId);
+  if (!isTripId(tripId)) notFound();
+  // Ownership and data load in one round of queries. RLS limits every query to the owner; the trip check still gates rendering.
+  const [{ data: trip, error }, rows] = await Promise.all([getTrip(tripId), loadBookings(tripId)]);
   if (error || !trip) return <TripLoadError />;
-  const rows = await loadBookings(trip.id);
   const groups = (Object.keys(bookingKinds) as BookingKind[])
     .map((kind) => ({ kind, bookings: rows?.filter((booking) => booking.kind === kind) ?? [] }))
     .filter(({ bookings }) => bookings.length > 0);

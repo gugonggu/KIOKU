@@ -1,11 +1,12 @@
 import { ArrowLeft, Eye } from "lucide-react";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { SharedGuide } from "@/app/s/shared-guide";
 import { isCalendarDate } from "@/lib/trip-details";
 import { loadSharePreview, loadShareSettings } from "@/lib/trip-share-data";
 import { shareKey } from "@/lib/trip-share-token";
-import { getTrip } from "@/lib/trips";
+import { getTrip, isTripId } from "@/lib/trips";
 import { TripLoadError } from "../../trip-load-error";
 import { revealShare, saveShare } from "./actions";
 import { ShareForm } from "./share-form";
@@ -15,12 +16,16 @@ export const metadata = { title: "여행 공유" };
 
 export default async function SharePage({ params, searchParams }: PageProps<"/trips/[tripId]/share">) {
   const [{ tripId }, query] = await Promise.all([params, searchParams]);
-  const { data: trip, error } = await getTrip(tripId);
+  if (!isTripId(tripId)) notFound();
+  const previewing = query.preview === "1";
+  // Ownership and data load in one round of queries. RLS limits every query to the owner; the trip check still gates rendering.
+  const [{ data: trip, error }, preview, settings] = await Promise.all([
+    getTrip(tripId), previewing ? loadSharePreview(tripId) : null, previewing ? null : loadShareSettings(tripId),
+  ]);
   if (!trip || error) return <TripLoadError />;
   const home = "/trips/" + trip.id;
   const share = home + "/share";
-  if (query.preview === "1") {
-    const preview = await loadSharePreview(trip.id);
+  if (previewing) {
     const date = typeof query.date === "string" && isCalendarDate(query.date) ? query.date : undefined;
     return <>
       <div className="editorial-page share-preview-bar"><Link className="quiet-link" href={share}><ArrowLeft size={16} aria-hidden />공유 설정</Link>
@@ -28,7 +33,6 @@ export default async function SharePage({ params, searchParams }: PageProps<"/tr
       {preview ? <SharedGuide trip={preview} requested={date} href={(day) => share + "?preview=1&date=" + day + "#guide-itinerary"} /> : <TripLoadError />}
     </>;
   }
-  const settings = await loadShareSettings(trip.id);
   return <div className="editorial-page share-settings">
     <header className="editorial-itinerary-header">
       <div><Link className="quiet-link editorial-back" href={home}><ArrowLeft size={16} aria-hidden />{trip.title}</Link><h1>여행 공유</h1></div>
