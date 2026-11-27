@@ -1,5 +1,13 @@
 # KIOKU 개발 이력
 
+### 2026-11-27 v1.1.2 운영 릴리스
+
+- 운영 `dpl_29P2DEhURxeCk3XjsnqC3gKKrotM`(Ready) = main = annotated tag `v1.1.2` → `85c44d5ce973692d6aebcb4fa7f644f7218e7825`. main CI 성공(run 45924914330). [Release](https://github.com/gugonggu/KIOKU/releases/tag/v1.1.2) · 롤백 대상 v1.1.1 `dpl_3rXZhKaAVP4KcyKDyDYavUApJXRC`.
+- PR #11 병합 후 운영 실검색에서 근처 편향만으로는 오타루역·오도리 공원 순위가 나빠지는 것을 확인했습니다. PR #12(근처·전국 병합 정렬), PR #13(오프라인 셸 새로고침 조건·오프라인 E2E·제목 줄바꿈)로 보정했습니다. 중간 운영 배포는 `dpl_FY2CoaNZ3rF7YJ9rGFHbHnLjMNLK`, `dpl_Eho76abH3Jx3C7nnjg5VSdpBKP7h`입니다.
+- Preview의 Sensitive `GEOAPIFY_API_KEY`는 값은 그대로 두고 대상 브랜치만 `fix/v1.1.2-final-polish`로 바꿨습니다(소유자 승인). Production 키는 변경하지 않았습니다. Preview는 Vercel 보호 때문에 공개 경로만 확인했습니다.
+- 운영 가상 여행 `KIOKU v1.1.2 QA`에서 다음을 확인했습니다: 준비 화면과 인라인 삭제 확인, 항공 2구간 예약 → 2구간 초안(11-29 17:00) 저장, 일정 수정에서 오타루역 검색으로 장소를 바꾼 뒤 제목·이동 유형·시간 유지, 1024·1440 일정 가로 넘침 없음, 긴 제목 공유 화면 어절 줄바꿈, 공유 중지 후 차단, 위치 선택 지도가 여행 장소에서 시작, 오프라인 수첩 날짜 형식. 검증 후 수첩과 여행을 앱에서 삭제했습니다. 기존 여행 4개는 변경하지 않았습니다.
+- 오프라인 새로고침은 Orca의 오프라인 전환이 새로고침 때 해제되어, 격리 Playwright(Chromium 오프라인)에서 여행 일정·지도 주소의 셸 대체를 확인했습니다.
+
 ### 2026-11-27 v1.1.2 여행 준비와 현장 사용성 개선
 
 - v1.1.1 제품 평가(로컬 `docs/qa/v1.1.1/FINDINGS.md`)의 N-01~N-16을 기준으로 고쳤습니다. 신규 기능, DB migration, RLS·Auth 변경은 없습니다. PR #11·#12·#13.
