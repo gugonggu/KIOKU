@@ -330,7 +330,8 @@ test("suite offline saves an owner snapshot, reloads disconnected and clears on 
   await expect(page).toHaveURL(/\/login$/);
   await page.goto("/trips");
   await expect(page).toHaveURL(/\/login$/);
-  await expect(offline.getByText("이 기기에 저장된 수첩이 없습니다.")).toBeVisible();
+  // Check the status line itself so a failure reports what the shell showed instead.
+  await expect(offline.locator("#offline-status")).toHaveText(/^이 기기에 저장된 수첩이 없습니다\./);
   await page.goto("/auth/confirm?type=email&token_hash=local-fixture-link");
   await page.goto(trip + "/offline");
   await page.getByRole("button", { name: "오프라인 수첩 저장" }).click();
