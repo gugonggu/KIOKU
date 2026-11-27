@@ -323,6 +323,7 @@ test("suite offline saves an owner snapshot, reloads disconnected and clears on 
     await expect(offline.getByRole("heading", { name: "가상 오프라인 삿포로" })).toBeVisible({ timeout: 10_000 });
   }
   // At a trip URL the shell reloads into the real page when the connection returns; keep the sign-out check on /offline.html.
+  await offline.goto("about:blank"); // Same reconnect-reload race as above: leave the trip-URL shell first.
   await offline.goto("/offline.html?trip=" + tripId);
   await context.setOffline(false);
   await page.goto("/trips");

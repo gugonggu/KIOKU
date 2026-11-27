@@ -39,6 +39,15 @@ test("searches near the trip merge a proximity-biased and a nationwide request",
   const half = await queryGeoapify("Sapporo Station", "fixture", async (url) => new URL(url).searchParams.get("bias").startsWith("proximity")
     ? new Response(null, { status: 500 }) : Response.json({ results: [row("fixture-1", "Sapporo Station")] }), { latitude: 43, longitude: 141 });
   assert.deepEqual(half.results.map(({ id }) => id), ["fixture-1"]);
+  // A request that times out (fetch rejects) must not discard the other request's places either.
+  const timeout = () => Promise.reject(new DOMException("The operation was aborted due to timeout", "TimeoutError"));
+  for (const slow of ["proximity", "countrycode"]) {
+    const partial = await queryGeoapify("Sapporo Station", "fixture", async (url) => new URL(url).searchParams.get("bias").startsWith(slow)
+      ? timeout() : Response.json({ results: [row("fixture-1", "Sapporo Station")] }), { latitude: 43, longitude: 141 });
+    assert.deepEqual(partial, { status: "ok", results: [{ id: "fixture-1", name: "Sapporo Station", address: "Sapporo Station, Japan",
+      latitude: 43.06, longitude: 141.35, language: "en" }] }, slow);
+  }
+  assert.deepEqual(await queryGeoapify("Sapporo Station", "fixture", timeout, { latitude: 43, longitude: 141 }), { status: "unavailable" });
 });
 
 test("ranking prefers exact names, then places over streets, then the nearest branch", () => {

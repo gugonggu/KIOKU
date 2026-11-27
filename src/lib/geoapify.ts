@@ -95,10 +95,12 @@ async function requestPlaces(text: string, language: Language, key: string, requ
 }
 
 // A proximity bias alone can push the named place out of the top results, so near and nationwide results
-// are requested together and merged. Each request costs one provider credit.
+// are requested together and merged. Each request costs one provider credit. A request that times out or
+// throws counts as unavailable so the other request's places are still shown.
 async function searchText(text: string, language: Language, key: string, request: typeof fetch, area?: SearchArea) {
   if (!area) return requestPlaces(text, language, key, request);
-  const [near, wide] = await Promise.all([requestPlaces(text, language, key, request, area), requestPlaces(text, language, key, request)]);
+  const settle = (task: Promise<ProviderResult>) => task.catch((): ProviderResult => ({ status: "unavailable" }));
+  const [near, wide] = await Promise.all([settle(requestPlaces(text, language, key, request, area)), settle(requestPlaces(text, language, key, request))]);
   if (near.status !== "ok" && wide.status !== "ok") return near;
   const rows = [...(near.status === "ok" ? near.results : []), ...(wide.status === "ok" ? wide.results : [])];
   return { status: "ok" as const, results: [...new Map(rows.map((row) => [row.id, row])).values()] };
